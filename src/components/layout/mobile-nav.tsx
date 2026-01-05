@@ -2,8 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, User, Settings, LogIn } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Home, User } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 const navItems = [
   { href: '/', label: '首頁', icon: Home },
@@ -12,6 +15,30 @@ const navItems = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+    
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Hide navigation when user is not authenticated
+  if (loading || !user) {
+    return null;
+  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background md:hidden">

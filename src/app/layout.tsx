@@ -25,7 +25,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Header />
-          <main className="container mx-auto px-4 pb-20 md:pb-4">
+          <main className="mx-auto w-full max-w-5xl px-4 pb-20 md:pb-4">
             {children}
           </main>
           <MobileNav />
