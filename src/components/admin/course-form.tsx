@@ -139,7 +139,7 @@ export function CourseForm() {
                 onSubmit={form.handleSubmit(onSubmit as any, (errors) => {
                     console.log('Form validation failed:', errors);
                 })}
-                className="space-y-6 pb-32 relative"
+                className="space-y-6 pb-32"
             >
                 {/* Header - Desktop */}
                 <div className="hidden sm:flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md py-4 border-b">
@@ -148,14 +148,6 @@ export function CourseForm() {
                         <p className="text-muted-foreground text-sm">填寫課程資訊以建立新課程</p>
                     </div>
                     <div className="flex gap-2">
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? (
-                                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                            ) : (
-                                <Save className="mr-2 h-4 w-4" />
-                            )}
-                            {isSubmitting ? '儲存中...' : '儲存'}
-                        </Button>
                         <Button
                             variant="outline"
                             type="button"
@@ -163,6 +155,14 @@ export function CourseForm() {
                         >
                             <X className="mr-2 h-4 w-4" />
                             取消
+                        </Button>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? (
+                                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                            ) : (
+                                <Save className="mr-2 h-4 w-4" />
+                            )}
+                            {isSubmitting ? '儲存中...' : '儲存'}
                         </Button>
                     </div>
                 </div>
@@ -391,7 +391,10 @@ export function CourseForm() {
                 </div>
 
                 {/* Mobile Bottom Bar */}
-                <div className="flex sm:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-md border-t gap-2 z-[100] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+                <div className="flex sm:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-md border-t shadow-[0_-4px_12px_rgba(0,0,0,0.05)] gap-2 z-[999] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+                    <Button variant="outline" type="button" onClick={() => router.push('/admin/courses')} className="flex-1 font-semibold h-11">
+                        取消
+                    </Button>
                     <Button type="submit" className="flex-1 font-semibold h-11" disabled={isSubmitting}>
                         {isSubmitting ? (
                             <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -399,9 +402,6 @@ export function CourseForm() {
                             <Save className="mr-2 h-4 w-4" />
                         )}
                         {isSubmitting ? '儲存中...' : '儲存'}
-                    </Button>
-                    <Button variant="outline" type="button" onClick={() => router.push('/admin/courses')} className="flex-1 font-semibold h-11">
-                        取消
                     </Button>
                 </div>
             </form>

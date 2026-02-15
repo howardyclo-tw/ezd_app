@@ -20,7 +20,7 @@ export function MobileNav() {
 
   useEffect(() => {
     const supabase = createClient();
-    
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
       setLoading(false);
@@ -35,8 +35,10 @@ export function MobileNav() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Hide navigation when user is not authenticated
-  if (loading || !user) {
+  // Hide navigation when user is not authenticated or on pages with their own action bars
+  const isFormPage = pathname?.includes('/admin/courses/new') || pathname?.includes('/admin/courses/edit');
+
+  if (loading || !user || isFormPage) {
     return null;
   }
 
