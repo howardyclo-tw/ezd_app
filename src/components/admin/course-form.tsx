@@ -25,11 +25,18 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Upload, Save, X, Clock } from 'lucide-react';
-import { format } from 'date-fns';
+import { CalendarIcon, Upload, Save, X, Clock, Plus, Trash2 } from 'lucide-react';
+import { format, addDays } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+
+const sessionSchema = z.object({
+    date: z.date({
+        message: '請選擇日期',
+    }),
+});
 
 const courseSchema = z.object({
     name: z.string().min(2, { message: '課程名稱至少 2 個字' }),
@@ -44,6 +51,7 @@ const courseSchema = z.object({
     first_session_at: z.date({
         message: '請選擇日期',
     }),
+    sessions: z.array(sessionSchema).min(1, { message: '至少需要一堂課' }),
 });
 
 type CourseFormValues = z.infer<typeof courseSchema>;
@@ -113,10 +121,37 @@ export function CourseForm() {
             start_time: '19:00',
             end_time: '20:30',
             sessions_count: 8,
-            capacity: 20,
+            capacity: 30,
             status: 'draft',
+            sessions: [],
         },
     });
+
+    const { watch, setValue, control } = form;
+    const firstDate = watch('first_session_at');
+    const sessionsCount = watch('sessions_count');
+
+    // Auto-generate sessions when start date or count changes
+    useEffect(() => {
+        if (!firstDate || !sessionsCount) return;
+
+        const currentSessions = form.getValues('sessions');
+
+        // Only generate if the list is empty or the count changed significantly
+        // Or if we specifically want to reset it when firstDate changes
+        const newSessions = Array.from({ length: sessionsCount }, (_, i) => {
+            // Keep existing manual changes if possible, otherwise generate weekly
+            if (currentSessions[i] && i > 0) {
+                // If it's not the first one, we might want to keep it
+                // But if firstDate changed, everything usually shifts.
+                // For MVP simplicity: if firstDate changes, we reset all.
+                return { date: addDays(firstDate, i * 7) };
+            }
+            return { date: addDays(firstDate, i * 7) };
+        });
+
+        setValue('sessions', newSessions, { shouldValidate: true });
+    }, [firstDate, sessionsCount, setValue]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -250,7 +285,7 @@ export function CourseForm() {
                     </Card>
 
                     {/* 課程安排 */}
-                    <Card className="shadow-sm border-muted/60">
+                    <Card className="md:col-span-2 shadow-sm border-muted/60">
                         <CardHeader>
                             <CardTitle>課程安排</CardTitle>
                             <CardDescription>設定上課時間與人數</CardDescription>
@@ -261,7 +296,7 @@ export function CourseForm() {
                                 name="first_session_at"
                                 render={({ field }) => (
                                     <FormItem className="flex flex-col">
-                                        <FormLabel>日期</FormLabel>
+                                        <FormLabel>第一堂日期</FormLabel>
                                         <Popover>
                                             <PopoverTrigger asChild>
                                                 <FormControl>
@@ -353,11 +388,102 @@ export function CourseForm() {
                                     )}
                                 />
                             </div>
+
+                            {/* Sessions Schedule Section */}
+                            {firstDate && (
+                                <div className="mt-8 space-y-4 pt-6 border-t">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div className="space-y-1">
+                                            <h3 className="text-sm font-semibold text-primary">課程進度明細</h3>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">系統已依據第一堂日期推算，您可手動調整單堂日期。</p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-xs h-8 w-full sm:w-auto mt-1 sm:mt-0"
+                                            onClick={() => {
+                                                const current = form.getValues('sessions');
+                                                setValue('sessions', [...current, { date: addDays(current[current.length - 1]?.date || firstDate, 7) }]);
+                                                setValue('sessions_count', current.length + 1);
+                                            }}
+                                        >
+                                            <Plus className="h-3 w-3 mr-1" /> 加一堂
+                                        </Button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                                        {form.watch('sessions')?.map((session, index) => (
+                                            <div key={index} className="flex items-center gap-2 p-2 sm:p-3 rounded-lg border bg-muted/30 transition-colors hover:bg-muted/50">
+                                                <div className="flex-none flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                                                    {index + 1}
+                                                </div>
+                                                <FormField
+                                                    control={form.control as any}
+                                                    name={`sessions.${index}.date`}
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex-1 space-y-0">
+                                                            <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                    <FormControl>
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            className={cn(
+                                                                                "w-full h-9 px-3 text-left font-normal bg-background text-sm",
+                                                                                !field.value && "text-muted-foreground"
+                                                                            )}
+                                                                        >
+                                                                            <span className="truncate">
+                                                                                {field.value ? (
+                                                                                    format(field.value, "PPP", { locale: zhTW })
+                                                                                ) : (
+                                                                                    "選擇日期"
+                                                                                )}
+                                                                            </span>
+                                                                            <CalendarIcon className="ml-auto h-3 w-3 opacity-50 shrink-0" />
+                                                                        </Button>
+                                                                    </FormControl>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-auto p-0" align="start">
+                                                                    <Calendar
+                                                                        mode="single"
+                                                                        selected={field.value}
+                                                                        defaultMonth={field.value}
+                                                                        onSelect={field.onChange}
+                                                                        initialFocus
+                                                                        locale={zhTW}
+                                                                    />
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                {form.watch('sessions').length > 1 && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="flex-none h-9 w-9 text-muted-foreground hover:text-destructive shrink-0"
+                                                        onClick={() => {
+                                                            const current = form.getValues('sessions');
+                                                            const filtered = current.filter((_, i) => i !== index);
+                                                            setValue('sessions', filtered);
+                                                            setValue('sessions_count', filtered.length);
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
                     {/* 課程設定 */}
-                    <Card className="shadow-sm border-muted/60">
+                    <Card className="md:col-span-2 shadow-sm border-muted/60">
                         <CardHeader>
                             <CardTitle>課程設定</CardTitle>
                             <CardDescription>設定課程公開狀態</CardDescription>
