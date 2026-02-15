@@ -42,7 +42,7 @@ const courseSchema = z.object({
     capacity: z.coerce.number().min(1, { message: '人數上限至少 1 人' }),
     status: z.enum(['draft', 'published', 'closed']),
     first_session_at: z.date({
-        required_error: '請選擇日期',
+        message: '請選擇日期',
     }),
 });
 
