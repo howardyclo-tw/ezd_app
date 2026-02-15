@@ -1,12 +1,12 @@
 /**
  * User role types
- * 
+ *
  * - guest: 非社員 (non-member)
  * - member: 社員 (member)
  * - leader: 班長 (class leader)
- * - staff: 幹部 (staff/officer)
+ * - admin: 管理員 (admin / 幹部)
  */
-export type UserRole = 'guest' | 'member' | 'leader' | 'staff';
+export type UserRole = 'guest' | 'member' | 'leader' | 'admin';
 
 /**
  * Profile data structure matching the database schema
@@ -30,30 +30,30 @@ export function hasRole(userRole: UserRole, requiredRole: UserRole): boolean {
     guest: 0,
     member: 1,
     leader: 2,
-    staff: 3,
+    admin: 3,
   };
   
   return roleHierarchy[userRole] >= roleHierarchy[requiredRole];
 }
 
 /**
- * Check if user is a staff member
+ * Check if user is an admin
  */
-export function isStaff(role: UserRole): boolean {
-  return role === 'staff';
+export function isAdmin(role: UserRole): boolean {
+  return role === 'admin';
 }
 
 /**
  * Check if user is a leader
  */
 export function isLeader(role: UserRole): boolean {
-  return role === 'leader' || role === 'staff';
+  return role === 'leader' || role === 'admin';
 }
 
 /**
  * Check if user is a member (has member privileges)
  */
 export function isMember(role: UserRole): boolean {
-  return role === 'member' || role === 'leader' || role === 'staff';
+  return role === 'member' || role === 'leader' || role === 'admin';
 }
 

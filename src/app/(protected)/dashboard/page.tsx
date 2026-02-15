@@ -1,7 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { PlusCircle, LayoutDashboard } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import type { Profile } from '@/types/database';
+import { isAdmin } from '@/types/database';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -27,7 +31,7 @@ export default async function DashboardPage() {
     guest: '非社員',
     member: '社員',
     leader: '班長',
-    staff: '幹部',
+    admin: '幹部',
   };
 
   return (
@@ -78,9 +82,34 @@ export default async function DashboardPage() {
             <CardTitle>快速功能</CardTitle>
             <CardDescription>常用功能入口</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {isAdmin(profile.role) && (
+              <div className="grid gap-2">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">幹部功能</h3>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <Link href="/admin/courses/new">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    新增課程
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <Link href="/admin/courses">
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    課程管理
+                  </Link>
+                </Button>
+              </div>
+            )}
             <p className="text-sm text-muted-foreground">
-              功能開發中，敬請期待...
+              其他功能開發中，敬請期待...
             </p>
           </CardContent>
         </Card>

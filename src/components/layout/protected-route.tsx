@@ -37,7 +37,7 @@ export async function ProtectedRoute({
       guest: 0,
       member: 1,
       leader: 2,
-      staff: 3,
+      admin: 3,
     };
 
     if (roleHierarchy[profile.role as UserRole] < roleHierarchy[requiredRole]) {
