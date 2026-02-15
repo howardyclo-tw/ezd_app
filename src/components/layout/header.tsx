@@ -22,7 +22,7 @@ export function Header() {
 
   useEffect(() => {
     const supabase = createClient();
-    
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
       setLoading(false);
@@ -48,7 +48,7 @@ export function Header() {
   const isAuthPage = ['/', '/login', '/register'].includes(pathname);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold">EZD App</h1>

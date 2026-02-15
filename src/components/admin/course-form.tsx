@@ -139,7 +139,7 @@ export function CourseForm() {
                 onSubmit={form.handleSubmit(onSubmit as any, (errors) => {
                     console.log('Form validation failed:', errors);
                 })}
-                className="space-y-6 pb-32"
+                className="space-y-6"
             >
                 {/* Header - Desktop */}
                 <div className="hidden sm:flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md py-4 border-b">
@@ -390,8 +390,8 @@ export function CourseForm() {
                     </Card>
                 </div>
 
-                {/* Mobile Bottom Bar */}
-                <div className="flex sm:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-md border-t shadow-[0_-4px_12px_rgba(0,0,0,0.05)] gap-2 z-[999] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+                {/* Mobile Bottom Actions (Static) */}
+                <div className="flex sm:hidden gap-3 mt-8 pb-4">
                     <Button variant="outline" type="button" onClick={() => router.push('/admin/courses')} className="flex-1 font-semibold h-11">
                         取消
                     </Button>
