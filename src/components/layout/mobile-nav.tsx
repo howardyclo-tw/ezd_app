@@ -2,50 +2,38 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Home, User } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { ShieldCheck, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { useUserRole } from '@/components/providers/role-provider';
 
 const navItems = [
-  { href: '/', label: '首頁', icon: Home },
-  { href: '/dashboard', label: '儀表板', icon: User },
+  { href: '/dashboard', label: '幹部後台', icon: ShieldCheck, roles: ['admin', 'leader'] },
+  { href: '/courses', label: '課程', icon: Calendar },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { role } = useUserRole();
 
-  useEffect(() => {
-    const supabase = createClient();
+  // Hide navigation on specific form pages if needed, otherwise show if logged in (role !== guest)
+  const isFormPage = pathname?.includes('/courses/new') || pathname?.includes('/courses/edit');
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Hide navigation when user is not authenticated or on pages with their own action bars
-  const isFormPage = pathname?.includes('/admin/courses/new') || pathname?.includes('/admin/courses/edit');
-
-  if (loading || !user || isFormPage) {
+  // If role is guest, it means user is not logged in or just a visitor, so we might hide nav or show only guest items. 
+  // Adjusted logic: Show nav if role is present (even guest might see public pages, but usually we hide for non-login).
+  // Assuming 'guest' means NOT logged in based on previous logic.
+  if (role === 'guest' || isFormPage) {
     return null;
   }
 
+  const filteredItems = navItems.filter(item => {
+    if (!item.roles) return true;
+    return role && item.roles.includes(role);
+  });
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background md:hidden shadow-[0_-1px_10px_rgba(0,0,0,0.05)]">
       <div className="flex h-16 items-center justify-around">
-        {navItems.map((item) => {
+        {filteredItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           return (
@@ -53,14 +41,14 @@ export function MobileNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors',
+                'flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all duration-200',
                 isActive
-                  ? 'text-primary'
+                  ? 'text-primary font-bold'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <Icon className="h-5 w-5" />
-              <span className="text-xs">{item.label}</span>
+              <Icon className={cn("h-5 w-5", isActive && "stroke-[2.5px]")} />
+              <span className="text-[10px] uppercase font-bold tracking-wider">{item.label}</span>
             </Link>
           );
         })}
@@ -68,4 +56,3 @@ export function MobileNav() {
     </nav>
   );
 }
-

@@ -161,7 +161,7 @@ export function CourseForm() {
             console.log('Form submitted:', data);
             // Simulate an API call
             await new Promise((resolve) => setTimeout(resolve, 800));
-            router.push('/admin/courses');
+            router.push('/courses');
         } catch (error) {
             console.error('Failed to save course:', error);
             setIsSubmitting(false);
@@ -186,7 +186,7 @@ export function CourseForm() {
                         <Button
                             variant="outline"
                             type="button"
-                            onClick={() => router.push('/admin/courses')}
+                            onClick={() => router.push('/courses')}
                         >
                             <X className="mr-2 h-4 w-4" />
                             取消
@@ -518,7 +518,7 @@ export function CourseForm() {
 
                 {/* Mobile Bottom Actions (Static) */}
                 <div className="flex sm:hidden gap-3 mt-8 pb-4">
-                    <Button variant="outline" type="button" onClick={() => router.push('/admin/courses')} className="flex-1 font-semibold h-11">
+                    <Button variant="outline" type="button" onClick={() => router.push('/courses')} className="flex-1 font-semibold h-11">
                         取消
                     </Button>
                     <Button type="submit" className="flex-1 font-semibold h-11" disabled={isSubmitting}>

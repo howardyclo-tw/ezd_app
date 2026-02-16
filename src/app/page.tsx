@@ -51,7 +51,7 @@ export default async function Home() {
                 {user.email}
               </p>
               <Button asChild className="w-full">
-                <Link href="/dashboard">前往儀表板</Link>
+                <Link href="/dashboard">進入系統</Link>
               </Button>
             </div>
           ) : (
