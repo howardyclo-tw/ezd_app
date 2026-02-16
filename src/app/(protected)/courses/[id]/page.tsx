@@ -61,81 +61,81 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
     const status = statusMap[course.status] || statusMap['open'];
 
     return (
-        <div className="container max-w-5xl py-6 space-y-6">
+        <div className="container max-w-5xl py-6 space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                 <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8 rounded-full">
-                        <ChevronLeft className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 rounded-full shrink-0 -ml-2">
+                        <ChevronLeft className="h-5 w-5" />
                     </Button>
-                    <h1 className="text-xl font-bold tracking-tight">{course.name}</h1>
+                    <h1 className="text-2xl font-bold tracking-tight leading-tight">{course.name}</h1>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="h-9 text-sm font-bold border-muted">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Button variant="outline" size="sm" className="h-10 text-sm font-bold border-muted flex-1 sm:flex-none shadow-sm">
                         <Edit2 className="h-4 w-4 mr-2" /> 編輯課程
                     </Button>
                 </div>
             </div>
 
             {/* Compact Info Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-muted/30 p-2.5 rounded-lg flex flex-col gap-0.5">
-                    <span className="text-[9px] uppercase font-black text-muted-foreground italic">狀態</span>
-                    <Badge variant="outline" className={cn("px-1.5 py-0 h-4 text-[9px] w-fit font-bold rounded-sm border-none shadow-none", status.color)}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-muted/30 p-3 rounded-xl flex flex-col gap-1">
+                    <span className="text-xs uppercase font-black text-muted-foreground italic tracking-wider">狀態</span>
+                    <Badge variant="outline" className={cn("px-2 py-0.5 h-5 text-xs w-fit font-bold rounded-sm border-none shadow-none", status.color)}>
                         {status.label}
                     </Badge>
                 </div>
-                <div className="bg-muted/30 p-2.5 rounded-lg flex flex-col gap-0.5">
-                    <span className="text-[9px] uppercase font-black text-muted-foreground italic">授課老師</span>
-                    <span className="text-sm font-bold">{course.teacher}</span>
+                <div className="bg-muted/30 p-3 rounded-xl flex flex-col gap-1">
+                    <span className="text-xs uppercase font-black text-muted-foreground italic tracking-wider">授課老師</span>
+                    <span className="text-base font-bold">{course.teacher}</span>
                 </div>
-                <div className="bg-muted/30 p-2.5 rounded-lg flex flex-col gap-0.5">
-                    <span className="text-[9px] uppercase font-black text-muted-foreground italic">上課時間</span>
-                    <span className="text-sm font-bold">{course.startTime} - {course.endTime}</span>
+                <div className="bg-muted/30 p-3 rounded-xl flex flex-col gap-1">
+                    <span className="text-xs uppercase font-black text-muted-foreground italic tracking-wider">上課時間</span>
+                    <span className="text-base font-bold">{course.startTime} - {course.endTime}</span>
                 </div>
-                <div className="bg-muted/30 p-2.5 rounded-lg flex flex-col gap-0.5">
-                    <span className="text-[9px] uppercase font-black text-muted-foreground italic">地點</span>
-                    <span className="text-sm font-bold">{course.room}</span>
+                <div className="bg-muted/30 p-3 rounded-xl flex flex-col gap-1">
+                    <span className="text-xs uppercase font-black text-muted-foreground italic tracking-wider">地點</span>
+                    <span className="text-base font-bold">{course.room}</span>
                 </div>
             </div>
 
             {/* Tabs Section */}
             <Tabs defaultValue="sessions" className="w-full">
-                <TabsList className="w-full justify-start h-9 p-0 bg-transparent border-b rounded-none gap-4">
-                    <TabsTrigger value="sessions" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 text-xs font-bold transition-all">
+                <TabsList className="w-full justify-start h-11 p-0 bg-transparent border-b rounded-none gap-6">
+                    <TabsTrigger value="sessions" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-3 text-sm font-bold transition-all">
                         課堂進度 ({course.sessions.length})
                     </TabsTrigger>
-                    <TabsTrigger value="students" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 text-xs font-bold transition-all">
+                    <TabsTrigger value="students" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-3 text-sm font-bold transition-all">
                         學員名單
                     </TabsTrigger>
-                    <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 text-xs font-bold transition-all">
+                    <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-3 text-sm font-bold transition-all">
                         課程細節
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="sessions" className="pt-4 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <TabsContent value="sessions" className="pt-4 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {course.sessions.map((session) => (
                             <Card key={session.id} className="border-muted hover:bg-muted/5 shadow-none transition-colors">
-                                <CardContent className="p-3 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
+                                <CardContent className="p-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
                                         <div className={cn(
-                                            "h-7 w-7 rounded flex items-center justify-center font-black text-[10px]",
+                                            "h-8 w-8 rounded flex items-center justify-center font-black text-xs",
                                             session.status === 'completed' ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                                         )}>
                                             {session.sequence}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-xs">
+                                            <p className="font-bold text-sm sm:text-base">
                                                 {format(session.date, "M/d (eee)", { locale: zhTW })}
                                             </p>
-                                            <p className="text-[9px] text-muted-foreground font-medium flex items-center gap-1">
-                                                <Users className="h-2.5 w-2.5" /> {session.attendance}/{course.capacity}
+                                            <p className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 mt-0.5">
+                                                <Users className="h-3 w-3" /> {session.attendance}/{course.capacity}
                                             </p>
                                         </div>
                                     </div>
-                                    <Button size="icon" variant="ghost" className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary">
-                                        <ClipboardCheck className="h-4 w-4" />
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full text-muted-foreground hover:text-primary">
+                                        <ClipboardCheck className="h-5 w-5" />
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -143,18 +143,18 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                     </div>
                 </TabsContent>
 
-                <TabsContent value="students" className="pt-4 space-y-3">
-                    <div className="grid gap-2 sm:grid-cols-2">
+                <TabsContent value="students" className="pt-4 space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
                         {course.students.map((student) => (
                             <Card key={student.id} className="border-muted/50 shadow-none hover:bg-muted/5">
-                                <CardContent className="p-3 flex items-center justify-between text-xs">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                                <CardContent className="p-4 flex items-center justify-between text-sm">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-sm">
                                             {student.name.charAt(0)}
                                         </div>
                                         <div>
-                                            <p className="font-bold">{student.name} {student.role === 'leader' && <Badge className="ml-1 h-3 text-[8px] bg-amber-500">班長</Badge>}</p>
-                                            <p className="text-[9px] text-muted-foreground italic font-medium">{student.employee_id || '非員工'} • {student.phone}</p>
+                                            <p className="font-bold text-sm sm:text-base">{student.name} {student.role === 'leader' && <Badge className="ml-1 h-4 text-[10px] bg-amber-500">班長</Badge>}</p>
+                                            <p className="text-xs text-muted-foreground italic font-medium mt-0.5">{student.employee_id || '非員工'} • {student.phone}</p>
                                         </div>
                                     </div>
                                 </CardContent>
@@ -165,14 +165,14 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
 
                 <TabsContent value="info" className="pt-4">
                     <Card className="border-muted/50 bg-muted/5 shadow-none">
-                        <CardContent className="p-4 space-y-4 text-xs font-medium">
-                            <div className="space-y-1">
-                                <h4 className="text-[10px] font-black text-primary uppercase italic">簡介</h4>
-                                <p className="text-foreground/80 leading-relaxed italic">{course.description}</p>
+                        <CardContent className="p-5 space-y-5 text-sm font-medium">
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-black text-primary uppercase italic tracking-wider">簡介</h4>
+                                <p className="text-foreground/80 leading-relaxed italic text-sm sm:text-base">{course.description}</p>
                             </div>
-                            <div className="pt-3 border-t border-muted/30 flex justify-between items-center italic">
-                                <span className="text-muted-foreground">社員報名費</span>
-                                <span className="font-black text-primary">$3,200</span>
+                            <div className="pt-4 border-t border-muted/30 flex justify-between items-center italic">
+                                <span className="text-muted-foreground text-sm">社員報名費</span>
+                                <span className="font-black text-primary text-lg">$3,200</span>
                             </div>
                         </CardContent>
                     </Card>

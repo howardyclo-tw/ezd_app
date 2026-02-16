@@ -64,27 +64,27 @@ export default function CourseGroupDetailPage({ params }: { params: Promise<{ gr
         : '檔期時間未定';
 
     return (
-        <div className="container max-w-5xl py-6 space-y-6">
+        <div className="container max-w-5xl py-6 space-y-4">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
-                <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" asChild className="rounded-full h-8 w-8 -ml-2">
-                        <Link href="/courses"><ChevronLeft className="h-4 w-4" /></Link>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div className="flex items-start gap-2">
+                    <Button variant="ghost" size="icon" asChild className="rounded-full h-9 w-9 -ml-2 shrink-0">
+                        <Link href="/courses"><ChevronLeft className="h-5 w-5" /></Link>
                     </Button>
-                    <div>
-                        <h1 className="text-xl font-bold tracking-tight">{groupData.title}</h1>
-                        <p className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 mt-0.5">
-                            <CalendarIcon className="h-3 w-3" /> {inferredPeriod}
+                    <div className="space-y-1">
+                        <h1 className="text-2xl font-bold tracking-tight leading-tight">{groupData.title}</h1>
+                        <p className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 mt-0.5">
+                            <CalendarIcon className="h-3.5 w-3.5" /> {inferredPeriod}
                         </p>
                     </div>
                 </div>
 
                 {isAdminOrLeader && (
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <Button variant="outline" size="sm" className="h-9 text-sm font-bold border-muted" onClick={() => alert('開啟編輯檔期 Modal')}>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <Button variant="outline" size="sm" className="h-10 text-sm font-bold border-muted flex-1 sm:flex-none shadow-sm" onClick={() => alert('開啟編輯檔期 Modal')}>
                             <Edit2 className="h-4 w-4 mr-2" /> 編輯檔期
                         </Button>
-                        <Button size="sm" className="h-9 text-sm font-bold" asChild>
+                        <Button size="sm" className="h-10 text-sm font-bold flex-1 sm:flex-none shadow-md" asChild>
                             <Link href={`/courses/new?groupId=${groupId}`}>
                                 <Plus className="h-4 w-4 mr-2" /> 新增課程
                             </Link>
@@ -94,7 +94,7 @@ export default function CourseGroupDetailPage({ params }: { params: Promise<{ gr
             </div>
 
             {/* Course List as Cards (Grid Layout) */}
-            <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+            <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
                 {groupData.courses.map((course: any) => (
                     <CourseCard key={course.id} course={course} />
                 ))}
