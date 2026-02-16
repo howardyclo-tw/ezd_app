@@ -56,11 +56,11 @@ export default function CourseGroupsPage() {
             {/* Filter Tabs (Centered) */}
             <div className="flex justify-center mb-10 overflow-x-auto">
                 <Tabs defaultValue="all" className="w-auto" onValueChange={setFilter}>
-                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 flex-nowrap">
-                        <TabsTrigger value="all" className="text-xs px-5 font-bold data-[state=active]:shadow-sm">全部檔期</TabsTrigger>
-                        <TabsTrigger value="active" className="text-xs px-5 font-bold data-[state=active]:shadow-sm">進行中</TabsTrigger>
-                        <TabsTrigger value="upcoming" className="text-xs px-5 font-bold data-[state=active]:shadow-sm">即將開始</TabsTrigger>
-                        <TabsTrigger value="ended" className="text-xs px-5 font-bold data-[state=active]:shadow-sm">已結束</TabsTrigger>
+                    <TabsList className="bg-muted/50 p-1 h-11 border border-muted-foreground/10 flex-nowrap">
+                        <TabsTrigger value="all" className="text-sm px-6 font-bold data-[state=active]:shadow-sm">全部檔期</TabsTrigger>
+                        <TabsTrigger value="active" className="text-sm px-6 font-bold data-[state=active]:shadow-sm">進行中</TabsTrigger>
+                        <TabsTrigger value="upcoming" className="text-sm px-6 font-bold data-[state=active]:shadow-sm">即將開始</TabsTrigger>
+                        <TabsTrigger value="ended" className="text-sm px-6 font-bold data-[state=active]:shadow-sm">已結束</TabsTrigger>
                     </TabsList>
                 </Tabs>
             </div>

@@ -3,10 +3,11 @@
 import { use } from 'react';
 import { Button } from "@/components/ui/button";
 import { CourseCard } from "@/components/courses/course-card";
-import { ChevronLeft, Calendar as CalendarIcon, ClipboardList } from "lucide-react";
+import { ChevronLeft, Calendar as CalendarIcon, Edit2, Plus } from "lucide-react";
 import Link from 'next/link';
 import { format, min, max, parseISO, isValid } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
+import { useUserRole } from '@/components/providers/role-provider';
 
 // Mock specific course list for this group
 const MOCK_GROUP_COURSES: Record<string, any> = {
@@ -38,6 +39,8 @@ const MOCK_GROUP_COURSES: Record<string, any> = {
 
 export default function CourseGroupDetailPage({ params }: { params: Promise<{ groupId: string }> }) {
     const { groupId } = use(params);
+    const { role } = useUserRole();
+    const isAdminOrLeader = role === 'admin' || role === 'leader';
     const groupData = MOCK_GROUP_COURSES[groupId];
 
     if (!groupData) {
@@ -66,15 +69,28 @@ export default function CourseGroupDetailPage({ params }: { params: Promise<{ gr
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
                 <div className="flex items-center gap-2">
                     <Button variant="ghost" size="icon" asChild className="rounded-full h-8 w-8 -ml-2">
-                        <Link href="/courses"><ChevronLeft className="h-5 w-5" /></Link>
+                        <Link href="/courses"><ChevronLeft className="h-4 w-4" /></Link>
                     </Button>
                     <div>
                         <h1 className="text-xl font-bold tracking-tight">{groupData.title}</h1>
                         <p className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 mt-0.5">
-                            <CalendarIcon className="h-3 w-3" /> {inferredPeriod} (自動推算)
+                            <CalendarIcon className="h-3 w-3" /> {inferredPeriod}
                         </p>
                     </div>
                 </div>
+
+                {isAdminOrLeader && (
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <Button variant="outline" size="sm" className="h-9 text-sm font-bold border-muted" onClick={() => alert('開啟編輯檔期 Modal')}>
+                            <Edit2 className="h-4 w-4 mr-2" /> 編輯檔期
+                        </Button>
+                        <Button size="sm" className="h-9 text-sm font-bold" asChild>
+                            <Link href={`/courses/new?groupId=${groupId}`}>
+                                <Plus className="h-4 w-4 mr-2" /> 新增課程
+                            </Link>
+                        </Button>
+                    </div>
+                )}
             </div>
 
             {/* Course List as Cards (Grid Layout) */}

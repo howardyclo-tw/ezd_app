@@ -39,6 +39,7 @@ const sessionSchema = z.object({
 });
 
 const courseSchema = z.object({
+    groupId: z.string().min(1, { message: '請選擇所屬檔期' }),
     name: z.string().min(2, { message: '課程名稱至少 2 個字' }),
     type: z.enum(['normal', 'trial', 'special', 'style', 'workshop', 'rehearsal', 'performance']),
     teacher: z.string().min(1, { message: '請輸入老師姓名' }),
@@ -114,6 +115,7 @@ export function CourseForm() {
     const form = useForm<CourseFormValues>({
         resolver: zodResolver(courseSchema) as any,
         defaultValues: {
+            groupId: '',
             name: '',
             type: 'normal',
             teacher: '',
@@ -186,18 +188,20 @@ export function CourseForm() {
                         <Button
                             variant="outline"
                             type="button"
+                            size="sm"
+                            className="h-10 text-sm font-bold border-muted"
                             onClick={() => router.push('/courses')}
                         >
-                            <X className="mr-2 h-4 w-4" />
+                            <X className="mr-2 h-4 w-4 text-muted-foreground" />
                             取消
                         </Button>
-                        <Button type="submit" disabled={isSubmitting}>
+                        <Button type="submit" size="sm" className="h-10 text-sm font-bold" disabled={isSubmitting}>
                             {isSubmitting ? (
                                 <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                             ) : (
                                 <Save className="mr-2 h-4 w-4" />
                             )}
-                            {isSubmitting ? '儲存中...' : '儲存'}
+                            {isSubmitting ? '儲存中...' : '儲存課程'}
                         </Button>
                     </div>
                 </div>
@@ -211,11 +215,48 @@ export function CourseForm() {
                 <div className="grid gap-6 md:grid-cols-2">
                     {/* 基本資訊 */}
                     <Card className="md:col-span-2 shadow-sm border-muted/60">
-                        <CardHeader>
-                            <CardTitle>基本資訊</CardTitle>
-                            <CardDescription>設定課程的主要資訊</CardDescription>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                            <div>
+                                <CardTitle>基本資訊</CardTitle>
+                                <CardDescription>設定課程的主要資訊與歸屬檔期</CardDescription>
+                            </div>
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">
+                            <FormField
+                                control={form.control as any}
+                                name="groupId"
+                                render={({ field }) => (
+                                    <FormItem className="sm:col-span-2">
+                                        <FormLabel>所屬課程檔期</FormLabel>
+                                        <Select
+                                            onValueChange={(val) => {
+                                                if (val === 'create-new') {
+                                                    alert('這裡將開啟「建立新檔期」彈窗');
+                                                } else {
+                                                    field.onChange(val);
+                                                }
+                                            }}
+                                            defaultValue={field.value}
+                                        >
+                                            <FormControl>
+                                                <SelectTrigger className="h-10">
+                                                    <SelectValue placeholder="請選擇這門課所屬的檔期" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="create-new" className="font-bold text-primary focus:bg-primary/5 cursor-pointer">
+                                                    <Plus className="h-4 w-4 mr-2 inline-block -mt-0.5" /> 建立新檔期
+                                                </SelectItem>
+                                                <div className="h-px bg-muted my-1 font-bold" />
+                                                <SelectItem value="2026-trial">HQ 2026 3月 常態試跳</SelectItem>
+                                                <SelectItem value="2026-h1">HQ 2026 H1 常態課程</SelectItem>
+                                                <SelectItem value="2026-workshop">HQ 2026 1~2月 風格體驗 & Workshop</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                             <FormField
                                 control={form.control as any}
                                 name="name"
@@ -401,14 +442,14 @@ export function CourseForm() {
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            className="text-xs h-8 w-full sm:w-auto mt-1 sm:mt-0"
+                                            className="text-sm h-9 w-full sm:w-auto mt-1 sm:mt-0 font-bold border-muted"
                                             onClick={() => {
                                                 const current = form.getValues('sessions');
                                                 setValue('sessions', [...current, { date: addDays(current[current.length - 1]?.date || firstDate, 7) }]);
                                                 setValue('sessions_count', current.length + 1);
                                             }}
                                         >
-                                            <Plus className="h-3 w-3 mr-1" /> 加一堂
+                                            <Plus className="h-4 w-4 mr-2" /> 加一堂
                                         </Button>
                                     </div>
 
@@ -518,16 +559,16 @@ export function CourseForm() {
 
                 {/* Mobile Bottom Actions (Static) */}
                 <div className="flex sm:hidden gap-3 mt-8 pb-4">
-                    <Button variant="outline" type="button" onClick={() => router.push('/courses')} className="flex-1 font-semibold h-11">
+                    <Button variant="outline" type="button" onClick={() => router.push('/courses')} className="flex-1 font-bold text-sm h-11 border-muted">
                         取消
                     </Button>
-                    <Button type="submit" className="flex-1 font-semibold h-11" disabled={isSubmitting}>
+                    <Button type="submit" className="flex-1 font-bold text-sm h-11" disabled={isSubmitting}>
                         {isSubmitting ? (
                             <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                         ) : (
                             <Save className="mr-2 h-4 w-4" />
                         )}
-                        {isSubmitting ? '儲存中...' : '儲存'}
+                        {isSubmitting ? '儲存中...' : '儲存課程'}
                     </Button>
                 </div>
             </form>

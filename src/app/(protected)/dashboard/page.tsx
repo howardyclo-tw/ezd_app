@@ -86,8 +86,8 @@ export default async function DashboardPage() {
                 <Calendar className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h3 className="text-sm font-bold group-hover:text-primary transition-colors">課程總覽</h3>
-                <p className="text-xs text-muted-foreground">查看所有課程</p>
+                <h3 className="text-sm font-bold group-hover:text-primary transition-colors">課程檔期</h3>
+                <p className="text-xs text-muted-foreground">管理與瀏覽課程檔期</p>
               </div>
             </CardContent>
           </Card>

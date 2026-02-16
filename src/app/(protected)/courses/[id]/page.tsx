@@ -71,8 +71,8 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                     <h1 className="text-xl font-bold tracking-tight">{course.name}</h1>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="h-8 text-xs font-bold border-muted">
-                        <Edit2 className="h-3.5 w-3.5 mr-1.5" /> 編輯課程
+                    <Button variant="outline" size="sm" className="h-9 text-sm font-bold border-muted">
+                        <Edit2 className="h-4 w-4 mr-2" /> 編輯課程
                     </Button>
                 </div>
             </div>
