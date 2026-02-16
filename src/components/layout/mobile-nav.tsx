@@ -8,7 +8,7 @@ import { useUserRole } from '@/components/providers/role-provider';
 
 const navItems = [
   { href: '/dashboard', label: '幹部後台', icon: ShieldCheck, roles: ['admin', 'leader'] },
-  { href: '/courses', label: '課程', icon: Calendar },
+  { href: '/courses', label: '課程檔期', icon: Calendar },
 ];
 
 export function MobileNav() {

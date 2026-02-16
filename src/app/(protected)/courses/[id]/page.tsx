@@ -1,38 +1,44 @@
 'use client';
 
-import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { use } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-    Calendar,
     Users,
     MapPin,
     Clock,
     ChevronLeft,
     Edit2,
-    MoreVertical,
-    Trash2,
-    UserPlus,
-    MessageSquare,
     ClipboardCheck,
+    Calendar,
     ArrowRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
+import Link from 'next/link';
 
-// Mock data
+// Mock data (unifying with the same logic)
 const MOCK_COURSE_DETAIL = {
-    id: '1', name: '基礎律動 Basic Groove', teacher: 'A-May', type: 'normal', room: 'A教室', startTime: '19:00', endTime: '20:30', sessionsCount: 8, capacity: 30, status: 'published',
+    id: '1',
+    name: '基礎律動 Basic Groove',
+    teacher: 'A-May',
+    type: 'trial',
+    room: 'A教室',
+    startTime: '19:00',
+    endTime: '20:30',
+    sessionsCount: 8,
+    capacity: 30,
+    status: 'open',
     description: '本課程適合所有初學者。透過基礎律動訓練，建立身體協調性與節奏感。',
     sessions: [
-        { id: 's1', date: new Date(2024, 1, 18), sequence: 1, attendance: 28, status: 'completed' },
-        { id: 's2', date: new Date(2024, 1, 25), sequence: 2, attendance: 30, status: 'completed' },
-        { id: 's3', date: new Date(2024, 2, 4), sequence: 3, attendance: 0, status: 'upcoming' },
-        { id: 's4', date: new Date(2024, 2, 11), sequence: 4, attendance: 0, status: 'upcoming' },
+        { id: 's1', date: new Date(2026, 2, 2), sequence: 1, attendance: 28, status: 'completed' },
+        { id: 's2', date: new Date(2026, 2, 9), sequence: 2, attendance: 30, status: 'completed' },
+        { id: 's3', date: new Date(2026, 2, 16), sequence: 3, attendance: 0, status: 'upcoming' },
+        { id: 's4', date: new Date(2026, 2, 23), sequence: 4, attendance: 0, status: 'upcoming' },
     ],
     students: [
         { id: 'u1', name: '王小明', role: 'member', employee_id: 'E12345', phone: '0912-345-678', status: 'paid' },
@@ -40,20 +46,23 @@ const MOCK_COURSE_DETAIL = {
     ]
 };
 
-const STATUS_LABELS: Record<string, { label: string, color: string }> = {
-    published: { label: '已發布', color: 'bg-green-500/10 text-green-600 border-green-200' },
-    draft: { label: '草稿', color: 'bg-slate-100 text-slate-600 border-slate-200' },
-    closed: { label: '已結束', color: 'bg-red-500/10 text-red-600 border-red-200' },
+const statusMap: Record<string, { label: string, color: string }> = {
+    open: { label: '開放報名', color: 'bg-green-500/10 text-green-600 border-green-200' },
+    full: { label: '額滿', color: 'bg-red-500/10 text-red-600 border-red-200' },
+    upcoming: { label: '即將開放', color: 'bg-blue-500/10 text-blue-600 border-blue-200' },
+    ended: { label: '已結束', color: 'bg-slate-100 text-slate-600 border-slate-200' },
 };
 
-export default function CourseDetailPage() {
+export default function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState('sessions');
-    const course = MOCK_COURSE_DETAIL;
+    const course = MOCK_COURSE_DETAIL; // In reality, fetch by ID
+
+    const status = statusMap[course.status] || statusMap['open'];
 
     return (
         <div className="container max-w-5xl py-6 space-y-6">
-            {/* Minimal Header */}
+            {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8 rounded-full">
@@ -63,10 +72,7 @@ export default function CourseDetailPage() {
                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" className="h-8 text-xs font-bold border-muted">
-                        <Edit2 className="h-3.5 w-3.5 mr-1.5" /> 編輯
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                        <MoreVertical className="h-4 w-4" />
+                        <Edit2 className="h-3.5 w-3.5 mr-1.5" /> 編輯課程
                     </Button>
                 </div>
             </div>
@@ -75,8 +81,8 @@ export default function CourseDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-muted/30 p-2.5 rounded-lg flex flex-col gap-0.5">
                     <span className="text-[9px] uppercase font-black text-muted-foreground italic">狀態</span>
-                    <Badge variant="outline" className={cn("px-1.5 py-0 h-4 text-[9px] w-fit font-bold rounded-sm border-none shadow-none", STATUS_LABELS[course.status].color)}>
-                        {STATUS_LABELS[course.status].label}
+                    <Badge variant="outline" className={cn("px-1.5 py-0 h-4 text-[9px] w-fit font-bold rounded-sm border-none shadow-none", status.color)}>
+                        {status.label}
                     </Badge>
                 </div>
                 <div className="bg-muted/30 p-2.5 rounded-lg flex flex-col gap-0.5">
@@ -93,16 +99,16 @@ export default function CourseDetailPage() {
                 </div>
             </div>
 
-            {/* Dense Tabs Section */}
-            <Tabs defaultValue="sessions" className="w-full" onValueChange={setActiveTab}>
+            {/* Tabs Section */}
+            <Tabs defaultValue="sessions" className="w-full">
                 <TabsList className="w-full justify-start h-9 p-0 bg-transparent border-b rounded-none gap-4">
-                    <TabsTrigger value="sessions" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 text-xs font-bold transition-all hover:text-primary">
+                    <TabsTrigger value="sessions" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 text-xs font-bold transition-all">
                         課堂進度 ({course.sessions.length})
                     </TabsTrigger>
-                    <TabsTrigger value="students" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 text-xs font-bold transition-all hover:text-primary">
+                    <TabsTrigger value="students" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 text-xs font-bold transition-all">
                         學員名單
                     </TabsTrigger>
-                    <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 text-xs font-bold transition-all hover:text-primary">
+                    <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-2 text-xs font-bold transition-all">
                         課程細節
                     </TabsTrigger>
                 </TabsList>
@@ -138,11 +144,6 @@ export default function CourseDetailPage() {
                 </TabsContent>
 
                 <TabsContent value="students" className="pt-4 space-y-3">
-                    <div className="flex justify-end mb-2">
-                        <Button variant="outline" size="xs" className="h-7 text-[10px] font-bold">
-                            <UserPlus className="h-3 w-3 mr-1" /> 手動加人
-                        </Button>
-                    </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                         {course.students.map((student) => (
                             <Card key={student.id} className="border-muted/50 shadow-none hover:bg-muted/5">
@@ -155,14 +156,6 @@ export default function CourseDetailPage() {
                                             <p className="font-bold">{student.name} {student.role === 'leader' && <Badge className="ml-1 h-3 text-[8px] bg-amber-500">班長</Badge>}</p>
                                             <p className="text-[9px] text-muted-foreground italic font-medium">{student.employee_id || '非員工'} • {student.phone}</p>
                                         </div>
-                                    </div>
-                                    <div className="flex gap-1 group">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
-                                            <MessageSquare className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500">
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>

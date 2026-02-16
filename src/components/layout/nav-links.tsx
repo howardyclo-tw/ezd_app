@@ -14,7 +14,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     { href: '/dashboard', label: '幹部後台', icon: ShieldCheck, roles: ['admin', 'leader'] },
-    { href: '/courses', label: '課程', icon: Calendar }, // Changed href to /courses
+    { href: '/courses', label: '課程檔期', icon: Calendar }, // Changed href to /courses
 ];
 
 import { useUserRole } from '@/components/providers/role-provider';
