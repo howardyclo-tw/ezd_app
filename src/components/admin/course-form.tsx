@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import * as z from 'zod';
@@ -30,7 +30,7 @@ import { format, addDays } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+
 
 const sessionSchema = z.object({
     date: z.date({
@@ -41,6 +41,8 @@ const sessionSchema = z.object({
 const courseSchema = z.object({
     groupId: z.string().min(1, { message: '請選擇所屬檔期' }),
     name: z.string().min(2, { message: '課程名稱至少 2 個字' }),
+    description: z.string().optional(),
+    leader: z.string().optional(),
     type: z.enum(['normal', 'trial', 'special', 'style', 'workshop', 'rehearsal', 'performance']),
     teacher: z.string().min(1, { message: '請輸入老師姓名' }),
     room: z.string().min(1, { message: '請輸入教室' }),
@@ -68,7 +70,7 @@ function TimePicker({ value, onChange }: { value: string; onChange: (v: string) 
                 <Button
                     variant="outline"
                     className={cn(
-                        "w-full pl-3 text-left font-normal h-10",
+                        "w-full pl-3 text-left font-normal h-11",
                         !value && "text-muted-foreground"
                     )}
                 >
@@ -110,22 +112,33 @@ function TimePicker({ value, onChange }: { value: string; onChange: (v: string) 
     );
 }
 
-export function CourseForm() {
+export interface CourseFormProps {
+    initialData?: Partial<CourseFormValues>;
+    mode?: 'create' | 'edit';
+}
+
+export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {}) {
     const router = useRouter();
+    const isEdit = mode === 'edit';
+    const isInitialLoad = useRef(true);
+
     const form = useForm<CourseFormValues>({
         resolver: zodResolver(courseSchema) as any,
         defaultValues: {
-            groupId: '',
-            name: '',
-            type: 'normal',
-            teacher: '',
-            room: '',
-            start_time: '19:00',
-            end_time: '20:30',
-            sessions_count: 8,
-            capacity: 30,
-            status: 'draft',
-            sessions: [],
+            groupId: initialData?.groupId || '',
+            name: initialData?.name || '',
+            description: initialData?.description || '',
+            leader: initialData?.leader || 'none',
+            type: initialData?.type || 'normal',
+            teacher: initialData?.teacher || '',
+            room: initialData?.room || '',
+            start_time: initialData?.start_time || '19:00',
+            end_time: initialData?.end_time || '20:30',
+            sessions_count: initialData?.sessions_count || 8,
+            capacity: initialData?.capacity || 30,
+            status: initialData?.status || 'draft',
+            first_session_at: initialData?.first_session_at,
+            sessions: initialData?.sessions || [],
         },
     });
 
@@ -135,25 +148,22 @@ export function CourseForm() {
 
     // Auto-generate sessions when start date or count changes
     useEffect(() => {
+        // Skip if it's the first run in edit mode to avoid overwriting existing sessions
+        if (isEdit && isInitialLoad.current) {
+            isInitialLoad.current = false;
+            return;
+        }
+
         if (!firstDate || !sessionsCount) return;
 
         const currentSessions = form.getValues('sessions');
 
-        // Only generate if the list is empty or the count changed significantly
-        // Or if we specifically want to reset it when firstDate changes
         const newSessions = Array.from({ length: sessionsCount }, (_, i) => {
-            // Keep existing manual changes if possible, otherwise generate weekly
-            if (currentSessions[i] && i > 0) {
-                // If it's not the first one, we might want to keep it
-                // But if firstDate changed, everything usually shifts.
-                // For MVP simplicity: if firstDate changes, we reset all.
-                return { date: addDays(firstDate, i * 7) };
-            }
             return { date: addDays(firstDate, i * 7) };
         });
 
         setValue('sessions', newSessions, { shouldValidate: true });
-    }, [firstDate, sessionsCount, setValue]);
+    }, [firstDate, sessionsCount, setValue, isEdit]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -163,7 +173,11 @@ export function CourseForm() {
             console.log('Form submitted:', data);
             // Simulate an API call
             await new Promise((resolve) => setTimeout(resolve, 800));
-            router.push('/courses');
+            if (isEdit) {
+                router.back();
+            } else {
+                router.push('/courses');
+            }
         } catch (error) {
             console.error('Failed to save course:', error);
             setIsSubmitting(false);
@@ -181,8 +195,8 @@ export function CourseForm() {
                 {/* Header - Desktop */}
                 <div className="hidden sm:flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md py-4 border-b">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">新增課程</h1>
-                        <p className="text-muted-foreground text-sm">填寫課程資訊以建立新課程</p>
+                        <h1 className="text-2xl font-bold tracking-tight">{isEdit ? '編輯課程' : '新增課程'}</h1>
+                        <p className="text-muted-foreground text-sm">{isEdit ? '修改課程資訊後點擊儲存' : '填寫課程資訊以建立新課程'}</p>
                     </div>
                     <div className="flex gap-2">
                         <Button
@@ -190,26 +204,26 @@ export function CourseForm() {
                             type="button"
                             size="sm"
                             className="h-10 text-sm font-bold border-muted"
-                            onClick={() => router.push('/courses')}
+                            onClick={() => router.back()}
                         >
                             <X className="mr-2 h-4 w-4 text-muted-foreground" />
                             取消
                         </Button>
                         <Button type="submit" size="sm" className="h-10 text-sm font-bold" disabled={isSubmitting}>
                             {isSubmitting ? (
-                                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                             ) : (
-                                <Save className="mr-2 h-4 w-4" />
+                                !isEdit && <Plus className="mr-2 h-4 w-4" />
                             )}
-                            {isSubmitting ? '儲存中...' : '儲存課程'}
+                            {isEdit ? '儲存變更' : '建立課程'}
                         </Button>
                     </div>
                 </div>
 
                 {/* Mobile Header */}
                 <div className="sm:hidden space-y-1 mb-4">
-                    <h1 className="text-2xl font-bold tracking-tight">新增課程</h1>
-                    <p className="text-muted-foreground text-sm">填寫課程資訊以建立新課程</p>
+                    <h1 className="text-2xl font-bold tracking-tight">{isEdit ? '編輯課程' : '新增課程'}</h1>
+                    <p className="text-muted-foreground text-sm">{isEdit ? '修改課程資訊後點擊儲存' : '填寫課程資訊以建立新課程'}</p>
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
@@ -217,7 +231,7 @@ export function CourseForm() {
                     <Card className="md:col-span-2 shadow-sm border-muted/60">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                             <div>
-                                <CardTitle>基本資訊</CardTitle>
+                                <CardTitle className="text-lg font-bold">基本資訊</CardTitle>
                                 <CardDescription>設定課程的主要資訊與歸屬檔期</CardDescription>
                             </div>
                         </CardHeader>
@@ -239,7 +253,7 @@ export function CourseForm() {
                                             defaultValue={field.value}
                                         >
                                             <FormControl>
-                                                <SelectTrigger className="h-10">
+                                                <SelectTrigger className="h-11">
                                                     <SelectValue placeholder="請選擇這門課所屬的檔期" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -264,7 +278,35 @@ export function CourseForm() {
                                     <FormItem className="sm:col-span-2">
                                         <FormLabel>課程名稱</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="例如：週三基礎律動" {...field} />
+                                            <Input placeholder="例如：週三基礎律動" className="h-11" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control as any}
+                                name="description"
+                                render={({ field }) => (
+                                    <FormItem className="sm:col-span-2">
+                                        <FormLabel>課程描述</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="請輸入課程簡介與目標" className="h-11" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control as any}
+                                name="teacher"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>老師</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="老師姓名" className="h-11" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -278,7 +320,7 @@ export function CourseForm() {
                                         <FormLabel>課程類型</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                             <FormControl>
-                                                <SelectTrigger>
+                                                <SelectTrigger className="h-11">
                                                     <SelectValue placeholder="選擇類型" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -298,12 +340,12 @@ export function CourseForm() {
                             />
                             <FormField
                                 control={form.control as any}
-                                name="teacher"
+                                name="room"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>老師</FormLabel>
+                                        <FormLabel>教室</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="老師姓名" {...field} />
+                                            <Input placeholder="教室名稱或地點" className="h-11" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -311,13 +353,22 @@ export function CourseForm() {
                             />
                             <FormField
                                 control={form.control as any}
-                                name="room"
+                                name="leader"
                                 render={({ field }) => (
-                                    <FormItem className="sm:col-span-2">
-                                        <FormLabel>教室</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="教室名稱或地點" {...field} />
-                                        </FormControl>
+                                    <FormItem>
+                                        <FormLabel>班長</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger className="h-11">
+                                                    <SelectValue placeholder="選擇班長" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="none">未指定</SelectItem>
+                                                <SelectItem value="王小明">王小明</SelectItem>
+                                                <SelectItem value="小明">小明</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -328,7 +379,7 @@ export function CourseForm() {
                     {/* 課程安排 */}
                     <Card className="md:col-span-2 shadow-sm border-muted/60">
                         <CardHeader>
-                            <CardTitle>課程安排</CardTitle>
+                            <CardTitle className="text-lg font-bold">課程安排</CardTitle>
                             <CardDescription>設定上課時間與人數</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -344,7 +395,7 @@ export function CourseForm() {
                                                     <Button
                                                         variant={"outline"}
                                                         className={cn(
-                                                            "w-full pl-3 text-left font-normal h-10 px-3",
+                                                            "w-full pl-3 text-left font-normal h-11 px-3",
                                                             !field.value && "text-muted-foreground"
                                                         )}
                                                     >
@@ -409,7 +460,7 @@ export function CourseForm() {
                                         <FormItem>
                                             <FormLabel>總堂數</FormLabel>
                                             <FormControl>
-                                                <Input type="number" {...field} />
+                                                <Input type="number" className="h-11" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -422,7 +473,7 @@ export function CourseForm() {
                                         <FormItem>
                                             <FormLabel>人數上限</FormLabel>
                                             <FormControl>
-                                                <Input type="number" {...field} />
+                                                <Input type="number" className="h-11" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -456,7 +507,7 @@ export function CourseForm() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                                         {form.watch('sessions')?.map((session, index) => (
                                             <div key={index} className="flex items-center gap-2 p-2 sm:p-3 rounded-lg border bg-muted/30 transition-colors hover:bg-muted/50">
-                                                <div className="flex-none flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                                                <div className="flex-none flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-xs font-bold text-primary">
                                                     {index + 1}
                                                 </div>
                                                 <FormField
@@ -470,7 +521,7 @@ export function CourseForm() {
                                                                         <Button
                                                                             variant="outline"
                                                                             className={cn(
-                                                                                "w-full h-9 px-3 text-left font-normal bg-background text-sm",
+                                                                                "w-full h-11 px-3 text-left font-normal bg-background text-sm",
                                                                                 !field.value && "text-muted-foreground"
                                                                             )}
                                                                         >
@@ -526,7 +577,7 @@ export function CourseForm() {
                     {/* 課程設定 */}
                     <Card className="md:col-span-2 shadow-sm border-muted/60">
                         <CardHeader>
-                            <CardTitle>課程設定</CardTitle>
+                            <CardTitle className="text-lg font-bold">課程設定</CardTitle>
                             <CardDescription>設定課程公開狀態</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -538,7 +589,7 @@ export function CourseForm() {
                                         <FormLabel>發布狀態</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                             <FormControl>
-                                                <SelectTrigger>
+                                                <SelectTrigger className="h-11">
                                                     <SelectValue placeholder="選擇狀態" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -559,12 +610,12 @@ export function CourseForm() {
 
                 {/* Mobile Bottom Actions (Static) */}
                 <div className="flex sm:hidden gap-3 mt-8 pb-4">
-                    <Button variant="outline" type="button" onClick={() => router.push('/courses')} className="flex-1 font-bold text-sm h-11 border-muted">
+                    <Button variant="outline" type="button" onClick={() => router.back()} className="flex-1 font-bold text-sm h-11 border-muted">
                         取消
                     </Button>
                     <Button type="submit" className="flex-1 font-bold text-sm h-11" disabled={isSubmitting}>
                         {isSubmitting ? (
-                            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                         ) : (
                             <Save className="mr-2 h-4 w-4" />
                         )}

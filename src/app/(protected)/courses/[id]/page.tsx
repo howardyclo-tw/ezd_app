@@ -20,7 +20,7 @@ import {
     Check,
     X,
     ChevronRight,
-    Inbox
+    FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -232,18 +232,19 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                            className="h-9 px-4 text-sm font-bold bg-white text-black hover:bg-white/90 shadow-lg rounded-lg transition-all active:scale-95"
-                        >
-                            <Edit2 className="h-4 w-4 mr-2" /> 編輯課程
-                        </Button>
+                        <Link href={`/courses/${course.id}/edit`}>
+                            <Button
+                                className="h-9 px-4 text-sm font-bold bg-white text-black hover:bg-white/90 shadow-lg rounded-lg transition-all active:scale-95"
+                            >
+                                <Edit2 className="h-4 w-4 mr-2" /> 編輯課程
+                            </Button>
+                        </Link>
                     </div>
                 </div>
 
                 {/* Metadata & Smart Action Card */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 bg-muted/20 border border-muted/50 rounded-2xl">
                     <div className="flex flex-col gap-4 text-foreground">
-                        {/* Status Badge Restored */}
                         <div className="flex items-center">
                             <Badge variant="outline" className="px-2 py-0.5 text-xs font-bold rounded-md border-none ring-1 ring-inset bg-green-500/10 text-green-700 ring-green-200">
                                 開放報名
@@ -260,7 +261,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                             </div>
                             <div className="flex items-center gap-3">
                                 <Clock className="h-5 w-5 text-muted-foreground/80 shrink-0" />
-                                <span className="text-sm font-medium">時間: <span className="font-bold ml-1">{course.startTime}</span></span>
+                                <span className="text-sm font-medium">時間: <span className="font-bold ml-1">{course.startTime}~{course.endTime}</span></span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <MapPin className="h-5 w-5 text-muted-foreground/80 shrink-0" />
@@ -272,6 +273,17 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {/* Course Description Block */}
+                <div className="p-5 bg-muted/10 border border-muted/30 rounded-2xl">
+                    <h3 className="text-sm font-bold text-foreground/90 mb-2 flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary/70" />
+                        課程描述
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                        {course.description || "暫無課程描述"}
+                    </p>
                 </div>
             </div>
 
@@ -502,8 +514,8 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                         </table>
                     </div>
                 </div>
-            </div>
+            </div >
 
-        </div>
+        </div >
     );
 }
