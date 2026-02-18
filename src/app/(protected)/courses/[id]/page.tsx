@@ -84,6 +84,17 @@ const MOCK_COURSES: Record<string, any> = {
 };
 
 
+const COURSE_TYPE_LABELS: Record<string, string> = {
+    'normal': '一般常態',
+    'regular': '一般常態',
+    'trial': '試跳課程',
+    'special': '特殊常態',
+    'style': '風格體驗',
+    'workshop': '專攻班',
+    'rehearsal': '團練',
+    'performance': '表演班',
+};
+
 export default function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
@@ -234,9 +245,10 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                     <div className="flex items-center gap-2 shrink-0">
                         <Link href={`/courses/${course.id}/edit`}>
                             <Button
-                                className="h-9 px-4 text-sm font-bold bg-white text-black hover:bg-white/90 shadow-lg rounded-lg transition-all active:scale-95"
+                                className="h-9 px-3 sm:px-4 text-sm font-bold bg-white text-black hover:bg-white/90 shadow-lg rounded-lg transition-all active:scale-95"
                             >
-                                <Edit2 className="h-4 w-4 mr-2" /> 編輯課程
+                                <Edit2 className="h-4 w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">編輯課程</span>
                             </Button>
                         </Link>
                     </div>
@@ -246,9 +258,11 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 bg-muted/20 border border-muted/50 rounded-2xl">
                     <div className="flex flex-col gap-4 text-foreground">
                         <div className="flex items-center">
-                            <Badge variant="outline" className="px-2 py-0.5 text-xs font-bold rounded-md border-none ring-1 ring-inset bg-green-500/10 text-green-700 ring-green-200">
-                                開放報名
-                            </Badge>
+                            {course.type && COURSE_TYPE_LABELS[course.type] && (
+                                <Badge variant="outline" className="px-2 py-0.5 text-xs font-bold rounded-md border-none ring-1 ring-inset bg-muted/20 text-muted-foreground/90 ring-muted-foreground/10">
+                                    {COURSE_TYPE_LABELS[course.type]}
+                                </Badge>
+                            )}
                         </div>
                         <div className="grid grid-cols-1 gap-3">
                             <div className="flex items-center gap-3">

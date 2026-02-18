@@ -17,10 +17,10 @@ export function LogoutButton() {
 
     return (
         <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={handleSignOut}
-            className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 font-bold p-0 h-auto"
+            className="text-red-600 hover:text-white hover:bg-red-600 border-red-200 hover:border-red-600 font-bold px-6 rounded-xl transition-all shadow-sm active:scale-95"
         >
             <LogOut className="mr-2 h-4 w-4" />
             登出系統

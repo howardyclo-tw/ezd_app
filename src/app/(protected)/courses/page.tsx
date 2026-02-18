@@ -53,14 +53,14 @@ export default function CourseGroupsPage() {
                 <p className="text-muted-foreground text-sm font-medium">瀏覽目前課程檔期，一起來跳舞吧!</p>
             </div>
 
-            {/* Filter Tabs (Centered) */}
-            <div className="flex justify-center mb-10 overflow-x-auto">
-                <Tabs defaultValue="all" className="w-auto" onValueChange={setFilter}>
-                    <TabsList className="bg-muted/50 p-1 h-11 border border-muted-foreground/10 flex-nowrap">
-                        <TabsTrigger value="all" className="text-sm px-6 font-bold data-[state=active]:shadow-sm">全部檔期</TabsTrigger>
-                        <TabsTrigger value="active" className="text-sm px-6 font-bold data-[state=active]:shadow-sm">進行中</TabsTrigger>
-                        <TabsTrigger value="upcoming" className="text-sm px-6 font-bold data-[state=active]:shadow-sm">即將開始</TabsTrigger>
-                        <TabsTrigger value="ended" className="text-sm px-6 font-bold data-[state=active]:shadow-sm">已結束</TabsTrigger>
+            {/* Filter Tabs */}
+            <div className="flex justify-center mb-10 px-4 sm:px-0">
+                <Tabs defaultValue="all" className="w-full sm:w-auto" onValueChange={setFilter}>
+                    <TabsList className="bg-muted/50 p-1 h-9 border border-muted-foreground/10 w-full grid grid-cols-4 sm:flex sm:grid-cols-none sm:w-auto">
+                        <TabsTrigger value="all" className="text-[12px] sm:text-sm font-medium data-[state=active]:shadow-sm px-1 sm:px-4">全部檔期</TabsTrigger>
+                        <TabsTrigger value="active" className="text-[12px] sm:text-sm font-medium data-[state=active]:shadow-sm px-1 sm:px-4">進行中</TabsTrigger>
+                        <TabsTrigger value="upcoming" className="text-[12px] sm:text-sm font-medium data-[state=active]:shadow-sm px-1 sm:px-4">即將開始</TabsTrigger>
+                        <TabsTrigger value="ended" className="text-[12px] sm:text-sm font-medium data-[state=active]:shadow-sm px-1 sm:px-4">已結束</TabsTrigger>
                     </TabsList>
                 </Tabs>
             </div>

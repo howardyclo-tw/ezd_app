@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Settings2, ShieldCheck, User, ShieldAlert, Ghost, Loader2 } from 'lucide-react';
+import { Settings2, Crown, ShieldCheck, User, Ghost, Loader2, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useUserRole } from '@/components/providers/role-provider';
 import { toast } from 'sonner';
@@ -20,9 +20,9 @@ import { updateUserRole } from '@/actions/user-actions';
 
 const roles = [
     { value: 'admin', label: '幹部', icon: ShieldCheck },
-    { value: 'leader', label: '班長', icon: ShieldAlert },
+    { value: 'leader', label: '班長', icon: Crown },
     { value: 'member', label: '社員', icon: User },
-    { value: 'guest', label: '訪客', icon: Ghost },
+    { value: 'guest', label: '非社員', icon: Ghost },
 ];
 
 export interface DevRoleToggleProps {
@@ -107,6 +107,19 @@ export function DevRoleToggle({ userId }: DevRoleToggleProps) {
                         </DropdownMenuItem>
                     );
                 })}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    onClick={async () => {
+                        const supabase = createClient();
+                        await supabase.auth.signOut();
+                        router.push('/login');
+                        router.refresh();
+                    }}
+                    className="flex items-center gap-3 px-3 py-2 text-xs font-bold cursor-pointer transition-colors text-red-500 focus:bg-red-500/10 hover:bg-red-500/10 focus:text-red-500"
+                >
+                    <LogOut className="h-4 w-4" />
+                    <span>登出系統</span>
+                </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
     );

@@ -44,15 +44,15 @@ export default function ProfilePage() {
                     <User className="h-12 w-12 text-primary" />
                 </div>
                 <h1 className="text-2xl font-bold">{profile?.name || '使用者'}</h1>
-                <Badge variant="secondary" className="mt-2 px-4 py-1 rounded-full font-bold uppercase tracking-tighter italic bg-primary/10 text-primary border-none">
-                    {profile?.role === 'admin' ? '幹部 / 管理員' : profile?.role === 'leader' ? '班長' : '一般社員'}
+                <Badge variant="secondary" className="mt-2 px-4 py-1 rounded-full font-bold uppercase tracking-tighter bg-primary/10 text-primary border-none text-[10px]">
+                    {profile?.role === 'admin' ? '幹部' : profile?.role === 'leader' ? '班長' : profile?.role === 'member' ? '社員' : '非社員'}
                 </Badge>
             </div>
 
             <div className="space-y-4">
                 <Card className="border-muted/50 shadow-sm overflow-hidden">
                     <CardHeader className="bg-muted/5 pb-4">
-                        <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground italic flex items-center">
+                        <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center">
                             <Shield className="h-4 w-4 mr-2" /> 帳號資訊
                         </CardTitle>
                     </CardHeader>
@@ -71,7 +71,7 @@ export default function ProfilePage() {
                             {profile?.member_valid_until && (
                                 <div className="p-4 flex justify-between items-center bg-primary/5">
                                     <span className="text-sm text-primary/80 font-bold">社員資格到期</span>
-                                    <span className="text-sm font-black text-primary">
+                                    <span className="text-sm font-bold text-primary">
                                         {new Date(profile.member_valid_until).toLocaleDateString('zh-TW')}
                                     </span>
                                 </div>
@@ -88,7 +88,7 @@ export default function ProfilePage() {
                     <Button
                         variant="destructive"
                         onClick={handleLogout}
-                        className="w-full justify-start h-12 rounded-xl bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white border-none shadow-none font-bold"
+                        className="w-full justify-start h-12 rounded-xl bg-red-600 hover:bg-red-700 text-white border-none shadow-md font-bold transition-all active:scale-95"
                     >
                         <LogOut className="mr-3 h-4 w-4" />
                         登出系統

@@ -24,7 +24,7 @@ const roleLabels: Record<string, string> = {
     admin: '管理員',
     leader: '班長',
     member: '社員',
-    guest: '訪客',
+    guest: '非社員',
 };
 
 export function UserNav({ user, role }: UserNavProps) {
@@ -37,7 +37,7 @@ export function UserNav({ user, role }: UserNavProps) {
         router.refresh();
     };
 
-    const roleLabel = role ? (roleLabels[role] || '訪客') : '訪客';
+    const roleLabel = role ? (roleLabels[role] || '非社員') : '非社員';
 
     return (
         <DropdownMenu>

@@ -40,8 +40,8 @@ export default async function RootLayout({
         <RoleProvider initialRole={initialRole} initialName={initialName}>
           <ThemeProvider
             attribute="class"
-            defaultTheme="system"
-            enableSystem
+            defaultTheme="dark"
+            enableSystem={false}
             disableTransitionOnChange
           >
             <Header />
