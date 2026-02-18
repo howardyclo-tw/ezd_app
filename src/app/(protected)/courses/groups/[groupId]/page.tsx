@@ -15,7 +15,7 @@ const MOCK_GROUP_COURSES: Record<string, any> = {
         title: 'HQ 2026 3月 常態試跳',
         description: '適合新手的基礎體驗課程。',
         courses: [
-            { id: 't1', name: 'Hip Hop 初級體驗', teacher: 'A-May', time: '週一 19:30-21:00', location: 'A教室', type: 'trial', status: 'open', startDate: '2026-03-02', endDate: '2026-03-30' },
+            { id: '1', name: '基礎律動 Basic Groove', teacher: 'A-May', time: '週一 19:00-20:30', location: 'A教室', type: 'trial', status: 'open', startDate: '2026-03-02', endDate: '2026-03-30' },
             { id: 't2', name: 'Locking 基礎律動', teacher: 'Kenji', time: '週三 19:00-20:30', location: 'B教室', type: 'trial', status: 'open', startDate: '2026-03-04', endDate: '2026-03-25' },
             { id: 't3', name: 'Jazz Funk 風格入門', teacher: 'Momo', time: '週五 20:00-21:30', location: 'A教室', type: 'trial', status: 'full', startDate: '2026-03-06', endDate: '2026-03-27' },
         ]
@@ -24,7 +24,7 @@ const MOCK_GROUP_COURSES: Record<string, any> = {
         title: 'HQ 2026 H1 常態課程',
         description: '長期的進階訓練課程。',
         courses: [
-            { id: 'r1', name: 'Hip Hop 中級進階', teacher: 'Xiao-Gui', time: '週二 20:40-22:10', location: 'B教室', type: 'regular', status: 'upcoming', startDate: '2026-03-10', endDate: '2026-06-23' },
+            { id: '2', name: '爵士舞進階 Jazz Advance', teacher: 'Nike', time: '週二 20:30-22:00', location: 'B教室', type: 'regular', status: 'open', startDate: '2026-03-10', endDate: '2026-06-23' },
             { id: 'r2', name: 'Popping 基礎應用', teacher: 'Popcorn', time: '週四 19:00-20:30', location: 'C教室', type: 'regular', status: 'upcoming', startDate: '2026-03-12', endDate: '2026-06-25' },
         ]
     },

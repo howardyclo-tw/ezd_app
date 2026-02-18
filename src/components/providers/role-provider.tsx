@@ -4,27 +4,33 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 type RoleContextType = {
     role: string;
+    userName: string;
     setRole: (role: string) => void;
+    setUserName: (name: string) => void;
 };
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
 export function RoleProvider({
     children,
-    initialRole = 'guest'
+    initialRole = 'guest',
+    initialName = ''
 }: {
     children: React.ReactNode,
-    initialRole?: string
+    initialRole?: string,
+    initialName?: string
 }) {
     const [role, setRole] = useState(initialRole);
+    const [userName, setUserName] = useState(initialName);
 
-    // Sync state if initialRole changes deeply (e.g. from server refresh)
+    // Sync state if initialRole or initialName changes deeply (e.g. from server refresh)
     useEffect(() => {
         setRole(initialRole);
-    }, [initialRole]);
+        setUserName(initialName);
+    }, [initialRole, initialName]);
 
     return (
-        <RoleContext.Provider value={{ role, setRole }}>
+        <RoleContext.Provider value={{ role, userName, setRole, setUserName }}>
             {children}
         </RoleContext.Provider>
     );

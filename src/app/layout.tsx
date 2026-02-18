@@ -22,19 +22,22 @@ export default async function RootLayout({
   const { data: { user } } = await supabase.auth.getUser();
 
   let initialRole = 'guest';
+  let initialName = '';
+
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, name')
       .eq('id', user.id)
       .maybeSingle();
     initialRole = profile?.role || 'guest';
+    initialName = profile?.name || '';
   }
 
   return (
     <html lang="zh-TW" suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans antialiased">
-        <RoleProvider initialRole={initialRole}>
+        <RoleProvider initialRole={initialRole} initialName={initialName}>
           <ThemeProvider
             attribute="class"
             defaultTheme="system"
