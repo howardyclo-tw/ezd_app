@@ -52,7 +52,7 @@ export default async function DashboardPage() {
   const isLeaderOrAdmin = isAdmin || isLeader;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-10 pb-24">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-10 pb-24">
 
       {/* 1. Compact Info Row (Unified Bar) */}
       <div className="flex flex-col items-center text-center">
@@ -75,7 +75,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* 2. My Courses Navigation */}
-        <Link href="/profile/courses" className="group">
+        <Link href="/dashboard/my_courses" className="group">
           <Card className="h-full border-muted/60 shadow-sm hover:border-primary/40 transition-all overflow-hidden">
             <CardContent className="p-0">
               <div className="p-8 space-y-8">
@@ -109,7 +109,7 @@ export default async function DashboardPage() {
         </Link>
 
         {/* 3. My Cards Navigation */}
-        <Link href="/profile/cards" className="group">
+        <Link href="/dashboard/my_cards" className="group">
           <Card className="h-full border-muted/60 shadow-sm hover:border-primary/40 transition-all overflow-hidden">
             <CardContent className="p-0">
               <div className="p-8 space-y-8">
@@ -161,7 +161,7 @@ export default async function DashboardPage() {
                   <Users className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-bold">今日點名 (Rollcall)</p>
+                  <p className="text-sm font-bold">今日點名</p>
                   <p className="text-[10px] text-muted-foreground font-bold">查看課堂名單與出席紀錄</p>
                 </div>
               </div>
@@ -175,7 +175,7 @@ export default async function DashboardPage() {
                       <PlusCircle className="h-5 w-5" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold">新增課程 (Create)</p>
+                      <p className="text-sm font-bold">新增課程</p>
                       <p className="text-[10px] text-muted-foreground font-bold">建立新的常態或 MV 班級</p>
                     </div>
                   </div>
@@ -186,7 +186,7 @@ export default async function DashboardPage() {
                     <UserSquare className="h-5 w-5" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold grayscale">社員管理 (Dev)</p>
+                    <p className="text-sm font-bold grayscale">社員管理</p>
                     <p className="text-[10px] text-muted-foreground font-bold">管理權限與資歷資訊</p>
                   </div>
                 </div>
