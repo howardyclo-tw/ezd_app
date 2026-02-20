@@ -17,7 +17,8 @@ import {
   Star,
   ChevronRight,
   UserSquare,
-  Banknote
+  Banknote,
+  ClipboardCheck
 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -158,11 +159,23 @@ export default async function DashboardPage() {
             <Link href="/leader/rollcall">
               <div className="flex items-center gap-4 p-4 rounded-2xl border border-muted/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-all group">
                 <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all">
-                  <Users className="h-5 w-5" />
+                  <ClipboardCheck className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-bold">今日點名</p>
                   <p className="text-[10px] text-muted-foreground font-bold">查看課堂名單與出席紀錄</p>
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/leader/approvals">
+              <div className="flex items-center gap-4 p-4 rounded-2xl border border-muted/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-all group">
+                <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold">申請審核</p>
+                  <p className="text-[10px] text-muted-foreground font-bold">處理請假、補課及轉讓申請</p>
                 </div>
               </div>
             </Link>
@@ -181,15 +194,17 @@ export default async function DashboardPage() {
                   </div>
                 </Link>
 
-                <div className="flex items-center gap-4 p-4 rounded-2xl border border-dashed border-muted/40 bg-muted/5 opacity-50 cursor-not-allowed">
-                  <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
-                    <UserSquare className="h-5 w-5" />
+                <Link href="/admin/members">
+                  <div className="flex items-center gap-4 p-4 rounded-2xl border border-muted/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-all group">
+                    <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all">
+                      <UserSquare className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold">社員管理</p>
+                      <p className="text-[10px] text-muted-foreground font-bold">管理權限與資歷資訊</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold grayscale">社員管理</p>
-                    <p className="text-[10px] text-muted-foreground font-bold">管理權限與資歷資訊</p>
-                  </div>
-                </div>
+                </Link>
               </>
             )}
           </div>

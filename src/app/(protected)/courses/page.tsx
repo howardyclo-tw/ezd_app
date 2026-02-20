@@ -1,50 +1,93 @@
-'use client';
-
-import { useState } from 'react';
+import { createClient } from '@/lib/supabase/server';
 import { CourseGroupCard } from "@/components/courses/course-group-card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CourseGroupFilter } from "@/components/courses/course-group-filter";
 
-// Mock course groups as seasons/folders
-const COURSE_GROUPS = [
-    {
-        id: '2026-trial',
-        title: 'HQ 2026 3月 常態試跳',
-        period: '2026/03/01 - 2026/03/31',
-        status: 'active',
-        type: 'trial',
-        courseCount: 8,
-    },
-    {
-        id: '2026-h1',
-        title: 'HQ 2026 H1 常態課程',
-        period: '2026/03/01 - 2026/06/30',
-        status: 'upcoming',
-        type: 'regular',
-        courseCount: 12,
-    },
-    {
-        id: '2026-workshop',
-        title: 'HQ 2026 1~2月 風格體驗 & Workshop',
-        period: '2026/01/01 - 2026/02/28',
-        status: 'ended',
-        type: 'workshop',
-        courseCount: 5,
-    },
-];
+export const dynamic = 'force-dynamic';
 
-export default function CourseGroupsPage() {
-    const [filter, setFilter] = useState('all');
+function getGroupStatus(periodStart: string | null, periodEnd: string | null): string {
+    const now = new Date();
+    const start = periodStart ? new Date(periodStart) : null;
+    const end = periodEnd ? new Date(periodEnd) : null;
 
-    const filteredGroups = COURSE_GROUPS
-        .filter(group => {
-            if (filter === 'all') return true;
-            return group.status === filter;
-        })
-        .sort((a, b) => {
-            const endA = a.period.split(' - ')[1];
-            const endB = b.period.split(' - ')[1];
-            return endB.localeCompare(endA);
-        });
+    if (end && end < now) return 'ended';
+    if (start && start > now) return 'upcoming';
+    return 'active';
+}
+
+// Helper: compute course status for display
+function getCourseDisplayStatus(course: any): string {
+    if (course.status === 'closed') return 'ended';
+    if (course.status === 'draft') return 'upcoming';
+
+    const now = new Date();
+    const enrollStart = course.enrollment_start_at ? new Date(course.enrollment_start_at) : null;
+    const enrollEnd = course.enrollment_end_at ? new Date(course.enrollment_end_at) : null;
+
+    if (enrollStart && enrollStart > now) return 'upcoming';
+    if (enrollEnd && enrollEnd < now) return 'ended';
+
+    const enrolledCount = (course.enrollments as any[])?.[0]?.count ?? 0;
+    if (enrolledCount >= course.capacity) return 'full';
+    return 'open';
+}
+
+export default async function CourseGroupsPage() {
+    const supabase = await createClient();
+
+    const { data: groups, error } = await supabase
+        .from('course_groups')
+        .select(`
+            id,
+            slug,
+            title,
+            period_start,
+            period_end,
+            courses (
+                id,
+                slug,
+                name,
+                teacher,
+                start_time,
+                end_time,
+                room,
+                type,
+                status,
+                capacity,
+                enrollment_start_at,
+                enrollment_end_at,
+                course_sessions ( id, session_date, session_number ),
+                enrollments ( count ),
+                course_leaders ( user_id, profiles!course_leaders_user_id_fkey ( id, name ) )
+            )
+        `)
+        .order('period_start', { ascending: false });
+
+    const groupData = (groups ?? []).map(g => {
+        const courses = (g.courses as any[]) ?? [];
+        const firstCourse = courses[0];
+
+        return {
+            id: g.slug || g.id,
+            title: g.title,
+            period: g.period_start && g.period_end
+                ? `${g.period_start.replace(/-/g, '/')}~${g.period_end.replace(/-/g, '/')}`
+                : '日期未定',
+            status: getGroupStatus(g.period_start, g.period_end),
+            courseCount: courses.length,
+            courses: courses.map(course => ({
+                id: course.id,
+                name: course.name,
+                teacher: course.teacher,
+                time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
+                location: course.room,
+                type: course.type,
+                status: getCourseDisplayStatus(course),
+                capacity: course.capacity,
+                startDate: course.course_sessions?.[0]?.session_date ?? '',
+                endDate: course.course_sessions?.[course.course_sessions?.length - 1]?.session_date ?? '',
+            })),
+        };
+    });
 
     return (
         <div className="container max-w-4xl py-10 space-y-6">
@@ -53,29 +96,7 @@ export default function CourseGroupsPage() {
                 <p className="text-muted-foreground text-sm font-medium">瀏覽目前課程檔期，一起來跳舞吧!</p>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex justify-center mb-10 px-4 sm:px-0">
-                <Tabs defaultValue="all" className="w-full sm:w-auto" onValueChange={setFilter}>
-                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-4 sm:flex sm:grid-cols-none sm:w-auto">
-                        <TabsTrigger value="all" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">全部檔期</TabsTrigger>
-                        <TabsTrigger value="active" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">進行中</TabsTrigger>
-                        <TabsTrigger value="upcoming" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">即將開始</TabsTrigger>
-                        <TabsTrigger value="ended" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">已結束</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-            </div>
-
-            <div className="grid gap-4">
-                {filteredGroups.length > 0 ? (
-                    filteredGroups.map((group) => (
-                        <CourseGroupCard key={group.id} group={group} />
-                    ))
-                ) : (
-                    <div className="text-center py-24 border-2 border-dashed border-muted rounded-2xl bg-muted/5">
-                        <p className="text-muted-foreground text-sm font-semibold italic">目前沒有符合該狀態的檔期</p>
-                    </div>
-                )}
-            </div>
+            <CourseGroupFilter groups={groupData} />
         </div>
     );
 }

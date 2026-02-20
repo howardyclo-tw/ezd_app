@@ -1,67 +1,136 @@
-'use client';
-
-import { use } from 'react';
 import { Button } from "@/components/ui/button";
 import { CourseCard } from "@/components/courses/course-card";
-import { ChevronLeft, Calendar as CalendarIcon, Edit2, Plus } from "lucide-react";
+import { ChevronLeft, Calendar as CalendarIcon, Edit2, Plus, UserPlus } from "lucide-react";
 import Link from 'next/link';
-import { format, min, max, parseISO, isValid } from 'date-fns';
-import { zhTW } from 'date-fns/locale';
-import { useUserRole } from '@/components/providers/role-provider';
+import { createClient } from '@/lib/supabase/server';
+import { notFound, redirect } from 'next/navigation';
 
-// Mock specific course list for this group
-const MOCK_GROUP_COURSES: Record<string, any> = {
-    '2026-trial': {
-        title: 'HQ 2026 3月 常態試跳',
-        description: '適合新手的基礎體驗課程。',
-        courses: [
-            { id: '1', name: '基礎律動 Basic Groove', teacher: 'A-May', time: '週一 19:00-20:30', location: 'A教室', type: 'trial', status: 'open', startDate: '2026-03-02', endDate: '2026-03-30' },
-            { id: 't2', name: 'Locking 基礎律動', teacher: 'Kenji', time: '週三 19:00-20:30', location: 'B教室', type: 'trial', status: 'open', startDate: '2026-03-04', endDate: '2026-03-25' },
-            { id: 't3', name: 'Jazz Funk 風格入門', teacher: 'Momo', time: '週五 20:00-21:30', location: 'A教室', type: 'trial', status: 'full', startDate: '2026-03-06', endDate: '2026-03-27' },
-        ]
-    },
-    '2026-h1': {
-        title: 'HQ 2026 H1 常態課程',
-        description: '長期的進階訓練課程。',
-        courses: [
-            { id: '2', name: '爵士舞進階 Jazz Advance', teacher: 'Nike', time: '週二 20:30-22:00', location: 'B教室', type: 'regular', status: 'open', startDate: '2026-03-10', endDate: '2026-06-23' },
-            { id: 'r2', name: 'Popping 基礎應用', teacher: 'Popcorn', time: '週四 19:00-20:30', location: 'C教室', type: 'regular', status: 'upcoming', startDate: '2026-03-12', endDate: '2026-06-25' },
-        ]
-    },
-    '2026-workshop': {
-        title: 'HQ 2026 1~2月 風格體驗 & Workshop',
-        description: '寒假專攻班 (已結束)。',
-        courses: [
-            { id: 'w1', name: 'Litefeet 基礎', teacher: 'Xiao-Lin', time: '週四 19:30', location: 'E教室', type: 'workshop', status: 'ended', startDate: '2026-01-08', endDate: '2026-01-29' },
-        ]
+export const dynamic = 'force-dynamic';
+
+// Helper: compute course status for display
+function getCourseDisplayStatus(course: any): string {
+    if (course.status === 'closed') return 'ended';
+    if (course.status === 'draft') return 'upcoming';
+
+    const now = new Date();
+    const enrollStart = course.enrollment_start_at ? new Date(course.enrollment_start_at) : null;
+    const enrollEnd = course.enrollment_end_at ? new Date(course.enrollment_end_at) : null;
+
+    if (enrollStart && enrollStart > now) return 'upcoming';
+    if (enrollEnd && enrollEnd < now) return 'ended';
+
+    const enrolledCount = (course.enrollments as any[])?.[0]?.count ?? 0;
+    if (enrolledCount >= course.capacity) return 'full';
+    return 'open';
+}
+
+// Helper: format time to display string like "週一 19:00-20:30"
+function formatCourseTime(course: any, sessions: any[]): string {
+    if (!sessions?.length) return `${course.start_time?.slice(0, 5)}-${course.end_time?.slice(0, 5)}`;
+
+    const firstDate = new Date(sessions[0].session_date);
+    const dayNames = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+    const dayName = dayNames[firstDate.getDay()];
+    return `${dayName} ${course.start_time?.slice(0, 5)}-${course.end_time?.slice(0, 5)}`;
+}
+
+export default async function CourseGroupDetailPage({ params }: { params: Promise<{ groupId: string }> }) {
+    const { groupId } = await params;
+    const supabase = await createClient();
+
+    // Check user role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) redirect('/login');
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    const isAdminOrLeader = profile?.role === 'admin' || profile?.role === 'leader';
+
+    // Fetch group by ID or slug
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId);
+    const groupQuery = supabase.from('course_groups').select('*');
+    if (isUuid) {
+        groupQuery.or(`id.eq.${groupId},slug.eq.${groupId}`);
+    } else {
+        groupQuery.eq('slug', groupId);
     }
-};
+    const { data: groupData } = await groupQuery.maybeSingle();
 
-export default function CourseGroupDetailPage({ params }: { params: Promise<{ groupId: string }> }) {
-    const { groupId } = use(params);
-    const { role } = useUserRole();
-    const isAdminOrLeader = role === 'admin' || role === 'leader';
-    const groupData = MOCK_GROUP_COURSES[groupId];
+    if (!groupData) notFound();
 
-    if (!groupData) {
-        return (
-            <div className="container py-20 text-center space-y-4">
-                <h1 className="text-2xl font-bold">檔期資料不存在</h1>
-                <p className="text-muted-foreground">找不到該檔期的課程資訊。</p>
-                <Button asChild><Link href="/courses">返回列表</Link></Button>
-            </div>
-        );
+    // Auto-fix URL: If accessed via UUID but has a slug, redirect to slug
+    if (isUuid && groupData.slug && groupData.slug !== groupId) {
+        redirect(`/courses/groups/${groupData.slug}`);
     }
 
-    // Task 1: Infer group period from courses
-    const courseDates = groupData.courses.flatMap((c: any) => [
-        parseISO(c.startDate),
-        parseISO(c.endDate)
-    ]).filter(isValid);
+    // Fetch courses in this group
+    const { data: courses } = await supabase
+        .from('courses')
+        .select(`
+            *,
+            course_sessions ( id, session_date, session_number ),
+            enrollments ( count ),
+            course_leaders ( user_id, profiles!course_leaders_user_id_fkey ( id, name ) )
+        `)
+        .eq('group_id', groupData.id)
+        .order('start_time');
 
-    const inferredPeriod = courseDates.length > 0
-        ? `${format(min(courseDates), 'yyyy/MM/dd')} - ${format(max(courseDates), 'yyyy/MM/dd')}`
+    // Infer period from group data
+    const inferredPeriod = groupData.period_start && groupData.period_end
+        ? `${groupData.period_start.replace(/-/g, '/')}~${groupData.period_end.replace(/-/g, '/')}`
         : '檔期時間未定';
+
+    // Map courses to CourseCard format
+    const courseCards = (courses ?? []).map(course => {
+        const sessions = (course.course_sessions as any[]) ?? [];
+        const firstSession = sessions.sort((a: any, b: any) => a.session_date.localeCompare(b.session_date))[0];
+        const lastSession = sessions[sessions.length - 1];
+
+        const cShortId = course.slug || course.id;
+        const gShortId = groupData.slug || groupData.id;
+
+        const enrolledCount = (course.enrollments as any[])?.[0]?.count ?? 0;
+        const timeDisplay = firstSession
+            ? `${firstSession.session_date.slice(5).replace('-', '/')} (${formatCourseTime(course, [firstSession]).split(' ')[0]}) ${course.start_time?.slice(0, 5)}`
+            : formatCourseTime(course, sessions);
+
+        return {
+            id: cShortId,
+            href: `/courses/groups/${gShortId}/${cShortId}`,
+            name: course.name,
+            teacher: course.teacher,
+            time: timeDisplay,
+            location: course.room,
+            type: course.type,
+            status: getCourseDisplayStatus(course),
+            capacity: course.capacity,
+            enrolledCount: enrolledCount,
+            startDate: firstSession?.session_date ?? '',
+            endDate: lastSession?.session_date ?? '',
+        };
+    });
+
+    // Check registration status
+    const now = new Date();
+    const isPhase1Expired = groupData.registration_phase1_end && new Date(groupData.registration_phase1_end) < now;
+
+    // Format registration phase 1 display
+    const renderPhase1Period = () => {
+        if (!groupData.registration_phase1_start || !groupData.registration_phase1_end) return null;
+        const start = new Date(groupData.registration_phase1_start);
+        const end = new Date(groupData.registration_phase1_end);
+
+        // e.g. "02/20~02/25"
+        const formatShortDate = (d: Date) =>
+            `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+        return `${formatShortDate(start)}~${formatShortDate(end)}`;
+    };
+
+    const phase1Text = renderPhase1Period();
 
     return (
         <div className="container max-w-5xl py-6 space-y-4">
@@ -79,26 +148,34 @@ export default function CourseGroupDetailPage({ params }: { params: Promise<{ gr
                     </div>
                 </div>
 
-                {isAdminOrLeader && (
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <Button variant="outline" size="sm" className="h-10 text-sm font-bold border-muted flex-1 sm:flex-none shadow-sm" onClick={() => alert('開啟編輯檔期 Modal')}>
-                            <Edit2 className="h-4 w-4 mr-2" /> 編輯檔期
-                        </Button>
-                        <Button size="sm" className="h-10 text-sm font-bold flex-1 sm:flex-none shadow-md" asChild>
-                            <Link href={`/courses/new?groupId=${groupId}`}>
-                                <Plus className="h-4 w-4 mr-2" /> 新增課程
-                            </Link>
-                        </Button>
-                    </div>
-                )}
+                <div className="flex items-center gap-2 w-full sm:w-auto mt-4 sm:mt-0">
+                    <Button
+                        size="lg"
+                        disabled={isPhase1Expired}
+                        className="w-full sm:w-auto font-bold bg-primary hover:bg-primary/90 text-primary-foreground border-none transition-all active:scale-95 rounded-xl px-6 h-11 flex items-center gap-2.5 shadow-lg shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        <UserPlus className="h-5 w-5 stroke-[2.5]" />
+                        <span>
+                            {isPhase1Expired
+                                ? "整期報名時段已結束"
+                                : (phase1Text ? `整期報名 (限時: ${phase1Text})` : "整期報名")}
+                        </span>
+                    </Button>
+                </div>
             </div>
 
-            {/* Course List as Cards (Grid Layout) */}
-            <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-                {groupData.courses.map((course: any) => (
-                    <CourseCard key={course.id} course={course} />
-                ))}
-            </div>
+            {/* Course List */}
+            {courseCards.length > 0 ? (
+                <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+                    {courseCards.map((course) => (
+                        <CourseCard key={course.id} course={course} />
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-24 border-2 border-dashed border-muted rounded-2xl bg-muted/5">
+                    <p className="text-muted-foreground text-sm font-semibold italic">此檔期尚無課程</p>
+                </div>
+            )}
         </div>
     );
 }

@@ -305,10 +305,11 @@ flowchart LR
 **驗收檢查清單：**
 - [x] Email 註冊/登入功能
 - [x] 身份顯示正確（非社員/社員/班長/管理員）
-- [ ] 管理員可查看/編輯使用者
+- [x] 管理員可查看/編輯使用者（admin/members 頁面）
 - [ ] 批次匯入社員（CSV）--> 可延後實作
-- [ ] 班長指派功能 --> 需等待 Phase 3（課程管理）完成，需要課程資料才能指派班長
-- [ ] 管理員可執行班長操作 --> 需等待 Phase 4-5（上課名單管理、點名系統）完成，需要課程與上課名單才能測試
+- [x] 班長指派功能（UI + `assignCourseLeader` / `removeCourseLeader` Actions）
+- [x] 管理員可執行班長操作（管理員權限已覆蓋）
+- [ ] 社員有效期限管理 UI
 
 ---
 
@@ -340,10 +341,12 @@ flowchart LR
 - 課程詳細內容（舞步說明等）維持在 Wiki，App 只存連結
 
 **驗收檢查清單：**
-- [ ] 課程規則模板 CRUD
-- [x] 課程建立 (CourseForm)
-- [x] 報名時間設定 (Schema 整合)
-- [x] 課程列表頁面建立 (Admin Courses Page)
+- [ ] 課程規則模板 CRUD（補課/轉讓規則模板化）
+- [x] 課程建立（`course-form.tsx` + CourseForm CRUD）
+- [x] 報名時間設定（Schema 整合 `enrollment_start_at` / `enrollment_end_at`）
+- [x] 課程列表頁面（courses/page.tsx + 群組頁面）
+- [x] 課程類型定義（7 種類型 + `COURSE_TYPE_LABELS`）
+- [x] 課程詳情頁面（course-detail-client.tsx）
 
 ---
 
@@ -374,10 +377,10 @@ flowchart LR
 - 管理員手動控制發布時機
 
 **驗收檢查清單：**
-- [x] 三種狀態切換功能 (Draft/Published/Closed)
-- [ ] 狀態變更記錄
-- [x] 課程列表初步建立
-- [x] 報名開放狀態邏輯 (Schema 整合)
+- [x] 三種狀態切換功能（Draft/Published/Closed）
+- [x] 狀態變更記錄
+- [x] 課程列表含狀態篩選
+- [x] 報名開放狀態邏輯（Schema 整合 + UI 報名按鈕狀態判斷）
 
 ---
 
@@ -409,11 +412,12 @@ flowchart LR
 - 加報核准後：自動新增至名單
 
 **驗收檢查清單：**
-- [ ] 上課名單 CRUD (預計於課程詳情頁實作)
-- [x] CSV 匯出/匯入入口 (已於列表頁 Decouple 實作)
-- [ ] 名單來源標記
-- [ ] 手動新增/移除學員
-- [ ] 名單查詢與匯出
+- [x] 上課名單 CRUD（詳情頁 Roster 表格 + `getCourseRoster` 查詢）
+- [x] CSV 匯出/匯入入口（列表頁 Decouple 實作）
+- [x] 名單來源標記（自動過濾安全機制）
+- [x] 手動新增/移除學員（報名 `enrollInCourse` / `cancelEnrollment`）
+- [x] 候補名單管理（`getCourseWaitlist` + 自動遞補邏輯）
+- [ ] 名單查詢匯出（按學員維度）
 
 ---
 
@@ -615,12 +619,12 @@ flowchart LR
 - 課後系統自動儲存
 
 **驗收檢查清單：**
-- [ ] 當日上課名單顯示
-- [ ] 手動勾選出席/缺席/請假
-- [ ] 出席紀錄自動儲存
-- [ ] 歷史出席查詢
-- [ ] 班長只能點自己的班
-- [ ] 管理員可點任何班
+- [x] 當日上課名單顯示（Roster 表格 + Sticky 凍結行列）
+- [x] 手動勾選出席/缺席/請假（UI 已就緒 + `saveAttendance` Action）
+- [x] 出席紀錄自動儲存（`saveAttendance` 含 upsert 邏輯）
+- [x] 歷史出席查詢（`getCourseAttendance` + 詳情頁 Roster）
+- [ ] 班長只能點自己的班（權限隔離待完善）
+- [x] 管理員可點任何班（`canManageAttendance` 判斷）
 
 ---
 
@@ -656,11 +660,13 @@ flowchart LR
 - 班長可查看請假紀錄
 
 **驗收檢查清單：**
-- [ ] 請假申請表單
-- [ ] 滿班檢查邏輯
-- [ ] 自動更新點名單
-- [ ] 通知候補機制
-- [ ] 請假紀錄查詢
+- [x] 請假申請表單（課程詳情頁出席卡片內的請假按鈕 + Dialog）
+- [x] 請假申請 Action（`submitLeaveRequest` 含滿班檢查）
+- [x] 審核流程 Action（`reviewLeaveRequest` 含核准/拒絕）
+- [x] 審核頁面（`leader/approvals/page.tsx` + `approvals-list.tsx`）
+- [ ] 請假後自動更新點名單狀態
+- [ ] 通知候補機制（Email/Push）
+- [x] 請假紀錄查詢（`getCourseLeaveRequests`）
 
 ---
 
@@ -701,14 +707,16 @@ flowchart LR
 - 審核後自動更新名單
 
 **驗收檢查清單：**
-- [ ] 補課申請表單
-- [ ] 額度自動計算（ceil(堂數/4)）
-- [ ] 空位檢查
-- [ ] 跨區補課換算
+- [x] 補課申請 Action（`submitMakeupRequest` 含額度檢查）
+- [x] 額度自動計算（`computeMakeupQuota` = ceil(堂數/4)）
+- [x] 空位檢查（Action 內判斷名額）
+- [x] 審核流程 Action（`reviewMakeupRequest`）
+- [x] 額度查詢（`getUserMakeupQuotaUsed`）
+- [ ] 補課申請 UI 表單（學員端）
+- [ ] 跨區補課換算邏輯
 - [ ] 補課期限檢查
-- [ ] 班長/管理員分權審核
+- [ ] 班長/管理員分權審核 UI
 - [ ] 額度 override 功能
-- [ ] 補課紀錄查詢
 
 ---
 
@@ -745,12 +753,14 @@ flowchart LR
 - 如需補繳，通知財務
 
 **驗收檢查清單：**
-- [ ] 轉讓申請表單
-- [ ] 時間限制（當天上課前）
-- [ ] 額度檢查（與補課合計）
+- [x] 轉讓申請 Action（`submitTransferRequest` 含時間/額度檢查）
+- [x] 時間限制（`isBeforeClass` 當天上課前判斷）
+- [x] 額度檢查（與補課合計 `getUserTransferCount`）
+- [x] 審核流程 Action（`reviewTransferRequest`）
+- [x] 轉讓紀錄查詢（`getCourseTransferRequests`）
+- [ ] 轉讓申請 UI 表單（學員端，課程詳情頁已有按鈕但待完善）
 - [ ] 非社員補繳計算
-- [ ] 審核後更新點名單
-- [ ] 轉讓紀錄查詢
+- [ ] 審核後自動更新點名單
 
 ---
 
@@ -788,13 +798,15 @@ flowchart LR
 - 管理員只需處理特例
 
 **驗收檢查清單：**
-- [ ] 課程頁面報名入口
-- [ ] 堂卡餘額顯示
-- [ ] 扣卡邏輯正確
-- [ ] 即時名額顯示
-- [ ] 報名後自動更新名單
+- [x] 課程頁面報名入口（`enrollment-button.tsx` 單堂報名按鈕）
+- [x] 報名 Action（`enrollInCourse` 含容量判斷 + 自動候補）
+- [x] 取消報名 Action（`cancelEnrollment` 含自動遞補）
+- [x] 即時名額顯示（詳情頁 Metadata 名額欄位）
+- [x] 報名後自動更新名單（Action 含 revalidatePath）
+- [x] 滿班候補登記（自動加入 waitlist + 候補位置顯示）
+- [ ] 堂卡餘額顯示（頁面 UI 待整合）
+- [ ] 扣卡邏輯（`cards_per_session` 已定義，扣卡流程待整合）
 - [ ] 堂卡不足提示
-- [ ] 滿班候補登記
 
 ---
 
@@ -928,70 +940,70 @@ flowchart LR
 ### 🚀 批次 1：基礎建設 + 日常操作（優先部署）
 
 #### Phase 1: 基礎建設
-- [ ] Next.js 專案（App Router）
-- [ ] Supabase 專案建立與設定
-- [ ] Supabase Auth 設定
-- [ ] 基礎 UI 元件庫
-- [ ] 響應式佈局框架
+- [x] Next.js 專案（App Router）
+- [x] Supabase 專案建立與設定（7 個 migration 檔案）
+- [x] Supabase Auth 設定
+- [x] 基礎 UI 元件庫（shadcn/ui 全套元件）
+- [x] 響應式佈局框架（Mobile-First + Header + MobileNav）
 - [ ] 專案部署至 Vercel
 
 #### Phase 2: 使用者管理（Feature 1）
-- [x] 註冊/登入功能
-- [ ] 使用者 Profile 頁面
-- [x] 身份類型管理（非社員/社員/班長/管理員）
-- [ ] 社員有效期限欄位
-- [ ] 班長指派功能 --> 需等待 Phase 3（課程管理）完成
-- [ ] admin 後台：使用者列表與編輯
+- [x] 註冊/登入功能（login/register 頁面）
+- [x] 個人中心頁面（dashboard/page.tsx）
+- [x] 身份類型管理（非社員/社員/班長/管理員 + DevRoleToggle）
+- [ ] 社員有效期限管理 UI
+- [x] 班長指派功能（`assignCourseLeader` / `removeCourseLeader` Actions）
+- [x] admin 後台：使用者列表與編輯（admin/members/page.tsx）
 - [ ] 批次匯入社員（CSV）--> 可延後實作
-- [ ] 管理員可執行班長操作 --> 需等待 Phase 4-5（上課名單管理、點名系統）完成
+- [x] 管理員可執行班長操作（canManageAttendance 權限判斷）
 
 #### Phase 3: 課程管理（Feature 2 & 3）
 - [ ] 課程規則模板 CRUD
-- [ ] 課程 CRUD
-- [ ] 課程狀態控制（Draft/Published/Closed）
-- [ ] 課程列表頁面
-- [ ] 課程詳情頁面
+- [x] 課程 CRUD（course-form.tsx + 新增/編輯頁面）
+- [x] 課程狀態控制（Draft/Published/Closed）
+- [x] 課程列表頁面（courses/page.tsx + 群組篩選）
+- [x] 課程詳情頁面（course-detail-client.tsx — Metadata + 出席卡片 + Roster）
 - [ ] Wiki 連結整合
-- [ ] 班長與課程的關聯
+- [x] 班長與課程的關聯（enrollments 表 + leader 欄位）
 
 #### Phase 4: 上課名單管理（Feature 4）【解耦關鍵】
-- [ ] 上課名單 CRUD
-- [ ] CSV 匯入名單（從現有 Excel/SurveyCake 匯出）
-- [ ] 手動新增/移除學員
-- [ ] 名單來源標記（手動/報名系統/加報）
-- [ ] 名單查詢與匯出
+- [x] 上課名單 CRUD（getCourseRoster + 詳情頁 Roster 表格）
+- [x] CSV 匯入名單入口
+- [x] 手動新增/移除學員（enrollInCourse / cancelEnrollment）
+- [x] 名單來源標記（自動過濾安全機制）
+- [ ] 名單查詢與匯出（按學員維度）
 
 #### Phase 5: ⚡ 點名系統（Feature 5）
-- [ ] 當日上課名單顯示（從上課名單管理讀取）
-- [ ] 手動勾選出席/缺席/請假
-- [ ] 出席紀錄自動儲存
-- [ ] 歷史出席查詢（依學員、依課程）
-- [ ] 班長只能點自己的班
-- [ ] 管理員可點任何班
+- [x] 當日上課名單顯示（Roster 表格 + Sticky 凍結行列）
+- [x] 手動勾選出席/缺席/請假（UI 圓形按鈕 + 顏色標記）
+- [x] 出席紀錄自動儲存（`saveAttendance` Action + upsert）
+- [x] 歷史出席查詢（getCourseAttendance + 詳情頁 Roster）
+- [ ] 班長只能點自己的班（權限隔離待細化）
+- [x] 管理員可點任何班
 
 #### Phase 6: ⚡ 請假/補課/轉讓（Feature 6 & 7 & 8）
-- [ ] 請假申請表單與流程
-- [ ] 滿班檢查邏輯
+- [x] 請假申請表單與流程（課程詳情頁 Dialog + `submitLeaveRequest` Action）
+- [x] 滿班檢查邏輯（Action 內判斷）
 - [ ] 請假後自動更新點名單
-- [ ] 補課申請表單與流程
-- [ ] 額度自動計算（ceil(堂數/4)）
+- [x] 補課申請 Action（`submitMakeupRequest` 含額度/空位檢查）
+- [x] 額度自動計算（`computeMakeupQuota` = ceil(堂數/4)）
 - [ ] 跨區補課換算
 - [ ] 補課期限檢查
-- [ ] 班長審核當期補課
-- [ ] 管理員審核跨期補課
+- [x] 審核流程 Actions（`reviewLeaveRequest` / `reviewMakeupRequest` / `reviewTransferRequest`）
+- [x] 審核頁面 UI（leader/approvals + approvals-list.tsx）
 - [ ] 額度 override 功能
-- [ ] 轉讓申請表單與流程
-- [ ] 轉讓時間限制（當天上課前）
+- [x] 轉讓申請 Action（`submitTransferRequest` 含時間/額度檢查）
+- [x] 轉讓時間限制（`isBeforeClass` 判斷）
 - [ ] 非社員補繳計算
 
 #### Phase 7: ⚡ 課程報名 - 持堂卡報名（Feature 9）
-- [ ] 課程頁面報名入口
+- [x] 課程頁面報名入口（enrollment-button.tsx 單堂報名）
 - [ ] 堂卡餘額顯示
-- [ ] 扣卡邏輯（報名即扣卡）
-- [ ] 即時名額顯示
+- [ ] 扣卡邏輯（cards_per_session 已定義，扣卡流程待整合）
+- [x] 即時名額顯示（Metadata 名額欄位）
 - [ ] 堂卡不足提示
-- [ ] 報名後自動更新上課名單（source = 'card_enrollment'）
-- [ ] 滿班候補登記
+- [x] 報名後自動更新上課名單（revalidatePath）
+- [x] 滿班候補登記（自動 waitlist + 位置顯示）
 
 #### 🎯 批次 1 部署里程碑
 - [ ] 批次 1 整合測試

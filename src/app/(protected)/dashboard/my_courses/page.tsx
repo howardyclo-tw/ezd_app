@@ -1,79 +1,49 @@
-'use client';
-
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 import { CourseCard } from '@/components/courses/course-card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ClipboardList } from 'lucide-react';
+import { Card, CardContent } from "@/components/ui/card";
 
-// Mock Data
-const MOCK_MY_COURSES = [
-    {
-        id: 'c1',
-        name: '基礎律動 Basic Groove',
-        teacher: 'A-May',
-        time: '03/10 (二) 20:30 @ B教室',
-        location: 'B 教室',
-        type: 'regular',
-        status: 'open',
-        userStatus: 'enrolled', // 已報名
-    },
-    {
-        id: 'c2',
-        name: 'Hiphop 初級 Hiphop Basic',
-        teacher: '小 P',
-        time: '03/15 (日) 14:00 @ A教室',
-        location: 'A 教室',
-        type: 'regular',
-        status: 'open',
-        userStatus: 'waitlist', // 候補中 (候補2)
-        waitingNo: 2,
-    },
-    {
-        id: 'c3',
-        name: 'Jazz Advance 爵士進階',
-        teacher: 'Nike',
-        time: '03/12 (四) 19:30 @ C教室',
-        location: 'C 教室',
-        type: 'regular',
-        status: 'open',
-        userStatus: 'leave', // 已請假
-    },
-    {
-        id: 'c4',
-        name: 'Breaking Foundation',
-        teacher: 'B-Boy T',
-        time: '03/11 (三) 18:30 @ B教室',
-        location: 'B 教室',
-        type: 'regular',
-        status: 'open',
-        userStatus: 'transferred_out', // 已轉出
-    },
-    {
-        id: 'c5',
-        name: 'Popping Session',
-        teacher: 'Boogaloo',
-        time: '03/13 (五) 21:00 @ A教室',
-        location: 'A 教室',
-        type: 'regular',
-        status: 'open',
-        userStatus: 'transferred_in', // 已轉入
-    },
-    {
-        id: 'c6-history',
-        name: 'Locking 基礎 Locking 101',
-        teacher: '阿偉',
-        time: '2026/02/15 已結業',
-        location: 'A 教室',
-        type: 'regular',
-        status: 'ended',
-        userStatus: 'ended', // 已結束
+export const dynamic = 'force-dynamic';
+
+export default async function MyCoursesPage() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) redirect('/login');
+
+    // Fetch my enrollments with course and group details
+    const { data: myEnrollments, error } = await supabase
+        .from('enrollments')
+        .select(`
+            id,
+            status,
+            waitlist_position,
+            courses (
+                id,
+                name,
+                teacher,
+                start_time,
+                end_time,
+                room,
+                type,
+                status,
+                capacity,
+                slug,
+                course_groups ( id, title, slug )
+            )
+        `)
+        .eq('user_id', user.id)
+        .in('status', ['enrolled', 'waitlist']);
+
+    if (error) {
+        console.error('Error fetching my courses:', error);
     }
-];
 
-export default function MyCoursesPage() {
     return (
         <div className="container max-w-5xl py-6 space-y-4">
-            {/* Header: Exact mirror of courses group detail header */}
+            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                 <div className="flex items-start gap-2">
                     <Button variant="ghost" size="icon" asChild className="rounded-full h-9 w-9 -ml-2 shrink-0">
@@ -90,17 +60,51 @@ export default function MyCoursesPage() {
                 </div>
             </div>
 
-            {/* List Content: Mirroring the grid layout from courses group detail */}
-            <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-                {MOCK_MY_COURSES.map((course) => (
-                    <div key={course.id} className={course.userStatus === 'ended' || course.userStatus === 'transferred_out' ? "opacity-60 grayscale transition-all text-sm" : ""}>
-                        <CourseCard course={{
-                            ...course,
-                            isManagement: true
-                        }} />
-                    </div>
-                ))}
-            </div>
+            {/* List Content */}
+            {(!myEnrollments || myEnrollments.length === 0) ? (
+                <Card className="border-dashed border-muted/50 bg-muted/5">
+                    <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
+                            <ClipboardList className="h-8 w-8 text-muted-foreground/40" />
+                        </div>
+                        <h3 className="text-lg font-bold text-foreground/80">尚未報名任何課程</h3>
+                        <p className="text-sm text-muted-foreground mt-1 px-4 max-w-xs mx-auto">
+                            您目前沒有進行中或候補中的課程。
+                        </p>
+                        <Button className="mt-8 font-bold bg-primary text-primary-foreground shadow-lg px-8 rounded-xl" asChild>
+                            <Link href="/courses">前往探索課程</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            ) : (
+                <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+                    {myEnrollments.map((enrollment: any) => {
+                        const course = enrollment.courses;
+                        const group = course.course_groups;
+                        const gShortId = group.slug || group.id;
+                        const cShortId = course.slug || course.id;
+
+                        // Calculate display status for CourseCard
+                        return (
+                            <div key={enrollment.id}>
+                                <CourseCard course={{
+                                    id: course.id,
+                                    name: course.name,
+                                    teacher: course.teacher,
+                                    time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
+                                    location: course.room,
+                                    type: course.type,
+                                    status: course.status,
+                                    userStatus: enrollment.status,
+                                    waitingNo: enrollment.waitlist_position,
+                                    isManagement: true,
+                                    href: `/courses/groups/${gShortId}/${cShortId}`
+                                }} />
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }
