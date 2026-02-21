@@ -7,52 +7,29 @@ import { Button } from '@/components/ui/button';
 import { CreditCard, Clock, CalendarDays, ChevronLeft, Plus } from 'lucide-react';
 import Link from 'next/link';
 
-// Mock Data
-const MOCK_MY_CARDS = [
-    {
-        id: 'card-001',
-        type: 'regular',
-        name: '【一般常態課程】 10 堂課卡',
-        purchaseDate: '2026-01-15',
-        expiryDate: '2026-12-31',
-        totalQuota: 10,
-        remainingQuota: 8,
-        status: 'active', // active, pending, expired
-        price: 3000,
-    },
-    {
-        id: 'card-pending-002',
-        type: 'regular',
-        name: '【一般常態課程】 5 堂課卡',
-        purchaseDate: '2026-02-18',
-        expiryDate: '-',
-        totalQuota: 5,
-        remainingQuota: 5,
-        status: 'pending', // pending payment or audit
-        price: 1500,
-    },
-    {
-        id: 'card-expired-003',
-        type: 'trial',
-        name: '2025 年度課程卡',
-        purchaseDate: '2025-01-01',
-        expiryDate: '2025-12-31',
-        totalQuota: 20,
-        remainingQuota: 0,
-        status: 'expired',
-        price: 5000,
-    },
-];
-
 export default async function MyCardsPage() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) redirect('/login');
 
-    const activeCards = MOCK_MY_CARDS.filter(c => c.status === 'active');
-    const pendingCards = MOCK_MY_CARDS.filter(c => c.status === 'pending');
-    const expiredCards = MOCK_MY_CARDS.filter(c => c.status === 'expired');
+    // Fetch user profile for balance
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('name, card_balance')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    // Fetch card orders
+    const { data: orders } = await supabase
+        .from('card_orders')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+    const activeCards = (orders ?? []).filter(o => o.status === 'confirmed');
+    const pendingCards = (orders ?? []).filter(o => o.status === 'pending' || o.status === 'remitted');
+    const expiredCards = (orders ?? []).filter(o => o.status === 'cancelled');
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -92,7 +69,7 @@ export default async function MyCardsPage() {
                             )}
                         </TabsTrigger>
                         <TabsTrigger value="active" className="text-[12px] sm:text-sm font-medium data-[state=active]:bg-orange-600 data-[state=active]:text-white transition-all px-4 shadow-sm">使用中</TabsTrigger>
-                        <TabsTrigger value="expired" className="text-[12px] sm:text-sm font-medium data-[state=active]:bg-orange-600 data-[state=active]:text-white transition-all px-4 shadow-sm">歷史/失效</TabsTrigger>
+                        <TabsTrigger value="expired" className="text-[12px] sm:text-sm font-medium data-[state=active]:bg-orange-600 data-[state=active]:text-white transition-all px-4 shadow-sm">歷史/已取消</TabsTrigger>
                     </TabsList>
 
                     <div className="mt-8 space-y-6">
@@ -103,46 +80,47 @@ export default async function MyCardsPage() {
                                     <p className="text-muted-foreground font-bold">目前沒有可用的堂卡</p>
                                 </div>
                             ) : (
-                                activeCards.map((card) => (
-                                    <Card key={card.id} className="border-muted/60 shadow-sm overflow-hidden relative group hover:border-orange-600/30 transition-all rounded-3xl p-8 space-y-8">
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600/60">Active Pass</p>
-                                                <h2 className="text-2xl font-bold tracking-tight">{card.name}</h2>
-                                            </div>
-                                            <Badge className="bg-orange-600 text-white font-bold border-none px-3">使用中</Badge>
+                                <div className="space-y-6">
+                                    {/* Overall Balance Summary Card */}
+                                    <Card className="bg-card border border-muted/60 shadow-sm rounded-3xl p-8 space-y-8 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-8 opacity-5">
+                                            <CreditCard className="h-32 w-32 -rotate-12 translate-x-8 translate-y-8 text-foreground" />
+                                        </div>
+                                        <div className="space-y-1 relative">
+                                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Total Running Balance</p>
+                                            <h2 className="text-2xl font-black">目前的總剩餘堂數</h2>
                                         </div>
 
-                                        <div className="flex items-end justify-between">
+                                        <div className="flex items-end justify-between relative">
                                             <div className="space-y-1">
-                                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">目前剩餘額度</p>
-                                                <p className="text-6xl font-bold tracking-tighter">
-                                                    {card.remainingQuota} <span className="text-lg opacity-30">/ {card.totalQuota} 堂</span>
+                                                <p className="text-7xl font-black tracking-tighter">
+                                                    {profile?.card_balance ?? 0} <span className="text-xl opacity-40 font-bold ml-1">堂卡</span>
                                                 </p>
                                             </div>
-                                            <div className="h-16 w-16 rounded-full border-4 border-muted flex items-center justify-center shrink-0">
-                                                <span className="text-sm font-bold text-muted-foreground">
-                                                    {Math.round((card.remainingQuota / card.totalQuota) * 100)}%
-                                                </span>
-                                            </div>
                                         </div>
 
-                                        <div className="h-3 w-full bg-muted rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-orange-600 transition-all duration-1000 ease-out"
-                                                style={{ width: `${(card.remainingQuota / card.totalQuota) * 100}%` }}
-                                            />
-                                        </div>
-
-                                        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-bold uppercase tracking-wider">
-                                            <div className="flex items-center gap-4">
-                                                <span className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 opacity-40" /> {card.purchaseDate} 購</span>
-                                                <span className="h-3 w-[1px] bg-muted" />
-                                                <span className="flex items-center gap-1.5 text-orange-600/80"><Clock className="h-3.5 w-3.5 opacity-40" /> 效期至 {card.expiryDate}</span>
-                                            </div>
+                                        <div className="flex items-center gap-4 text-[11px] font-bold uppercase tracking-widest text-muted-foreground relative">
+                                            <span className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> 系統即時更新</span>
                                         </div>
                                     </Card>
-                                ))
+
+                                    {/* List of Confirmed Orders */}
+                                    {activeCards.map((card) => (
+                                        <Card key={card.id} className="border-muted/60 bg-muted/5 shadow-sm overflow-hidden relative group hover:border-orange-600/30 transition-all rounded-3xl p-6 flex flex-row items-center justify-between gap-4">
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600/60">Purchase ID: {card.id.slice(0, 8)}</p>
+                                                <h3 className="text-base font-bold">已開通: {card.quantity} 堂課卡</h3>
+                                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                                                    購於 {card.remittance_date || card.created_at.slice(0, 10)}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <Badge variant="outline" className="border-orange-500/30 text-orange-600 bg-orange-500/5 font-bold mb-1">已生效</Badge>
+                                                <p className="text-xs text-muted-foreground font-bold">NT$ {card.total_amount}</p>
+                                            </div>
+                                        </Card>
+                                    ))}
+                                </div>
                             )}
                         </TabsContent>
 

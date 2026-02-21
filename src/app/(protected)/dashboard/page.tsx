@@ -24,6 +24,7 @@ import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { DashboardNavCard } from '@/components/dashboard/dashboard-nav-card';
 
 
 import { getAvailableMakeupQuotaSessions } from '@/lib/supabase/queries';
@@ -55,14 +56,21 @@ export default async function DashboardPage() {
   const isLeader = userRole === 'leader';
   const isLeaderOrAdmin = isAdmin || isLeader;
 
-  // 1. Fetch upcoming courses count
-  const { data: userEnrollments } = await supabase
+  // 1. Fetch upcoming courses count (Synchronized with My Courses page logic)
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const { data: myEnrollments } = await supabase
     .from('enrollments')
-    .select('id')
+    .select(`
+      courses (
+        course_sessions ( session_date )
+      )
+    `)
     .eq('user_id', user.id)
-    .eq('status', 'enrolled');
+    .in('status', ['enrolled', 'waitlist']);
 
-  const upcomingSessionsCount = userEnrollments ? userEnrollments.length : 0;
+  const upcomingSessionsCount = (myEnrollments ?? []).flatMap((enrollment: any) =>
+    (enrollment.courses?.course_sessions ?? []).filter((s: any) => s.session_date >= today)
+  ).length;
 
   // 2. Fetch makeup quota stats
   const { data: allMissed } = await supabase
@@ -83,7 +91,6 @@ export default async function DashboardPage() {
     .in('status', ['pending', 'remitted']);
 
   // 4. Fetch leader stats (Today's Rollcall)
-  const today = format(new Date(), 'yyyy-MM-dd');
   const { data: todaySessions } = await supabase
     .from('course_sessions')
     .select(`
@@ -128,74 +135,41 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
         {/* 2. My Courses Navigation */}
-        <Link href="/dashboard/my_courses" className="group">
-          <Card className="h-full border-muted/60 shadow-sm hover:border-primary/40 transition-all overflow-hidden">
-            <CardContent className="p-0">
-              <div className="p-8 space-y-8">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-5">
-                    <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all duration-300 shrink-0">
-                      <Calendar className="h-6 w-6" />
-                    </div>
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-bold tracking-tight">我的課程</h2>
-                      <p className="text-sm text-muted-foreground font-medium">查看預約、報名與課表</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground/30 group-hover:text-primary transition-all shrink-0" />
-                </div>
-
-                <div className="pt-6 border-t border-muted/40 flex items-center gap-8">
-                  <div className="space-y-0.5">
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">本期補課</p>
-                    <p className="text-lg font-bold">{availableMakeupQuotaCount} <span className="text-xs opacity-40">/ {totalMissedCount} 堂</span></p>
-                  </div>
-                  <div className="h-8 w-[1px] bg-muted/40" />
-                  <div className="space-y-0.5">
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">即將到來</p>
-                    <p className="text-lg font-bold">{upcomingSessionsCount} <span className="text-xs opacity-40">堂</span></p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+        <DashboardNavCard
+          href="/dashboard/my_courses"
+          icon={Calendar}
+          title="我的課程"
+          description="查看預約、報名與課表"
+          stats={[
+            {
+              label: "即將到來",
+              value: <>{upcomingSessionsCount} <span className="text-xs opacity-40">堂</span></>
+            },
+            {
+              label: "可用補課",
+              value: <>{availableMakeupQuotaCount} <span className="text-xs opacity-40">/ {totalMissedCount} 堂</span></>
+            }
+          ]}
+        />
 
         {/* 3. My Cards Navigation */}
-        <Link href="/dashboard/my_cards" className="group">
-          <Card className="h-full border-muted/60 shadow-sm hover:border-primary/40 transition-all overflow-hidden">
-            <CardContent className="p-0">
-              <div className="p-8 space-y-8">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-5">
-                    <div className="h-12 w-12 rounded-2xl bg-orange-500/5 flex items-center justify-center text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-all duration-300 shrink-0">
-                      <CreditCard className="h-6 w-6" />
-                    </div>
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-bold tracking-tight">我的堂卡</h2>
-                      <p className="text-sm text-muted-foreground font-medium">管理餘額、購卡與紀錄</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground/30 group-hover:text-orange-600 transition-all shrink-0" />
-                </div>
-
-                <div className="pt-6 border-t border-muted/40 flex items-center gap-8">
-                  <div className="space-y-0.5">
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">剩餘堂數</p>
-                    <p className="text-lg font-bold text-orange-600">{profile?.card_balance ?? 0} <span className="text-xs opacity-40">堂</span></p>
-                  </div>
-                  <div className="h-8 w-[1px] bg-muted/40" />
-                  <div className="space-y-0.5">
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">待繳費</p>
-                    <p className="text-lg font-bold">{pendingOrdersCount ?? 0} <span className="text-xs opacity-40">筆</span></p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+        <DashboardNavCard
+          href="/dashboard/my_cards"
+          icon={CreditCard}
+          title="我的堂卡"
+          description="管理餘額、購卡與紀錄"
+          stats={[
+            {
+              label: "剩餘堂數",
+              value: <>{profile?.card_balance ?? 0} <span className="text-xs opacity-40">堂</span></>
+            },
+            {
+              label: "待繳費",
+              value: <>{pendingOrdersCount ?? 0} <span className="text-xs opacity-40">筆</span></>
+            }
+          ]}
+        />
       </div>
 
       {/* 4. Role Specific Tools */}
