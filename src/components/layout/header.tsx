@@ -26,7 +26,7 @@ export async function Header() {
         {/* Logo & Desktop Nav */}
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-            <h1 className="text-xl font-black italic tracking-tighter text-primary">EZD App</h1>
+            <h1 className="text-xl font-black italic tracking-tighter text-primary">EZDANCE</h1>
           </Link>
 
           {/* Desktop Navigation - Server-side user check, client-side active state */}

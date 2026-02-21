@@ -4,6 +4,7 @@ import { ChevronLeft, Calendar as CalendarIcon, Edit2, Plus, UserPlus } from "lu
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
+import { GroupEnrollmentDialog } from "@/components/courses/group-enrollment-dialog";
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,7 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
 
     const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, card_balance')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -79,6 +80,14 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
         .eq('group_id', groupData.id)
         .order('start_time');
 
+    // Fetch user's existing enrollments for this group (to disable in dialog)
+    const { data: userEnrollments } = await supabase
+        .from('enrollments')
+        .select('course_id')
+        .eq('user_id', user.id)
+        .eq('status', 'enrolled')
+        .eq('type', 'full');
+
     // Infer period from group data
     const inferredPeriod = groupData.period_start && groupData.period_end
         ? `${groupData.period_start.replace(/-/g, '/')}~${groupData.period_end.replace(/-/g, '/')}`
@@ -95,8 +104,8 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
 
         const enrolledCount = (course.enrollments as any[])?.[0]?.count ?? 0;
         const timeDisplay = firstSession
-            ? `${firstSession.session_date.slice(5).replace('-', '/')} (${formatCourseTime(course, [firstSession]).split(' ')[0]}) ${course.start_time?.slice(0, 5)}`
-            : formatCourseTime(course, sessions);
+            ? `${firstSession.session_date.slice(5).replace('-', '/')} (${formatCourseTime(course, [firstSession]).split(' ')[0]}) ${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)} • ${sessions.length} 堂`
+            : `${formatCourseTime(course, sessions)} • ${sessions.length} 堂`;
 
         return {
             id: cShortId,
@@ -149,18 +158,25 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto mt-4 sm:mt-0">
-                    <Button
-                        size="lg"
-                        disabled={isPhase1Expired}
-                        className="w-full sm:w-auto font-bold bg-primary hover:bg-primary/90 text-primary-foreground border-none transition-all active:scale-95 rounded-xl px-6 h-11 flex items-center gap-2.5 shadow-lg shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                        <UserPlus className="h-5 w-5 stroke-[2.5]" />
-                        <span>
-                            {isPhase1Expired
-                                ? "整期報名時段已結束"
-                                : (phase1Text ? `整期報名 (限時: ${phase1Text})` : "整期報名")}
-                        </span>
-                    </Button>
+                    <GroupEnrollmentDialog
+                        groupTitle={groupData.title}
+                        cardBalance={profile?.card_balance ?? 0}
+                        courses={(courses ?? []).map(c => {
+                            const sessions = (c.course_sessions as any[]) ?? [];
+                            const enrolledCount = (c.enrollments as any[])?.[0]?.count ?? 0;
+                            const isUserEnrolled = (userEnrollments ?? []).some(ue => ue.course_id === c.id);
+
+                            return {
+                                id: c.id,
+                                name: c.name,
+                                teacher: c.teacher,
+                                sessionsCount: sessions.length,
+                                cardsPerSession: c.cards_per_session,
+                                isEnrolled: isUserEnrolled,
+                                isFull: enrolledCount >= c.capacity,
+                            };
+                        })}
+                    />
                 </div>
             </div>
 

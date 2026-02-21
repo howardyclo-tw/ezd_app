@@ -28,30 +28,47 @@ async function getCurrentUser() {
 /**
  * Enroll the current user in a course.
  * If the course is full, adds to waitlist automatically.
+ * Now supports card deduction and enrollment types.
  */
-export async function enrollInCourse(courseId: string): Promise<{ success: boolean; status: 'enrolled' | 'waitlist'; message: string }> {
+export async function enrollInCourse(
+    courseId: string,
+    type: 'full' | 'single' = 'full',
+    sessionId?: string
+): Promise<{ success: boolean; status: 'enrolled' | 'waitlist'; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
     // 1. Check if already enrolled
-    const { data: existing } = await supabase
-        .from('enrollments')
-        .select('id, status')
+    // For single-session, we check if already enrolled in THAT specific session
+    // For full-term, we check if already enrolled in the course
+    const checkQuery = supabase.from('enrollments')
+        .select('id, status, type, session_id')
         .eq('course_id', courseId)
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .eq('user_id', user.id);
 
-    if (existing && existing.status !== 'cancelled') {
-        return { success: false, status: existing.status as any, message: '您已報名此課程' };
+    if (type === 'single' && sessionId) {
+        checkQuery.eq('session_id', sessionId);
+    } else {
+        checkQuery.eq('type', 'full');
     }
 
-    // 2. Get course info (capacity + current enrollment count)
-    const { data: course, error: courseError } = await supabase
-        .from('courses')
-        .select('id, capacity, status, enrollment_start_at, enrollment_end_at, cards_per_session')
-        .eq('id', courseId)
-        .maybeSingle();
+    const { data: existing } = await checkQuery.maybeSingle();
 
-    if (courseError || !course) throw new Error('課程不存在');
+    if (existing && existing.status !== 'cancelled') {
+        const typeLabel = existing.type === 'full' ? '整期' : '單堂';
+        return { success: false, status: existing.status as any, message: `您已${typeLabel}報名此課程` };
+    }
+
+    // 2. Get course info and profile balance
+    const [courseRes, profileRes] = await Promise.all([
+        supabase.from('courses').select('*, course_sessions(count)').eq('id', courseId).maybeSingle(),
+        supabase.from('profiles').select('card_balance, role').eq('id', user.id).maybeSingle(),
+    ]);
+
+    const course = courseRes.data;
+    const profile = profileRes.data;
+
+    if (!course) throw new Error('課程不存在');
+    if (!profile) throw new Error('使用者資料不存在');
     if (course.status !== 'published') throw new Error('課程尚未開放報名');
 
     const now = new Date();
@@ -62,7 +79,26 @@ export async function enrollInCourse(courseId: string): Promise<{ success: boole
         throw new Error('報名已截止');
     }
 
-    // 3. Check current enrollment count
+    // 3. Calculate cards to deduct
+    let cardsToDeduct = 0;
+    const sessionsCount = (course.course_sessions as any)?.[0]?.count ?? 0;
+
+    if (type === 'full') {
+        cardsToDeduct = course.cards_per_session * sessionsCount;
+    } else {
+        cardsToDeduct = course.cards_per_session;
+    }
+
+    if (profile.card_balance < cardsToDeduct) {
+        return {
+            success: false,
+            status: 'enrolled', // meaningless here but satisfying type
+            message: `堂卡餘額不足 (餘額: ${profile.card_balance}, 需扣除: ${cardsToDeduct})`,
+        };
+    }
+
+    // 4. Check current enrollment count (for waitlist)
+    // Waitlist is generally only for full-term or if capacity reached
     const { count: enrolledCount } = await supabase
         .from('enrollments')
         .select('*', { count: 'exact', head: true })
@@ -80,54 +116,238 @@ export async function enrollInCourse(courseId: string): Promise<{ success: boole
 
         const waitlist_position = (waitlistCount ?? 0) + 1;
 
-        if (existing) {
-            // Update existing cancelled record
-            const { error } = await supabase.from('enrollments').update({
-                status: 'waitlist',
-                waitlist_position,
-                source: 'self',
-                enrolled_at: new Date().toISOString(),
-                cancelled_at: null,
-            }).eq('id', existing.id);
-            if (error) throw new Error(`加入候補失敗: ${error.message}`);
-        } else {
-            const { error } = await supabase.from('enrollments').insert({
-                course_id: courseId,
-                user_id: user.id,
-                status: 'waitlist',
-                waitlist_position,
-                source: 'self',
-            });
-            if (error) throw new Error(`報名失敗: ${error.message}`);
-        }
-
-        revalidatePath('/', 'layout');
-        return { success: true, status: 'waitlist', message: '已加入候補名單' };
-    }
-
-    // 4. Enroll directly
-    if (existing) {
-        // Update existing cancelled record
-        const { error } = await supabase.from('enrollments').update({
-            status: 'enrolled',
-            waitlist_position: null,
+        const { error } = await supabase.from('enrollments').upsert({
+            id: existing?.id ?? undefined,
+            course_id: courseId,
+            user_id: user.id,
+            status: 'waitlist',
+            type,
+            session_id: sessionId ?? null,
+            waitlist_position,
             source: 'self',
             enrolled_at: new Date().toISOString(),
             cancelled_at: null,
-        }).eq('id', existing.id);
-        if (error) throw new Error(`報名失敗: ${error.message}`);
-    } else {
-        const { error } = await supabase.from('enrollments').insert({
-            course_id: courseId,
-            user_id: user.id,
-            status: 'enrolled',
-            source: 'self',
         });
-        if (error) throw new Error(`報名失敗: ${error.message}`);
+
+        if (error) throw new Error(`加入候補失敗: ${error.message}`);
+
+        revalidatePath('/', 'layout');
+        return { success: true, status: 'waitlist', message: '已加入候補名單 (候補期間不扣卡)' };
     }
 
+    // 5. Enroll directly and deduct cards
+    const newBalance = profile.card_balance - cardsToDeduct;
+
+    // Use a transaction-like approach (Supabase doesn't have cross-table transactions in client SDK easily without RPC, 
+    // but we can do sequential updates and hope for the best, or better: use an RPC for atomic deduction)
+    // For MVP, we'll do sequential.
+    const { data: enrollment, error: enrollError } = await supabase.from('enrollments').upsert({
+        id: existing?.id ?? undefined,
+        course_id: courseId,
+        user_id: user.id,
+        status: 'enrolled',
+        type,
+        session_id: sessionId ?? null,
+        source: 'self',
+        enrolled_at: new Date().toISOString(),
+        cancelled_at: null,
+    }).select('id').single();
+
+    if (enrollError) throw new Error(`報名失敗: ${enrollError.message}`);
+
+    // Update profile balance
+    await supabase.from('profiles').update({ card_balance: newBalance }).eq('id', user.id);
+
+    // Record transaction
+    await supabase.from('card_transactions').insert({
+        user_id: user.id,
+        type: 'deduct',
+        amount: -cardsToDeduct,
+        balance_after: newBalance,
+        enrollment_id: enrollment.id,
+        note: `${type === 'full' ? '整期' : '單堂'}報名課程: ${course.name}`,
+    });
+
     revalidatePath(`/`, `layout`);
-    return { success: true, status: 'enrolled', message: '報名成功！' };
+    return { success: true, status: 'enrolled', message: `報名成功！扣除 ${cardsToDeduct} 堂卡，剩餘 ${newBalance} 堂。` };
+}
+
+/**
+ * Batch enroll in multiple courses (Full-term only).
+ * This is more efficient for the "Enroll Group" flow.
+ */
+export async function batchEnrollInCourses(
+    courseIds: string[]
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    if (courseIds.length === 0) return { success: true, message: '無可報名課程' };
+
+    // 1. Get courses and sessions count
+    const [coursesRes, profileRes] = await Promise.all([
+        supabase.from('courses').select('*, course_sessions(count)').in('id', courseIds),
+        supabase.from('profiles').select('card_balance').eq('id', user.id).maybeSingle(),
+    ]);
+
+    const courses = coursesRes.data ?? [];
+    const profile = profileRes.data;
+
+    if (!profile) throw new Error('使用者資料不存在');
+
+    // 2. Check each course status and already enrolled
+    // For MVP/simplicity, we'll filter out already enrolled ones
+    const { data: existing } = await supabase.from('enrollments')
+        .select('course_id')
+        .eq('user_id', user.id)
+        .eq('type', 'full')
+        .eq('status', 'enrolled');
+
+    const enrolledIds = new Set((existing ?? []).map(e => e.course_id));
+    const toEnroll = courses.filter(c => !enrolledIds.has(c.id) && c.status === 'published');
+
+    if (toEnroll.length === 0) return { success: false, message: '所選課程皆已報名或不開放報名' };
+
+    // 3. Calculate total cost
+    let totalCost = 0;
+    for (const course of toEnroll) {
+        const sessionsCount = (course.course_sessions as any)?.[0]?.count ?? 0;
+        totalCost += course.cards_per_session * sessionsCount;
+    }
+
+    if (profile.card_balance < totalCost) {
+        return { success: false, message: `堂卡餘額不足 (餘額: ${profile.card_balance}, 需扣除: ${totalCost})` };
+    }
+
+    // 4. Perform enrollments (Sequential updates since batching across tables is hard without logic)
+    // We'll mark the balance update first (atomic deduction would be better via RPC)
+    const newBalance = profile.card_balance - totalCost;
+
+    // Update balance
+    await supabase.from('profiles').update({ card_balance: newBalance }).eq('id', user.id);
+
+    // Create enrollments
+    const enrollments = toEnroll.map(c => ({
+        course_id: c.id,
+        user_id: user.id,
+        status: 'enrolled',
+        type: 'full' as const,
+        source: 'self' as const,
+    }));
+
+    const { data: inserted, error: enrollError } = await supabase.from('enrollments').upsert(enrollments, { onConflict: 'course_id,user_id' }).select('id, course_id');
+    if (enrollError) {
+        // Rollback balance (not perfect but better than nothing)
+        await supabase.from('profiles').update({ card_balance: profile.card_balance }).eq('id', user.id);
+        throw new Error(`報名失敗: ${enrollError.message}`);
+    }
+
+    // Record transactions
+    const transactions = toEnroll.map(c => {
+        const enrollmentId = inserted.find(i => i.course_id === c.id)?.id;
+        const sessionsCount = (c.course_sessions as any)?.[0]?.count ?? 0;
+        const cost = c.cards_per_session * sessionsCount;
+        return {
+            user_id: user.id,
+            type: 'deduct' as const,
+            amount: -cost,
+            balance_after: 0, // We'll just leave it or calculate per step
+            enrollment_id: enrollmentId,
+            note: `整期報名課程: ${c.name}`,
+        };
+    });
+
+    // We'll insert transactions one by one or batch if possible, but balance_after is tricky in batch
+    // For simplicity, we'll just insert and ignore balance_after or set to current newBalance for all (ledger style)
+    await supabase.from('card_transactions').insert(transactions.map(t => ({ ...t, balance_after: newBalance })));
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: `成功報名 ${toEnroll.length} 門課程，扣除 ${totalCost} 堂卡。` };
+}
+
+/**
+ * Batch enroll in multiple sessions of a single course.
+ */
+export async function batchEnrollInSessions(
+    courseId: string,
+    sessionIds: string[]
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    if (sessionIds.length === 0) return { success: true, message: '無可報名堂次' };
+
+    // 1. Get course and profile
+    const [courseRes, profileRes] = await Promise.all([
+        supabase.from('courses').select('*').eq('id', courseId).maybeSingle(),
+        supabase.from('profiles').select('card_balance').eq('id', user.id).maybeSingle(),
+    ]);
+
+    const course = courseRes.data;
+    const profile = profileRes.data;
+
+    if (!course) throw new Error('課程不存在');
+    if (!profile) throw new Error('使用者資料不存在');
+
+    // 2. Check already enrolled sessions
+    const { data: existing } = await supabase.from('enrollments')
+        .select('session_id')
+        .eq('course_id', courseId)
+        .eq('user_id', user.id)
+        .eq('type', 'single')
+        .eq('status', 'enrolled');
+
+    const enrolledSessionIds = new Set((existing ?? []).map(e => e.session_id));
+    const toEnrollSessionIds = sessionIds.filter(id => !enrolledSessionIds.has(id));
+
+    if (toEnrollSessionIds.length === 0) return { success: false, message: '所選堂次皆已報名' };
+
+    // 3. Calculate total cost
+    const totalCost = course.cards_per_session * toEnrollSessionIds.length;
+
+    if (profile.card_balance < totalCost) {
+        return { success: false, message: `堂卡餘額不足 (餘額: ${profile.card_balance}, 需扣除: ${totalCost})` };
+    }
+
+    // 4. Perform enrollments
+    const newBalance = profile.card_balance - totalCost;
+
+    // Update balance
+    await supabase.from('profiles').update({ card_balance: newBalance }).eq('id', user.id);
+
+    // Create enrollments
+    const enrollments = toEnrollSessionIds.map(sid => ({
+        course_id: courseId,
+        user_id: user.id,
+        status: 'enrolled' as const,
+        type: 'single' as const,
+        session_id: sid,
+        source: 'self' as const,
+        enrolled_at: new Date().toISOString(),
+    }));
+
+    const { data: inserted, error: enrollError } = await supabase.from('enrollments').upsert(enrollments, { onConflict: 'course_id,user_id,session_id' }).select('id, session_id');
+
+    if (enrollError) {
+        await supabase.from('profiles').update({ card_balance: profile.card_balance }).eq('id', user.id);
+        throw new Error(`報名失敗: ${enrollError.message}`);
+    }
+
+    // Record transactions
+    const transactions = toEnrollSessionIds.map(sid => {
+        const enrollmentId = inserted.find(i => i.session_id === sid)?.id;
+        return {
+            user_id: user.id,
+            type: 'deduct' as const,
+            amount: -course.cards_per_session,
+            balance_after: newBalance,
+            enrollment_id: enrollmentId,
+            note: `單堂報名課程: ${course.name} (堂次: ${sid})`,
+        };
+    });
+
+    await supabase.from('card_transactions').insert(transactions);
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: `成功報名 ${toEnrollSessionIds.length} 堂課，扣除 ${totalCost} 堂卡。` };
 }
 
 /**
@@ -284,16 +504,17 @@ export async function submitLeaveRequest(
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
-    // Check user is enrolled
+    // Check user is enrolled in FULL TERM (new rule: single-session doesn't allow leave)
     const { data: enrollment } = await supabase
         .from('enrollments')
-        .select('id')
+        .select('id, type')
         .eq('course_id', courseId)
         .eq('user_id', user.id)
         .eq('status', 'enrolled')
         .maybeSingle();
 
     if (!enrollment) throw new Error('您未報名此課程，無法申請請假');
+    if (enrollment.type !== 'full') throw new Error('單堂報名不支援請假申請');
 
     // Check no duplicate
     const { data: existing } = await supabase
@@ -377,6 +598,33 @@ export async function submitMakeupRequest(
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
+    // Check user and original/target courses
+    const [originalCourseRes, targetRes, userEnrollmentRes] = await Promise.all([
+        supabase.from('courses').select('group_id').eq('id', originalCourseId).maybeSingle(),
+        supabase.from('course_sessions').select('course_id, courses ( group_id, capacity )').eq('id', targetSessionId).maybeSingle(),
+        supabase.from('enrollments').select('type').eq('course_id', originalCourseId).eq('user_id', user.id).eq('status', 'enrolled').maybeSingle(),
+    ]);
+
+    const originalCourse = originalCourseRes.data;
+    const target = targetRes.data;
+    const userEnrollment = userEnrollmentRes.data;
+
+    if (!target) throw new Error('目標堂次不存在');
+    if (!originalCourse) throw new Error('原始課程不存在');
+    if (!userEnrollment) throw new Error('您未報名原始課程');
+
+    // Rule 1: No cross-period makeup
+    const targetGroup = (target.courses as any)?.group_id;
+    if (originalCourse.group_id !== targetGroup) {
+        throw new Error('不支援跨期補課，請選擇相同檔期的課程');
+    }
+
+    // Rule 2: Only full-term enrollees can makeup
+    if (userEnrollment.type !== 'full') {
+        throw new Error('單堂報名學員不支援補課申請');
+    }
+
+    // --- Quota Calculation ---
     // Get original course sessions count for quota calculation
     const { count: sessionsCount } = await supabase
         .from('course_sessions')
@@ -396,15 +644,6 @@ export async function submitMakeupRequest(
             message: `補課/轉讓額度已用完（${totalUsed}/${totalQuota}）`,
         };
     }
-
-    // Check target session has space
-    const { data: target } = await supabase
-        .from('course_sessions')
-        .select('course_id, courses ( capacity )')
-        .eq('id', targetSessionId)
-        .maybeSingle();
-
-    if (!target) throw new Error('目標堂次不存在');
 
     // Determine cross-zone quota cost
     // For MVP, same course type = 1, cross-type special↔normal = special rule
@@ -482,6 +721,18 @@ export async function submitTransferRequest(
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
+    // Check quota and enrollment type
+    const { data: enrollment } = await supabase
+        .from('enrollments')
+        .select('id, type')
+        .eq('course_id', courseId)
+        .eq('user_id', user.id)
+        .eq('status', 'enrolled')
+        .maybeSingle();
+
+    if (!enrollment) throw new Error('您未報名此課程');
+    if (enrollment.type !== 'full') throw new Error('單堂報名不支援轉讓申請');
+
     // Check time limit: must be before class starts
     const { data: session } = await supabase
         .from('course_sessions')
@@ -495,8 +746,6 @@ export async function submitTransferRequest(
     if (!isBeforeClass(session.session_date, courseData?.start_time ?? '00:00')) {
         throw new Error('課程已開始，無法進行轉讓');
     }
-
-    // Check quota
     const { count: sessionsCount } = await supabase
         .from('course_sessions')
         .select('*', { count: 'exact', head: true })

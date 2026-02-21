@@ -78,7 +78,7 @@ export function CourseCard({ course }: { course: CourseProps }) {
 
     return (
         <Link href={course.href || `/courses/${course.id}`} className="block w-full">
-            <Card className="border-border/40 shadow-sm hover:shadow-md transition-all hover:border-primary/20 active:scale-[0.99] group overflow-hidden w-full bg-card/50 backdrop-blur-sm">
+            <Card className="border-border/40 shadow-sm transition-all duration-200 overflow-hidden w-full bg-card/50 backdrop-blur-sm relative transform-gpu backface-hidden hover:shadow-lg hover:shadow-primary/5 hover:border-primary/30 active:scale-[0.98] group">
                 <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-4 w-full">
                     <div className="flex items-center gap-4 min-w-0 flex-1">
                         {/* Left: Teacher Avatar (Unify with My Courses) */}

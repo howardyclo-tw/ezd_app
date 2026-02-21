@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import { CourseDetailClient } from '@/components/courses/course-detail-client';
+import { getAvailableMakeupQuotaSessions } from '@/lib/supabase/queries';
+import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,14 +63,22 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         .eq('course_id', course.id)
         .eq('status', 'enrolled');
 
-    // Fetch current user's enrollment status
-    const { data: userEnrollment } = await supabase
+    // Fetch user status and profile (for card balance)
+    const { data: enrollment } = await supabase
         .from('enrollments')
         .select('*')
         .eq('course_id', course.id)
         .eq('user_id', user.id)
-        .in('status', ['enrolled', 'waitlist'])
         .maybeSingle();
+
+    const { data: userProfileWithCardBalance } = await supabase
+        .from('profiles')
+        .select('card_balance')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    // Fetch missed sessions available for makeup
+    const missedSessions = await getAvailableMakeupQuotaSessions(user.id);
 
     // Fetch roster (enrolled students)
     const { data: roster } = await supabase
@@ -146,6 +156,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
                 leader: leaders.join(', ') || '',
                 groupTitle: (course.course_groups as any)?.title ?? '',
                 groupId: (course.course_groups as any)?.slug ?? (course.course_groups as any)?.id ?? '',
+                groupUuid: course.group_id,
             }}
             sessions={sortedSessions.map((s: any) => ({
                 id: s.id,
@@ -155,12 +166,16 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             }))}
             roster={rosterWithAttendance}
             enrolledCount={enrolledCount ?? 0}
-            userEnrollment={userEnrollment ? {
+            userEnrollment={{
                 userId: user.id,
-                isEnrolled: userEnrollment.status === 'enrolled',
-                isWaitlisted: userEnrollment.status === 'waitlist',
-                waitlistPosition: userEnrollment.waitlist_position,
-            } : { userId: user.id, isEnrolled: false, isWaitlisted: false }}
+                enrollmentStatus: {
+                    isEnrolled: enrollment?.status === 'enrolled',
+                    isWaitlisted: enrollment?.status === 'waitlist',
+                    waitlistPosition: enrollment?.waitlist_position ?? undefined,
+                }
+            }}
+            cardBalance={userProfileWithCardBalance?.card_balance ?? 0}
+            missedSessions={missedSessions}
             canManageAttendance={canManageAttendance}
             currentUserRole={profile?.role ?? 'guest'}
         />

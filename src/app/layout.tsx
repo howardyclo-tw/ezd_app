@@ -8,7 +8,7 @@ import { RoleProvider } from "@/components/providers/role-provider";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "EZD App - 熱舞社管理系統",
+  title: "EZDANCE - 熱舞社管理系統",
   description: "熱舞社管理系統 - Dance Club Management System",
 };
 

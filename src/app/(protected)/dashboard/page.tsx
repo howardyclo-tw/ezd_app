@@ -23,7 +23,10 @@ import {
 import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
+
+import { getAvailableMakeupQuotaSessions } from '@/lib/supabase/queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +54,57 @@ export default async function DashboardPage() {
   const isAdmin = userRole === 'admin';
   const isLeader = userRole === 'leader';
   const isLeaderOrAdmin = isAdmin || isLeader;
+
+  // 1. Fetch upcoming courses count
+  const { data: userEnrollments } = await supabase
+    .from('enrollments')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('status', 'enrolled');
+
+  const upcomingSessionsCount = userEnrollments ? userEnrollments.length : 0;
+
+  // 2. Fetch makeup quota stats
+  const { data: allMissed } = await supabase
+    .from('attendance_records')
+    .select('session_id')
+    .eq('user_id', user.id)
+    .in('status', ['absent', 'leave']);
+
+  const totalMissedCount = allMissed?.length || 0;
+  const availableMissedSessions = await getAvailableMakeupQuotaSessions(user.id);
+  const availableMakeupQuotaCount = availableMissedSessions.length;
+
+  // 3. Fetch pending card orders
+  const { count: pendingOrdersCount } = await supabase
+    .from('card_orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .in('status', ['pending', 'remitted']);
+
+  // 4. Fetch leader stats (Today's Rollcall)
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const { data: todaySessions } = await supabase
+    .from('course_sessions')
+    .select(`
+      id,
+      courses!inner (
+        course_leaders!inner ( user_id )
+      )
+    `)
+    .eq('session_date', today);
+
+  const myTodaySessionsCount = (todaySessions ?? []).filter((s: any) => {
+    if (isAdmin) return true;
+    return s.courses.course_leaders.some((l: any) => l.user_id === user.id);
+  }).length;
+
+  // 5. Fetch application pending counts
+  const { count: pendingLeaves } = await supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+  const { count: pendingMakeups } = await supabase.from('makeup_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+  const { count: pendingTransfers } = await supabase.from('transfer_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+
+  const totalPendingAppsCount = (pendingLeaves || 0) + (pendingMakeups || 0) + (pendingTransfers || 0);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-10 pb-24">
@@ -96,12 +150,12 @@ export default async function DashboardPage() {
                 <div className="pt-6 border-t border-muted/40 flex items-center gap-8">
                   <div className="space-y-0.5">
                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">本期補課</p>
-                    <p className="text-lg font-bold">2 <span className="text-xs opacity-40">/ 2 堂</span></p>
+                    <p className="text-lg font-bold">{availableMakeupQuotaCount} <span className="text-xs opacity-40">/ {totalMissedCount} 堂</span></p>
                   </div>
                   <div className="h-8 w-[1px] bg-muted/40" />
                   <div className="space-y-0.5">
                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">即將到來</p>
-                    <p className="text-lg font-bold">4 <span className="text-xs opacity-40">堂</span></p>
+                    <p className="text-lg font-bold">{upcomingSessionsCount} <span className="text-xs opacity-40">堂</span></p>
                   </div>
                 </div>
               </div>
@@ -130,12 +184,12 @@ export default async function DashboardPage() {
                 <div className="pt-6 border-t border-muted/40 flex items-center gap-8">
                   <div className="space-y-0.5">
                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">剩餘堂數</p>
-                    <p className="text-lg font-bold text-orange-600">8 <span className="text-xs opacity-40">堂</span></p>
+                    <p className="text-lg font-bold text-orange-600">{profile?.card_balance ?? 0} <span className="text-xs opacity-40">堂</span></p>
                   </div>
                   <div className="h-8 w-[1px] bg-muted/40" />
                   <div className="space-y-0.5">
                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">待繳費</p>
-                    <p className="text-lg font-bold">0 <span className="text-xs opacity-40">筆</span></p>
+                    <p className="text-lg font-bold">{pendingOrdersCount ?? 0} <span className="text-xs opacity-40">筆</span></p>
                   </div>
                 </div>
               </div>
@@ -157,25 +211,65 @@ export default async function DashboardPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Link href="/leader/rollcall">
-              <div className="flex items-center gap-4 p-4 rounded-2xl border border-muted/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-all group">
-                <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all">
+              <div className={cn(
+                "flex items-center gap-4 p-4 rounded-2xl border border-muted/60 transition-all group",
+                myTodaySessionsCount > 0
+                  ? "bg-card hover:border-orange-500/40 hover:bg-orange-500/5"
+                  : "bg-card hover:border-primary/40 hover:bg-primary/5"
+              )}>
+                <div className={cn(
+                  "h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-300",
+                  myTodaySessionsCount > 0
+                    ? "bg-orange-500/5 text-orange-600 group-hover:bg-orange-600 group-hover:text-white"
+                    : "bg-primary/5 text-primary group-hover:bg-primary group-hover:text-background"
+                )}>
                   <ClipboardCheck className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-bold">今日點名</p>
+                  <p className={cn(
+                    "text-sm font-bold",
+                    myTodaySessionsCount > 0 ? "text-orange-600" : "text-foreground"
+                  )}>今日點名</p>
                   <p className="text-[10px] text-muted-foreground font-bold">查看課堂名單與出席紀錄</p>
+                </div>
+                {/* Badge */}
+                <div className={cn(
+                  "h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0",
+                  myTodaySessionsCount > 0 ? "bg-orange-500" : "bg-muted-foreground/30 text-white/60"
+                )}>
+                  {myTodaySessionsCount}
                 </div>
               </div>
             </Link>
 
             <Link href="/leader/approvals">
-              <div className="flex items-center gap-4 p-4 rounded-2xl border border-muted/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-all group">
-                <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all">
+              <div className={cn(
+                "flex items-center gap-4 p-4 rounded-2xl border border-muted/60 transition-all group",
+                totalPendingAppsCount > 0
+                  ? "bg-card hover:border-orange-500/40 hover:bg-orange-500/5"
+                  : "bg-card hover:border-primary/40 hover:bg-primary/5"
+              )}>
+                <div className={cn(
+                  "h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-300",
+                  totalPendingAppsCount > 0
+                    ? "bg-orange-500/5 text-orange-600 group-hover:bg-orange-600 group-hover:text-white"
+                    : "bg-primary/5 text-primary group-hover:bg-primary group-hover:text-background"
+                )}>
                   <ShieldCheck className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-bold">申請審核</p>
+                  <p className={cn(
+                    "text-sm font-bold",
+                    totalPendingAppsCount > 0 ? "text-orange-600" : "text-foreground"
+                  )}>申請審核</p>
                   <p className="text-[10px] text-muted-foreground font-bold">處理請假、補課及轉讓申請</p>
+                </div>
+                {/* Badge */}
+                <div className={cn(
+                  "h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0",
+                  totalPendingAppsCount > 0 ? "bg-orange-500" : "bg-muted-foreground/30 text-white/60"
+                )}>
+                  {totalPendingAppsCount}
                 </div>
               </div>
             </Link>

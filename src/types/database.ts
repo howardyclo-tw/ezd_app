@@ -112,11 +112,15 @@ export interface CourseLeader {
 // Enrollment & Attendance
 // ------------------------------------------------------------------
 
+export type EnrollmentType = 'full' | 'single';
+
 export interface Enrollment {
   id: string;
   course_id: string;
   user_id: string;
   status: EnrollmentStatus;
+  type: EnrollmentType;
+  session_id?: string | null;
   waitlist_position?: number | null;
   source: EnrollmentSource;
   enrolled_at: string;

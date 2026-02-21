@@ -1,10 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { CourseCard } from '@/components/courses/course-card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ChevronLeft, ClipboardList } from 'lucide-react';
-import { Card, CardContent } from "@/components/ui/card";
+import { ChevronLeft } from 'lucide-react';
+import { getAvailableMakeupQuotaSessions } from '@/lib/supabase/queries';
+import { MyCoursesClient } from '@/components/dashboard/my-courses-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,33 +13,107 @@ export default async function MyCoursesPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    // Fetch my enrollments with course and group details
-    const { data: myEnrollments, error } = await supabase
+    // ── 1. Upcoming: enrolled sessions with future dates ──
+    const { data: myEnrollments } = await supabase
         .from('enrollments')
         .select(`
             id,
             status,
             waitlist_position,
             courses (
-                id,
-                name,
-                teacher,
-                start_time,
-                end_time,
-                room,
-                type,
-                status,
-                capacity,
-                slug,
-                course_groups ( id, title, slug )
+                id, name, teacher, start_time, end_time, room, type, status, capacity, slug,
+                course_groups ( id, title, slug ),
+                course_sessions ( id, session_date, session_number )
             )
         `)
         .eq('user_id', user.id)
         .in('status', ['enrolled', 'waitlist']);
 
-    if (error) {
-        console.error('Error fetching my courses:', error);
-    }
+    const today = new Date().toISOString().slice(0, 10);
+
+    const upcomingSessions = (myEnrollments ?? []).flatMap((enrollment: any) => {
+        const course = enrollment.courses;
+        const group = course.course_groups;
+        const sessions = course.course_sessions ?? [];
+
+        const gId = group?.slug || group?.id;
+        const cId = course?.slug || course?.id;
+
+        return sessions
+            .filter((s: any) => s.session_date >= today)
+            .map((s: any) => ({
+                groupTitle: group?.title ?? '未知檔期',
+                courseName: course.name,
+                teacher: course.teacher,
+                date: s.session_date,
+                time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
+                room: course.room,
+                sessionNumber: s.session_number,
+                status: enrollment.status as 'enrolled' | 'waitlist',
+                waitlistPosition: enrollment.waitlist_position ?? undefined,
+                href: (gId && cId) ? `/courses/groups/${gId}/${cId}` : undefined,
+            }));
+    }).sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+    // ── 2. History: attendance records ──
+    const { data: attendanceRecords } = await supabase
+        .from('attendance_records')
+        .select(`
+            status,
+            course_sessions (
+                id, session_date, session_number,
+                courses (
+                    id, slug, name, teacher,
+                    course_groups ( id, slug, title )
+                )
+            )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+    const historyRecords = (attendanceRecords ?? []).map((r: any) => {
+        const session = r.course_sessions;
+        const course = session?.courses;
+        const group = course?.course_groups;
+
+        const gId = group?.slug || group?.id;
+        const cId = course?.slug || course?.id;
+
+        // Simplify status to: present / absent / leave
+        let simpleStatus: 'present' | 'absent' | 'leave' = 'present';
+        if (r.status === 'absent') simpleStatus = 'absent';
+        else if (r.status === 'leave') simpleStatus = 'leave';
+        else if (r.status === 'present' || r.status === 'makeup' || r.status === 'transfer_in') simpleStatus = 'present';
+        else if (r.status === 'transfer_out') simpleStatus = 'absent';
+
+        return {
+            groupTitle: group?.title ?? '未知檔期',
+            courseName: course?.name ?? '',
+            teacher: course?.teacher ?? '',
+            date: session?.session_date ?? '',
+            sessionNumber: session?.session_number ?? 0,
+            status: simpleStatus,
+            href: (gId && cId) ? `/courses/groups/${gId}/${cId}` : undefined,
+        };
+    }).filter((r: any) => r.date !== '');
+
+    // ── 3. Makeup: available missed sessions ──
+    const availableSessions = await getAvailableMakeupQuotaSessions(user.id);
+
+    const makeupSessions = availableSessions.map((s: any) => {
+        const gId = s.groupSlug || s.groupId;
+        const cId = s.courseSlug || s.courseId;
+
+        return {
+            groupTitle: s.groupTitle,
+            courseName: s.courseName,
+            teacher: s.teacher,
+            date: s.date,
+            sessionNumber: s.number,
+            status: 'available' as const,
+            href: gId ? `/courses/groups/${gId}` : undefined,
+        };
+    });
 
     return (
         <div className="container max-w-5xl py-6 space-y-4">
@@ -60,51 +134,11 @@ export default async function MyCoursesPage() {
                 </div>
             </div>
 
-            {/* List Content */}
-            {(!myEnrollments || myEnrollments.length === 0) ? (
-                <Card className="border-dashed border-muted/50 bg-muted/5">
-                    <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-                        <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
-                            <ClipboardList className="h-8 w-8 text-muted-foreground/40" />
-                        </div>
-                        <h3 className="text-lg font-bold text-foreground/80">尚未報名任何課程</h3>
-                        <p className="text-sm text-muted-foreground mt-1 px-4 max-w-xs mx-auto">
-                            您目前沒有進行中或候補中的課程。
-                        </p>
-                        <Button className="mt-8 font-bold bg-primary text-primary-foreground shadow-lg px-8 rounded-xl" asChild>
-                            <Link href="/courses">前往探索課程</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-            ) : (
-                <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-                    {myEnrollments.map((enrollment: any) => {
-                        const course = enrollment.courses;
-                        const group = course.course_groups;
-                        const gShortId = group.slug || group.id;
-                        const cShortId = course.slug || course.id;
-
-                        // Calculate display status for CourseCard
-                        return (
-                            <div key={enrollment.id}>
-                                <CourseCard course={{
-                                    id: course.id,
-                                    name: course.name,
-                                    teacher: course.teacher,
-                                    time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
-                                    location: course.room,
-                                    type: course.type,
-                                    status: course.status,
-                                    userStatus: enrollment.status,
-                                    waitingNo: enrollment.waitlist_position,
-                                    isManagement: true,
-                                    href: `/courses/groups/${gShortId}/${cShortId}`
-                                }} />
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+            <MyCoursesClient
+                upcomingSessions={upcomingSessions}
+                historyRecords={historyRecords}
+                makeupSessions={makeupSessions}
+            />
         </div>
     );
 }

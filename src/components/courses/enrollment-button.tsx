@@ -131,10 +131,13 @@ export function EnrollmentButton({
             <AlertDialog>
                 <AlertDialogTrigger asChild>
                     <Button
-                        variant="outline"
+                        variant="ghost"
                         className={cn(
-                            "w-full h-11 text-sm font-black rounded-xl shadow-sm transition-all active:scale-[0.98] border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50",
-                            isFull && "border-orange-500/30 text-orange-500 hover:bg-orange-500/5 hover:border-orange-500/50"
+                            "w-full h-11 text-sm font-black rounded-xl border transition-all active:scale-[0.98]",
+                            "bg-orange-500/10 border-orange-500/30 text-orange-500",
+                            "hover:bg-orange-500/20 hover:border-orange-500/50 hover:text-orange-500",
+                            "dark:hover:bg-orange-500/20",
+                            isFull && "opacity-90"
                         )}
                         disabled={isPending}
                     >

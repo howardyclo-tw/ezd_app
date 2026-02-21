@@ -4,12 +4,34 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, MoreVertical, Calendar as CalendarIcon, Clock, MapPin, Users, User, FileText, Check, Loader2, Sparkles, UserPlus, Shield, Star, Crown, X, Edit2, ClipboardCheck } from "lucide-react";
+import {
+    Check,
+    Loader2,
+    UserPlus,
+    UserMinus,
+    Shield,
+    Star,
+    Crown,
+    X,
+    Edit2,
+    ClipboardCheck,
+    Plus,
+    Save,
+    Info,
+    ChevronRight,
+    ChevronLeft,
+    User,
+    Clock,
+    MapPin,
+    Users,
+    FileText,
+    Calendar as CalendarIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import Link from 'next/link';
-import { EnrollmentButton } from './enrollment-button';
+import { SessionEnrollmentDialog } from "@/components/courses/session-enrollment-dialog";
 import { saveAttendance, assignCourseLeader, removeCourseLeader, submitLeaveRequest, submitTransferRequest } from '@/lib/supabase/actions';
 import {
     Dialog,
@@ -28,10 +50,20 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { COURSE_TYPE_LABELS, type CourseType } from '@/types/database';
 
 // Props types
+interface MissedSession {
+    sessionId: string;
+    courseId: string; // Added courseId
+    date: string;
+    number: number;
+    courseName: string;
+    teacher: string;
+    groupId: string;
+}
 interface CourseInfo {
     id: string;
     name: string;
@@ -47,6 +79,7 @@ interface CourseInfo {
     leader: string;
     groupTitle: string;
     groupId: string;
+    groupUuid: string;
 }
 
 interface SessionInfo {
@@ -72,10 +105,14 @@ interface CourseDetailClientProps {
     enrolledCount: number;
     userEnrollment: {
         userId: string;
-        isEnrolled: boolean;
-        isWaitlisted: boolean;
-        waitlistPosition?: number | null;
+        enrollmentStatus: {
+            isEnrolled: boolean;
+            isWaitlisted: boolean;
+            waitlistPosition?: number | null;
+        }
     };
+    cardBalance: number;
+    missedSessions: any[];
     canManageAttendance: boolean;
     currentUserRole: string;
 }
@@ -97,6 +134,8 @@ export function CourseDetailClient({
     roster,
     enrolledCount,
     userEnrollment,
+    cardBalance,
+    missedSessions,
     canManageAttendance,
     currentUserRole,
 }: CourseDetailClientProps) {
@@ -266,10 +305,13 @@ export function CourseDetailClient({
             {/* Header Area */}
             <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-1 min-w-0">
-                    <Button variant="ghost" size="icon" asChild className="h-10 w-10 rounded-full shrink-0">
-                        <Link href={`/courses/groups/${course.groupId}`}>
-                            <ChevronLeft className="h-6 w-6" />
-                        </Link>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => router.back()}
+                        className="h-10 w-10 rounded-full shrink-0"
+                    >
+                        <ChevronLeft className="h-6 w-6" />
                     </Button>
                     <div className="flex flex-col min-w-0">
                         <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate leading-none">{course.name}</h1>
@@ -330,15 +372,65 @@ export function CourseDetailClient({
 
                     {/* Enrollment Action */}
                     <div className="w-full md:w-44 shrink-0 mt-4 md:mt-0">
-                        <EnrollmentButton
-                            courseId={course.id}
-                            courseStatus={course.status}
-                            isEnrolled={userEnrollment.isEnrolled}
-                            isWaitlisted={userEnrollment.isWaitlisted}
-                            waitlistPosition={userEnrollment.waitlistPosition ?? undefined}
-                            enrolledCount={enrolledCount}
-                            capacity={course.capacity}
-                        />
+                        {userEnrollment.enrollmentStatus.isEnrolled ? (
+                            <div className="flex flex-col items-stretch gap-2">
+                                <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-500/10 text-green-600 border border-green-500/20">
+                                    <Check className="h-4 w-4 shrink-0" />
+                                    <span className="text-sm font-bold">已報名</span>
+                                </div>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:bg-transparent hover:text-destructive font-medium justify-center transition-colors">
+                                            <UserMinus className="h-3.5 w-3.5 mr-1" />
+                                            取消報名
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>確認取消報名？</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                取消後你的名額將釋出給候補學員。
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>返回</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleCancel} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                                {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                                確認取消
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
+                        ) : userEnrollment.enrollmentStatus.isWaitlisted ? (
+                            <div className="flex flex-col items-stretch gap-2">
+                                <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500/10 text-orange-600 border border-orange-500/20">
+                                    <Clock className="h-4 w-4 shrink-0" />
+                                    <span className="text-sm font-bold">候補中{userEnrollment.enrollmentStatus.waitlistPosition ? ` 第${userEnrollment.enrollmentStatus.waitlistPosition}位` : ''}</span>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isPending} className="text-xs text-muted-foreground hover:bg-transparent hover:text-destructive font-medium justify-center transition-colors">
+                                    {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <UserMinus className="h-3.5 w-3.5 mr-1" />}
+                                    取消候補
+                                </Button>
+                            </div>
+                        ) : (
+                            <SessionEnrollmentDialog
+                                courseId={course.id}
+                                courseName={course.name}
+                                teacher={course.teacher}
+                                groupId={course.groupUuid}
+                                cardBalance={cardBalance}
+                                sessions={sessions.map(s => ({
+                                    id: s.id,
+                                    session_date: s.date,
+                                    session_number: s.number
+                                }))}
+                                missedSessions={missedSessions}
+                                isFull={enrolledCount >= course.capacity}
+                                enrolledCount={enrolledCount}
+                                capacity={course.capacity}
+                            />
+                        )}
                     </div>
                 </div>
 
@@ -356,7 +448,7 @@ export function CourseDetailClient({
             </div>
 
             {/* Block 2: My Attendance Progress */}
-            {userEnrollment.isEnrolled && (
+            {userEnrollment.enrollmentStatus.isEnrolled && (
                 <div className="pt-5 pb-3 bg-muted/20 border border-muted/50 rounded-2xl space-y-4">
                     <div className="px-5 flex items-center justify-between">
                         <h3 className="text-sm font-bold flex items-center gap-2 text-foreground/90">

@@ -360,3 +360,89 @@ export async function getCardPriceForUser(profile: Pick<Profile, 'role' | 'membe
         ? parseInt(config['card_price_member'] ?? '270', 10)
         : parseInt(config['card_price_non_member'] ?? '370', 10);
 }
+
+/** Get sessions available for makeup quota (absent/leave and not used) */
+export async function getAvailableMakeupQuotaSessions(userId: string) {
+    const supabase = await createClient();
+
+    // 1. Get attendance records that are 'absent' or 'leave'
+    const { data: attendance, error: attError } = await supabase
+        .from('attendance_records')
+        .select(`
+            session_id,
+            status,
+            course_sessions!inner (
+                id,
+                session_date,
+                session_number,
+                courses (
+                    id,
+                    slug,
+                    name,
+                    teacher,
+                    group_id,
+                    course_groups (
+                        id,
+                        slug,
+                        title
+                    )
+                )
+            )
+        `)
+        .eq('user_id', userId)
+        .in('status', ['absent', 'leave']);
+
+    if (attError) throw new Error(`getAvailableMakeupQuotaSessions (att): ${attError.message}`);
+
+    // 2. Get makeup requests to check usage
+    const { data: requested, error: reqError } = await supabase
+        .from('makeup_requests')
+        .select('original_session_id')
+        .eq('user_id', userId)
+        .in('status', ['pending', 'approved']);
+
+    if (reqError) throw new Error(`getAvailableMakeupQuotaSessions (req): ${reqError.message}`);
+
+    const usedSessionIds = new Set(requested.map(r => r.original_session_id));
+
+    return (attendance ?? [])
+        .filter(a => !usedSessionIds.has(a.session_id))
+        .map(a => ({
+            sessionId: (a.course_sessions as any).id,
+            date: (a.course_sessions as any).session_date,
+            number: (a.course_sessions as any).session_number,
+            courseId: (a.course_sessions as any).courses.id,
+            courseSlug: (a.course_sessions as any).courses.slug,
+            courseName: (a.course_sessions as any).courses.name,
+            teacher: (a.course_sessions as any).courses.teacher,
+            groupId: (a.course_sessions as any).courses.group_id,
+            groupSlug: (a.course_sessions as any).courses.course_groups?.slug,
+            groupTitle: (a.course_sessions as any).courses.course_groups?.title ?? '未知群組',
+            status: a.status,
+        }));
+}
+/** Get attendance history for a specific user */
+export async function getUserAttendanceHistory(userId: string, limit = 10) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('attendance_records')
+        .select(`
+            status,
+            course_sessions (
+                id,
+                session_date,
+                session_number,
+                courses (
+                    id,
+                    name,
+                    teacher
+                )
+            )
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+    if (error) throw new Error(`getUserAttendanceHistory: ${error.message}`);
+    return data;
+}

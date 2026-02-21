@@ -32,19 +32,36 @@ export default async function LeaderApprovalsPage() {
     // Fetch Leave Requests (Pending)
     const { data: leaveRequests } = await supabase
         .from('leave_requests')
-        .select('*, profiles(name), courses(name), course_sessions(session_date, session_number)')
+        .select(`
+            *,
+            profiles!leave_requests_user_id_fkey(name),
+            courses(name),
+            course_sessions(session_date, session_number)
+        `)
         .eq('status', 'pending');
 
     // Fetch Makeup Requests (Pending)
     const { data: makeupRequests } = await supabase
         .from('makeup_requests')
-        .select('*, profiles(name), original_courses:original_course_id(name), target_courses:target_course_id(name), target_sessions:target_session_id(session_date, session_number)')
+        .select(`
+            *,
+            profiles!makeup_requests_user_id_fkey(name),
+            original_courses:original_course_id(name),
+            target_courses:target_course_id(name),
+            target_sessions:target_session_id(session_date, session_number)
+        `)
         .eq('status', 'pending');
 
     // Fetch Transfer Requests (Pending)
     const { data: transferRequests } = await supabase
         .from('transfer_requests')
-        .select('*, from_profile:from_user_id(name), to_profile:to_user_id(name), courses(name), course_sessions(session_date, session_number)')
+        .select(`
+            *,
+            from_profile:from_user_id(name),
+            to_profile:to_user_id(name),
+            courses(name),
+            course_sessions(session_date, session_number)
+        `)
         .eq('status', 'pending');
 
     // Combine and format for UI
