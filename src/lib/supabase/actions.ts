@@ -413,7 +413,19 @@ export async function assignCourseLeader(courseId: string, targetUserId: string)
 
     if (profile?.role !== 'admin') throw new Error('只有管理員可以指派班長');
 
-    // Upsert to handle re-assignment
+    // Enforce one-leader-per-course: check if there's already a different leader assigned
+    const { data: existingLeaders } = await supabase
+        .from('course_leaders')
+        .select('user_id, profiles!course_leaders_user_id_fkey ( name )')
+        .eq('course_id', courseId)
+        .neq('user_id', targetUserId);
+
+    if (existingLeaders && existingLeaders.length > 0) {
+        const existingName = (existingLeaders[0] as any).profiles?.name ?? '現有班長';
+        throw new Error(`每堂課只能有一位班長。請先移除「${existingName}」的班長身份後再指派。`);
+    }
+
+    // Upsert to handle re-assignment (same user)
     const { error } = await supabase
         .from('course_leaders')
         .upsert({ course_id: courseId, user_id: targetUserId, assigned_by: user.id }, { onConflict: 'course_id,user_id' });

@@ -27,7 +27,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             *,
             course_groups ( id, title, region, slug ),
             course_sessions ( id, session_date, session_number, is_cancelled, cancel_note ),
-            course_leaders ( id, user_id, profiles!course_leaders_user_id_fkey ( id, name ) )
+            course_leaders ( id, user_id, profiles!course_leaders_user_id_fkey ( id, name, role ) )
         `);
 
     if (isIdUuid) {
@@ -80,12 +80,12 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     // Fetch missed sessions available for makeup
     const missedSessions = await getAvailableMakeupQuotaSessions(user.id);
 
-    // Fetch roster (enrolled students)
+    // Fetch roster: include both enrolled and waitlisted students
     const { data: roster } = await supabase
         .from('enrollments')
         .select('*, profiles ( id, name, role )')
         .eq('course_id', course.id)
-        .eq('status', 'enrolled')
+        .in('status', ['enrolled', 'waitlist'])
         .order('enrolled_at');
 
     // Fetch all attendance records for this course's sessions
@@ -125,19 +125,42 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         attendanceMap[record.user_id][record.session_id] = record.status;
     }
 
-    // Build student list with attendance (filter out null profiles for safety)
-    const rosterWithAttendance = (roster ?? [])
-        .filter((enrollment: any) => enrollment.profiles)
-        .map((enrollment: any) => ({
-            id: enrollment.profiles.id,
-            name: enrollment.profiles.name,
-            role: enrollment.profiles.role,
-            isLeader: (course.course_leaders as any[]).some(
-                (cl: any) => cl.user_id === enrollment.profiles.id
-            ),
-            type: 'official' as const, // Defaulting to official for now
-            attendance: attendanceMap[enrollment.profiles.id] ?? {},
+    // 1. Get all students from enrollments (Official)
+    const enrollmentRoster = (roster ?? [])
+        .filter((e: any) => e.profiles)
+        .map((e: any) => ({
+            id: e.profiles.id,
+            name: e.profiles.name,
+            role: e.profiles.role,
+            isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === e.profiles.id),
+            type: 'official' as const,
+            attendance: attendanceMap[e.profiles.id] ?? {},
         }));
+
+    // 2. Find ANYONE ELSE who has an attendance record but is not in the enrollment roster (Additional/Makeup)
+    // We need profiles for these people too.
+    const enrolledIds = new Set(enrollmentRoster.map(s => s.id));
+    const additionalUserIds = Object.keys(attendanceMap).filter(id => !enrolledIds.has(id));
+
+    let additionalRoster: any[] = [];
+    if (additionalUserIds.length > 0) {
+        const { data: additionalProfiles } = await supabase
+            .from('profiles')
+            .select('id, name, role')
+            .in('id', additionalUserIds);
+
+        additionalRoster = (additionalProfiles ?? []).map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role,
+            isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === p.id),
+            type: 'additional' as const,
+            attendance: attendanceMap[p.id] ?? {},
+        }));
+    }
+
+    // Combined Roster
+    const rosterWithAttendance = [...enrollmentRoster, ...additionalRoster];
 
     return (
         <CourseDetailClient

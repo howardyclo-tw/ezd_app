@@ -152,6 +152,17 @@ export function CourseDetailClient({
         return map;
     });
 
+    // Split roster into categories
+    const officialStudents = roster.filter(s => s.type === 'official');
+    const additionalStudents = roster.filter(s => s.type === 'additional');
+
+    const getPresentCount = (sessionId: string, students: StudentInfo[]) => {
+        return students.filter(student => {
+            const status = attendanceState[student.id]?.[sessionId] ?? 'unmarked';
+            return status === 'present' || status === 'makeup' || status === 'transfer_in';
+        }).length;
+    };
+
     const [isPending, startTransition] = useTransition();
     const [isLeaderDialogOpen, setIsLeaderDialogOpen] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState<StudentInfo | null>(null);
@@ -262,37 +273,75 @@ export function CourseDetailClient({
     };
 
     // Render attendance cell
-    const renderAttendanceCell = (status: string, isEditingMode: boolean, onClick?: () => void) => {
-        const display = ATTENDANCE_DISPLAY[status] || ATTENDANCE_DISPLAY['unmarked'];
-        const isMarked = status === 'present' || status === 'absent';
-        const isSpecial = status === 'leave' || status === 'makeup' || status === 'transfer_in' || status === 'transfer_out';
-        const canEdit = isEditingMode && status !== 'leave';
+    const renderAttendanceCell = (status: string, studentId: string, sessionId: string) => {
+        const canEdit = isEditing && status !== 'leave';
+        const isOfficialStudent = officialStudents.some(s => s.id === studentId);
+
+        // Get initial status to determine persistent type (Single, Makeup, Transfer)
+        const initialStatus = roster.find(r => r.id === studentId)?.attendance[sessionId] ?? 'unmarked';
+
+        // Determine type label (單 / 補 / 轉)
+        let typeLabel = "";
+        if (!isOfficialStudent) {
+            const statusToUse = (status && status !== 'unmarked') ? status : initialStatus;
+            if (statusToUse === 'makeup') { typeLabel = "補"; }
+            else if (statusToUse === 'transfer_in') { typeLabel = "轉"; }
+            else { typeLabel = "單"; }
+        }
+
+        // Determine dynamic color for label when checked
+        const getLabelColor = () => {
+            if (status === 'unmarked') return "text-white/40";
+            if (status === 'present' || status === 'makeup' || status === 'transfer_in') return "text-emerald-500";
+            if (status === 'absent') return "text-rose-500";
+            if (status === 'leave') return "text-blue-500";
+            return "text-white/70";
+        };
 
         return (
             <div
-                onClick={canEdit ? onClick : undefined}
+                onClick={canEdit ? () => toggleAttendance(studentId, sessionId) : undefined}
                 className={cn(
-                    "w-full h-full flex flex-col items-center justify-center transition-all duration-300 relative overflow-hidden gap-0.5",
-                    display.color,
-                    !isMarked && !isSpecial && "opacity-40",
-                    canEdit && "cursor-pointer hover:bg-primary/5 active:scale-95 group/cell"
+                    "w-full h-full flex flex-col items-center justify-center transition-all duration-200 relative",
+                    status === 'present' || status === 'makeup' || status === 'transfer_in' ? "bg-emerald-500/20" :
+                        status === 'absent' ? "bg-rose-500/20" :
+                            status === 'leave' ? "bg-blue-500/20" : "bg-transparent",
+                    canEdit && "cursor-pointer hover:brightness-125 active:scale-95 group/cell"
                 )}
             >
-                {canEdit && (
-                    <div className="absolute inset-0 border border-transparent group-hover/cell:border-primary/20 transition-colors pointer-events-none" />
+                {/* Main Content */}
+                {status === 'unmarked' ? (
+                    typeLabel ? (
+                        <span className="text-xs font-bold text-white/40">{typeLabel}</span>
+                    ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+                    )
+                ) : (
+                    // Show Status Icon/Text
+                    <span className={cn(
+                        "text-xs font-black",
+                        status === 'present' || status === 'makeup' || status === 'transfer_in' ? "text-emerald-500" :
+                            status === 'absent' ? "text-rose-500" :
+                                status === 'leave' ? "text-blue-500" : "text-muted-foreground/30"
+                    )}>
+                        {status === 'present' || status === 'makeup' || status === 'transfer_in' ? <Check className="h-4 w-4 stroke-[4px]" /> :
+                            status === 'absent' ? <X className="h-4 w-4 stroke-[4px]" /> :
+                                status === 'leave' ? "假" : <div className="w-1.5 h-1.5 rounded-full bg-white/10" />}
+                    </span>
                 )}
 
-                {isMarked ? (
-                    <div className={cn(
-                        "rounded-full flex items-center justify-center text-white shadow-sm ring-4 transition-all duration-300 z-10 w-5 h-5",
-                        status === 'present' ? "bg-green-600 ring-green-600/10" : "bg-red-500 ring-red-500/10"
-                    )}>
-                        {status === 'present' ? <Check className="h-3 w-3 stroke-[3px]" /> : <X className="h-3 w-3 stroke-[3px]" />}
+                {/* Sub-label for marked cells (Additional students only) */}
+                {typeLabel && status !== 'unmarked' && (
+                    <span className={cn("text-[9px] font-black absolute bottom-1.5", getLabelColor())}>
+                        {typeLabel}
+                    </span>
+                )}
+
+                {/* Edit Indicator */}
+                {canEdit && (
+                    <div className="absolute top-1 right-1 opacity-0 group-hover/cell:opacity-100 transition-opacity">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
                     </div>
-                ) : isSpecial ? (
-                    <span className="text-xs font-bold leading-none">{display.label}</span>
-                ) : (
-                    <div className="rounded-full bg-foreground w-2 h-2 opacity-20" />
                 )}
             </div>
         );
@@ -592,18 +641,16 @@ export function CourseDetailClient({
                     {/* Scroll hint shadow - Adjusted for vertical scroll */}
                     <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-background/80 via-background/20 to-transparent z-20" />
 
-                    <div className="overflow-auto max-h-[600px] overscroll-contain">
+                    <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse table-fixed min-w-[500px]">
                             <thead className="sticky top-0 z-50">
                                 <tr className="bg-muted/10 border-b border-muted backdrop-blur-md">
-                                    <th className="p-3 text-xs font-black uppercase text-muted-foreground italic sticky left-0 top-0 bg-card/95 backdrop-blur-sm z-[60] w-[80px] border-r border-muted/50 shadow-[4px_0_10px_-5px_rgba(0,0,0,0.1)]">
+                                    <th className="p-3 text-xs font-black uppercase text-muted-foreground italic sticky left-0 top-0 bg-card/95 backdrop-blur-sm z-[60] w-[140px] border-r border-muted/50 shadow-[4px_0_10px_-5px_rgba(0,0,0,0.1)]">
                                         姓名
                                     </th>
                                     {sessions.map(s => {
-                                        const enrolledStudents = roster.length;
-                                        const presentCount = roster.filter(student =>
-                                            (attendanceState[student.id]?.[s.id] ?? 'unmarked') === 'present'
-                                        ).length;
+                                        const totalPresent = getPresentCount(s.id, roster);
+                                        const totalEnrolled = roster.filter(st => st.type === 'official' || (attendanceState[st.id]?.[s.id] && attendanceState[st.id]?.[s.id] !== 'unmarked')).length;
 
                                         const isFocused = focusedSessionId === s.id;
                                         const isToday = s.date === todayStr;
@@ -614,38 +661,29 @@ export function CourseDetailClient({
                                                 key={s.id}
                                                 onClick={() => toggleFocus(s.id)}
                                                 className={cn(
-                                                    "p-2 text-center border-r border-muted/30 last:border-0 w-[80px] transition-all cursor-pointer relative group/header overflow-visible",
-                                                    isFocused ? "z-30" : "hover:bg-muted/5"
+                                                    "p-2 text-center border-r border-muted/30 last:border-0 w-[100px] transition-all cursor-pointer relative group/header overflow-visible",
+                                                    isFocused ? "z-30 bg-white/5" : "hover:bg-muted/5"
                                                 )}
                                             >
-                                                <div className={cn(
-                                                    "absolute inset-x-0 top-0 h-1 transition-all",
-                                                    isFocused ? "bg-primary" : "bg-transparent group-hover/header:bg-primary/30"
-                                                )} />
+                                                {isFocused && (
+                                                    <div className="absolute inset-x-0 top-0 h-1 bg-white" />
+                                                )}
 
-                                                <div className="flex flex-col items-center gap-1.5 relative py-1">
-                                                    {isToday && (
-                                                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-black text-primary bg-primary/10 px-1 rounded-sm border border-primary/20 whitespace-nowrap">
-                                                            今日
-                                                        </span>
-                                                    )}
-
+                                                <div className="flex flex-col items-center gap-1 relative py-1">
                                                     <span className={cn(
-                                                        "text-sm font-bold tracking-tight transition-colors flex items-center gap-1",
-                                                        isFocused ? "text-primary" : "text-foreground group-hover/header:text-primary"
+                                                        "text-sm font-black tracking-tight transition-colors",
+                                                        isFocused ? "text-white" : "text-muted-foreground group-hover/header:text-white"
                                                     )}>
-                                                        {format(sessionDate, "MM/dd")}
+                                                        {format(sessionDate, "M/d")}
                                                     </span>
 
-                                                    <span className={cn(
-                                                        "inline-flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 transition-all outline-none",
-                                                        isFocused
-                                                            ? "text-primary bg-primary/10 border border-primary/20 rounded-full shadow-sm"
-                                                            : "text-muted-foreground/60 border-transparent bg-transparent"
+                                                    <div className={cn(
+                                                        "flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full transition-all",
+                                                        isFocused ? "bg-white/10 text-white" : "text-muted-foreground/40"
                                                     )}>
-                                                        <Users className="h-2.5 w-2.5 stroke-[3px]" />
-                                                        {presentCount}
-                                                    </span>
+                                                        <Users className="h-2.5 w-2.5" />
+                                                        {totalPresent}
+                                                    </div>
                                                 </div>
                                             </th>
                                         );
@@ -653,29 +691,22 @@ export function CourseDetailClient({
                                 </tr>
                             </thead>
                             <tbody className="z-10 relative">
-                                {roster.length === 0 ? (
+                                {/* Official Students Section */}
+                                <tr className="bg-muted/5">
+                                    <td colSpan={sessions.length + 1} className="px-3 py-2 text-[11px] font-black text-muted-foreground uppercase tracking-widest border-b border-muted/20">
+                                        常態學員
+                                    </td>
+                                </tr>
+                                {officialStudents.length === 0 ? (
                                     <tr className="border-b border-muted/20">
-                                        <td colSpan={sessions.length + 1} className="py-12 text-center text-sm text-muted-foreground italic bg-muted/5">
-                                            尚無學員報名
-                                        </td>
+                                        <td colSpan={sessions.length + 1} className="py-8 text-center text-xs text-muted-foreground italic">尚無常態學員</td>
                                     </tr>
                                 ) : (
-                                    [...roster]
+                                    officialStudents
                                         .sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0))
                                         .map((student) => (
-                                            <tr key={student.id} className="border-b border-muted/20 hover:bg-muted/5 transition-colors group">
-                                                <td
-                                                    className={cn(
-                                                        "p-3 text-xs font-bold sticky left-0 bg-card z-30 border-r border-muted/50 shadow-[4px_0_10px_-5px_rgba(0,0,0,0.05)]",
-                                                        isAdmin && "cursor-pointer hover:bg-muted/50 transition-colors"
-                                                    )}
-                                                    onClick={() => {
-                                                        if (isAdmin) {
-                                                            setSelectedStudent(student);
-                                                            setIsLeaderDialogOpen(true);
-                                                        }
-                                                    }}
-                                                >
+                                            <tr key={student.id} className="border-b border-muted/10 hover:bg-white/[0.02] transition-colors group">
+                                                <td className="p-3 text-xs font-bold sticky left-0 bg-card/95 backdrop-blur-sm z-30 border-r border-muted/50">
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-bold">{student.name}</span>
                                                         {student.isLeader && (
@@ -688,14 +719,55 @@ export function CourseDetailClient({
                                                     const isFocused = focusedSessionId === s.id;
                                                     return (
                                                         <td key={s.id} className={cn(
-                                                            "p-0 border-r border-muted/20 last:border-0 text-center h-12 transition-all relative overflow-hidden",
-                                                            isFocused && "z-20"
+                                                            "p-0 border-r border-muted/10 last:border-0 h-14 transition-all relative",
+                                                            isFocused && "bg-white/[0.03]"
                                                         )}>
-                                                            {renderAttendanceCell(
-                                                                status,
-                                                                isEditing,
-                                                                () => toggleAttendance(student.id, s.id)
-                                                            )}
+                                                            {renderAttendanceCell(status, student.id, s.id)}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))
+                                )}
+
+                                {/* Additional Students Section */}
+                                <tr className="bg-muted/5">
+                                    <td colSpan={sessions.length + 1} className="px-3 py-2 text-[11px] font-black text-muted-foreground uppercase tracking-widest border-b border-muted/20 border-t border-muted/20 mt-4">
+                                        加報學員 ({focusedSessionId ? format(parseISO(sessions.find(s => s.id === focusedSessionId)?.date || ''), "M/d") : ''} 名單)
+                                    </td>
+                                </tr>
+                                {additionalStudents.filter(s => {
+                                    const currentStatus = attendanceState[s.id]?.[focusedSessionId || ''];
+                                    const initialStatus = roster.find(r => r.id === s.id)?.attendance[focusedSessionId || ''] ?? 'unmarked';
+                                    // Stay visible if they started with a status OR currently have one
+                                    return (currentStatus && currentStatus !== 'unmarked') || (initialStatus && initialStatus !== 'unmarked');
+                                }).length === 0 ? (
+                                    <tr className="border-b border-muted/20">
+                                        <td colSpan={sessions.length + 1} className="py-8 text-center text-xs text-muted-foreground italic">該堂無加報學員</td>
+                                    </tr>
+                                ) : (
+                                    additionalStudents
+                                        .filter(s => {
+                                            const currentStatus = attendanceState[s.id]?.[focusedSessionId || ''];
+                                            const initialStatus = roster.find(r => r.id === s.id)?.attendance[focusedSessionId || ''] ?? 'unmarked';
+                                            return (currentStatus && currentStatus !== 'unmarked') || (initialStatus && initialStatus !== 'unmarked');
+                                        })
+                                        .map((student) => (
+                                            <tr key={student.id} className="border-b border-muted/10 hover:bg-white/[0.02] transition-colors group">
+                                                <td className="p-3 text-xs font-bold sticky left-0 bg-card/95 backdrop-blur-sm z-30 border-r border-muted/50">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold">{student.name}</span>
+                                                    </div>
+                                                </td>
+                                                {sessions.map(s => {
+                                                    const status = attendanceState[student.id]?.[s.id] ?? 'unmarked';
+                                                    const isFocused = focusedSessionId === s.id;
+                                                    return (
+                                                        <td key={s.id} className={cn(
+                                                            "p-0 border-r border-muted/10 last:border-0 h-14 transition-all relative",
+                                                            isFocused && "bg-white/[0.03]"
+                                                        )}>
+                                                            {renderAttendanceCell(status, student.id, s.id)}
                                                         </td>
                                                     );
                                                 })}
