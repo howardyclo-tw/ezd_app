@@ -29,7 +29,7 @@ export interface SessionCardProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string }> = {
-    enrolled: { label: '已報名', color: 'bg-green-500/10 text-green-600 ring-green-600/20' },
+    enrolled: { label: '待出席', color: 'bg-muted/30 text-muted-foreground border-muted/50 ring-0' },
     waitlist: { label: '候補', color: 'bg-orange-500/10 text-orange-600 ring-orange-600/20' },
     present: { label: '出席', color: 'bg-green-500/10 text-green-600 ring-green-600/20' },
     absent: { label: '缺席', color: 'bg-red-500/10 text-red-600 ring-red-600/20' },
@@ -106,6 +106,7 @@ export function SessionCard({
                                 <span className="truncate">{room}</span>
                             </div>
                         )}
+
                     </div>
                 </div>
 

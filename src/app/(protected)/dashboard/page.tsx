@@ -111,7 +111,12 @@ export default async function DashboardPage() {
   const { count: pendingMakeups } = await supabase.from('makeup_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
   const { count: pendingTransfers } = await supabase.from('transfer_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
 
-  const totalPendingAppsCount = (pendingLeaves || 0) + (pendingMakeups || 0) + (pendingTransfers || 0);
+  // 6. Fetch pending card orders (only relevant for admin/finance)
+  const { count: pendingFinanceCount } = isAdmin
+    ? await supabase.from('card_orders').select('id', { count: 'exact', head: true }).in('status', ['pending', 'remitted'])
+    : { count: 0 };
+
+  const totalPendingAppsCount = pendingFinanceCount || 0;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-10 pb-24">
@@ -216,37 +221,39 @@ export default async function DashboardPage() {
               </div>
             </Link>
 
-            <Link href="/leader/approvals">
-              <div className={cn(
-                "flex items-center gap-4 p-4 rounded-2xl border border-muted/60 transition-all group",
-                totalPendingAppsCount > 0
-                  ? "bg-card hover:border-orange-500/40 hover:bg-orange-500/5"
-                  : "bg-card hover:border-primary/40 hover:bg-primary/5"
-              )}>
+            {isAdmin && (
+              <Link href="/leader/approvals">
                 <div className={cn(
-                  "h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-300",
+                  "flex items-center gap-4 p-4 rounded-2xl border border-muted/60 transition-all group",
                   totalPendingAppsCount > 0
-                    ? "bg-orange-500/5 text-orange-600 group-hover:bg-orange-600 group-hover:text-white"
-                    : "bg-primary/5 text-primary group-hover:bg-primary group-hover:text-background"
+                    ? "bg-card hover:border-orange-500/40 hover:bg-orange-500/5"
+                    : "bg-card hover:border-primary/40 hover:bg-primary/5"
                 )}>
-                  <ShieldCheck className="h-5 w-5" />
+                  <div className={cn(
+                    "h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-300",
+                    totalPendingAppsCount > 0
+                      ? "bg-orange-500/5 text-orange-600 group-hover:bg-orange-600 group-hover:text-white"
+                      : "bg-primary/5 text-primary group-hover:bg-primary group-hover:text-background"
+                  )}>
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className={cn(
+                      "text-sm font-bold",
+                      totalPendingAppsCount > 0 ? "text-orange-600" : "text-foreground"
+                    )}>申請審核</p>
+                    <p className="text-[10px] text-muted-foreground font-bold">處理待對帳堂卡及異常監控</p>
+                  </div>
+                  {/* Badge */}
+                  <div className={cn(
+                    "h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0",
+                    totalPendingAppsCount > 0 ? "bg-orange-500" : "bg-muted-foreground/30 text-white/60"
+                  )}>
+                    {totalPendingAppsCount}
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className={cn(
-                    "text-sm font-bold",
-                    totalPendingAppsCount > 0 ? "text-orange-600" : "text-foreground"
-                  )}>申請審核</p>
-                  <p className="text-[10px] text-muted-foreground font-bold">處理請假、補課及轉讓申請</p>
-                </div>
-                {/* Badge */}
-                <div className={cn(
-                  "h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0",
-                  totalPendingAppsCount > 0 ? "bg-orange-500" : "bg-muted-foreground/30 text-white/60"
-                )}>
-                  {totalPendingAppsCount}
-                </div>
-              </div>
-            </Link>
+              </Link>
+            )}
 
             {isAdmin && (
               <>

@@ -128,7 +128,7 @@ export default async function MyCoursesPage() {
                     <div className="space-y-1">
                         <h1 className="text-2xl font-bold tracking-tight leading-tight">我的課程</h1>
                         <p className="text-sm text-muted-foreground font-medium mt-0.5">
-                            查看預約、報名與課表
+                            管理您的課表與出席紀錄 <span className="text-xs opacity-60 ml-1">(請假/轉讓請點選以下課程卡片進入課程頁面申請)</span>
                         </p>
                     </div>
                 </div>

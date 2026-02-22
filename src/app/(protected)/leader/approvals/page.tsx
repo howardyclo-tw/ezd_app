@@ -1,16 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, ShieldCheck, Check, X, Clock, User, Calendar } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import Link from 'next/link';
-import { format, parseISO } from 'date-fns';
-import { zhTW } from 'date-fns/locale';
-import { reviewLeaveRequest, reviewMakeupRequest, reviewTransferRequest } from '@/lib/supabase/actions';
-import { ApprovalsList } from '@/components/leader/approvals-list';
+import { ApprovalsTabsClient } from '@/components/leader/approvals-tabs-client';
 
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
 export default async function LeaderApprovalsPage() {
     const supabase = await createClient();
@@ -23,53 +20,64 @@ export default async function LeaderApprovalsPage() {
         .eq('id', user.id)
         .maybeSingle();
 
-    if (profile?.role !== 'admin' && profile?.role !== 'leader') {
+    if (profile?.role !== 'admin') {
         redirect('/dashboard');
     }
 
-    const isAdmin = profile?.role === 'admin';
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
 
-    // Fetch Leave Requests (Pending)
-    const { data: leaveRequests } = await supabase
+    // Fetch Card Orders (Pending / Remitted)
+    const cardOrderQuery = supabase.from('card_orders')
+        .select('*, profiles!card_orders_user_id_fkey(name)')
+        .in('status', ['pending', 'remitted'])
+        .order('created_at', { ascending: false });
+
+    // Fetch Recent Leaves
+    const leaveQuery = supabase
         .from('leave_requests')
         .select(`
             *,
             profiles!leave_requests_user_id_fkey(name),
-            courses(name),
+            courses(name, course_groups(title)),
             course_sessions(session_date, session_number)
         `)
-        .eq('status', 'pending');
+        .gte('created_at', thirtyDaysAgoIso)
+        .order('created_at', { ascending: false });
 
-    // Fetch Makeup Requests (Pending)
-    const { data: makeupRequests } = await supabase
+    // Fetch Recent Makeups
+    const makeupQuery = supabase
         .from('makeup_requests')
         .select(`
             *,
             profiles!makeup_requests_user_id_fkey(name),
-            original_courses:original_course_id(name),
-            target_courses:target_course_id(name),
+            original_courses:original_course_id(name, course_groups(title)),
+            target_courses:target_course_id(name, course_groups(title)),
             target_sessions:target_session_id(session_date, session_number)
         `)
-        .eq('status', 'pending');
+        .gte('created_at', thirtyDaysAgoIso)
+        .order('created_at', { ascending: false });
 
-    // Fetch Transfer Requests (Pending)
-    const { data: transferRequests } = await supabase
+    // Fetch Recent Transfers
+    const transferQuery = supabase
         .from('transfer_requests')
         .select(`
             *,
             from_profile:from_user_id(name),
             to_profile:to_user_id(name),
-            courses(name),
+            courses(name, course_groups(title)),
             course_sessions(session_date, session_number)
         `)
-        .eq('status', 'pending');
+        .gte('created_at', thirtyDaysAgoIso)
+        .order('created_at', { ascending: false });
 
-    // Combine and format for UI
-    const allApprovals = [
-        ...(leaveRequests || []).map(r => ({ ...r, type: 'leave' })),
-        ...(makeupRequests || []).map(r => ({ ...r, type: 'makeup' })),
-        ...(transferRequests || []).map(r => ({ ...r, type: 'transfer' }))
-    ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const [
+        { data: cardOrders },
+        { data: leaves },
+        { data: makeups },
+        { data: transfers }
+    ] = await Promise.all([cardOrderQuery, leaveQuery, makeupQuery, transferQuery]);
 
     return (
         <div className="container max-w-5xl py-6 space-y-6">
@@ -81,13 +89,19 @@ export default async function LeaderApprovalsPage() {
                     <div className="space-y-1">
                         <h1 className="text-2xl font-bold tracking-tight leading-tight">申請審核</h1>
                         <p className="text-sm text-muted-foreground font-medium mt-0.5">
-                            處理待確認的請假、補課及轉讓申請
+                            核對堂卡匯款與檢視請假、補課、轉讓等系統自動化紀錄
                         </p>
                     </div>
                 </div>
             </div>
 
-            <ApprovalsList initialApprovals={allApprovals} isAdmin={isAdmin} currentUserId={user.id} />
+            <ApprovalsTabsClient
+                cardOrders={cardOrders || []}
+                leaves={leaves || []}
+                makeups={makeups || []}
+                transfers={transfers || []}
+                currentUserId={user.id}
+            />
         </div>
     );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,13 +26,14 @@ import {
     Users,
     FileText,
     Calendar as CalendarIcon,
+    Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import Link from 'next/link';
 import { SessionEnrollmentDialog } from "@/components/courses/session-enrollment-dialog";
-import { saveAttendance, assignCourseLeader, removeCourseLeader, submitLeaveRequest, submitTransferRequest } from '@/lib/supabase/actions';
+import { saveAttendance, assignCourseLeader, removeCourseLeader, submitLeaveRequest, submitTransferRequest, getTransferCandidates } from '@/lib/supabase/actions';
 import {
     Dialog,
     DialogContent,
@@ -98,6 +99,8 @@ interface StudentInfo {
     attendance: Record<string, string>; // sessionId -> status
 }
 
+type AttendanceMap = Record<string, Record<string, string>>;
+
 interface CourseDetailClientProps {
     course: CourseInfo;
     sessions: SessionInfo[];
@@ -115,13 +118,14 @@ interface CourseDetailClientProps {
     missedSessions: any[];
     canManageAttendance: boolean;
     currentUserRole: string;
+    transferMetadata?: Record<string, Record<string, { fromName: string; toName: string }>>;
 }
 
 // Status display map
 const ATTENDANCE_DISPLAY: Record<string, { label: string; color: string; icon: 'check' | 'x' | 'text' }> = {
     present: { label: 'v', color: 'bg-green-500/10 text-green-600', icon: 'check' },
     absent: { label: 'x', color: 'bg-red-500/10 text-red-500', icon: 'x' },
-    leave: { label: '假', color: 'bg-blue-500/10 text-blue-600', icon: 'text' },
+    leave: { label: '請假', color: 'bg-blue-500/10 text-blue-600', icon: 'text' },
     makeup: { label: '補', color: 'bg-purple-500/10 text-purple-600', icon: 'text' },
     transfer_in: { label: '轉入', color: 'bg-purple-500/10 text-purple-600', icon: 'text' },
     transfer_out: { label: '轉出', color: 'bg-slate-500/10 text-slate-500', icon: 'text' },
@@ -138,19 +142,29 @@ export function CourseDetailClient({
     missedSessions,
     canManageAttendance,
     currentUserRole,
+    transferMetadata = {},
 }: CourseDetailClientProps) {
     const router = useRouter();
     const isAdminOrLeader = currentUserRole === 'admin' || currentUserRole === 'leader';
 
     // --- Interaction State ---
     const [isEditing, setIsEditing] = useState(false);
-    const [attendanceState, setAttendanceState] = useState<Record<string, Record<string, string>>>(() => {
-        const map: Record<string, Record<string, string>> = {};
+    const [attendanceState, setAttendanceState] = useState<AttendanceMap>(() => {
+        const map: AttendanceMap = {};
         for (const student of roster) {
             map[student.id] = { ...student.attendance };
         }
         return map;
     });
+
+    // Sync state with props when roster changes (after router.refresh)
+    useEffect(() => {
+        const newMap: AttendanceMap = {};
+        for (const student of roster) {
+            newMap[student.id] = { ...student.attendance };
+        }
+        setAttendanceState(newMap);
+    }, [roster]);
 
     // Split roster into categories
     const officialStudents = roster.filter(s => s.type === 'official');
@@ -159,7 +173,7 @@ export function CourseDetailClient({
     const getPresentCount = (sessionId: string, students: StudentInfo[]) => {
         return students.filter(student => {
             const status = attendanceState[student.id]?.[sessionId] ?? 'unmarked';
-            return status === 'present' || status === 'makeup' || status === 'transfer_in';
+            return status === 'present';
         }).length;
     };
 
@@ -199,42 +213,134 @@ export function CourseDetailClient({
 
     const handleLeaveRequest = async () => {
         if (!selectedSession) return;
+
+        // Optimistic update
+        const sessionId = selectedSession.id;
+        const userId = userEnrollment.userId;
+        setAttendanceState((prev: AttendanceMap) => ({
+            ...prev,
+            [userId]: { ...prev[userId], [sessionId]: 'leave' }
+        }));
+
         startTransition(async () => {
             try {
-                const res = await submitLeaveRequest(course.id, selectedSession.id);
+                const res = await submitLeaveRequest(course.id, sessionId);
                 alert(res.message);
                 setIsLeaveDialogOpen(false);
                 router.refresh();
             } catch (err) {
+                // Rollback on error
+                router.refresh(); // Fetch true state again
                 alert(err instanceof Error ? err.message : '操作失敗');
             }
         });
     };
 
-    const handleTransferRequest = async () => {
+    const handleTransferRequest = async (toUserId: string | null) => {
         if (!selectedSession) return;
+
+        // Optimistic update
+        const sessionId = selectedSession.id;
+        const fromUserId = userEnrollment.userId;
+        setAttendanceState((prev: AttendanceMap) => {
+            const next = { ...prev };
+            next[fromUserId] = { ...next[fromUserId], [sessionId]: 'transfer_out' };
+            if (toUserId) {
+                next[toUserId] = { ...next[toUserId], [sessionId]: 'transfer_in' };
+            }
+            return next;
+        });
+
         startTransition(async () => {
             try {
-                const res = await submitTransferRequest(course.id, selectedSession.id, null);
+                const res = await submitTransferRequest(course.id, sessionId, toUserId);
                 alert(res.message);
                 setIsTransferDialogOpen(false);
+                setTransferStep('pick');
+                setSelectedTransferUser(null);
                 router.refresh();
             } catch (err) {
+                // Rollback on error
+                router.refresh();
                 alert(err instanceof Error ? err.message : '操作失敗');
             }
         });
     };
 
-    // Toggle attendance: unmarked -> present -> absent -> unmarked
+    // Transfer user picker state
+    const [transferStep, setTransferStep] = useState<'pick' | 'confirm'>('pick');
+    const [transferCandidates, setTransferCandidates] = useState<{
+        waitlist: { id: string; name: string; role: string; position: number }[];
+        allMembers: { id: string; name: string; role: string }[];
+    }>({ waitlist: [], allMembers: [] });
+    const [selectedTransferUser, setSelectedTransferUser] = useState<{ id: string; name: string; role: string } | null>(null);
+    const [transferSearch, setTransferSearch] = useState('');
+    const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
+
+    const openTransferDialog = async (session: SessionInfo) => {
+        setSelectedSession(session);
+        setTransferStep('pick');
+        setSelectedTransferUser(null);
+        setTransferSearch('');
+        setIsTransferDialogOpen(true);
+        setIsLoadingCandidates(true);
+        try {
+            const candidates = await getTransferCandidates(course.id);
+            setTransferCandidates(candidates);
+        } catch (err) {
+            console.error('Failed to load candidates', err);
+        } finally {
+            setIsLoadingCandidates(false);
+        }
+    };
+
+    const filteredMembers = transferCandidates.allMembers.filter(m =>
+        m.name.toLowerCase().includes(transferSearch.toLowerCase())
+    );
+
+    // Helper: determine the "original type" of a student for a session
+    // Uses transferMetadata (from transfer_requests table) as authoritative source
+    const getOriginalType = (studentId: string, sessionId: string): string => {
+        const meta = transferMetadata[sessionId]?.[studentId];
+        const dbStatus = roster.find(r => r.id === studentId)?.attendance[sessionId] ?? 'unmarked';
+        const isOfficial = officialStudents.some(s => s.id === studentId);
+
+        // Check transfer_requests table first (survives saves)
+        if (meta) {
+            // Determine if this student is the sender or receiver
+            if (isOfficial && (dbStatus === 'transfer_out' || dbStatus === 'leave')) {
+                return 'transfer_out';
+            }
+            // If they're an additional student with transfer metadata, they're the receiver
+            if (!isOfficial) return 'transfer_in';
+            // Official student with transfer metadata but not transfer_out — could be transfer_out that was marked
+            if (dbStatus === 'transfer_out') return 'transfer_out';
+        }
+        if (dbStatus === 'transfer_out') return 'transfer_out';
+        if (dbStatus === 'transfer_in') return 'transfer_in';
+        if (dbStatus === 'makeup') return 'makeup';
+        if (dbStatus === 'leave') return 'leave';
+        if (!isOfficial) return 'single';
+        return 'normal';
+    };
+
+    // Toggle attendance: pending -> present -> absent -> restore original
     const toggleAttendance = (studentId: string, sessionId: string) => {
-        setAttendanceState(prev => {
+        const origType = getOriginalType(studentId, sessionId);
+        setAttendanceState((prev: AttendanceMap) => {
             const current = prev[studentId]?.[sessionId] ?? 'unmarked';
-            if (current === 'leave') return prev; // Can't change leave status by toggling
+            if (current === 'leave' || current === 'transfer_out') return prev;
 
             let next: string;
-            if (current === 'unmarked' || current === '') next = 'present';
+            // Treat transfer_in/makeup/unmarked as "pending" for toggle
+            if (current === 'unmarked' || current === '' || current === 'transfer_in' || current === 'makeup') next = 'present';
             else if (current === 'present') next = 'absent';
-            else next = 'unmarked';
+            else {
+                // Restore to logical original: transfer_in, makeup, or unmarked
+                if (origType === 'transfer_in') next = 'transfer_in';
+                else if (origType === 'makeup') next = 'makeup';
+                else next = 'unmarked';
+            }
 
             return {
                 ...prev,
@@ -247,10 +353,16 @@ export function CourseDetailClient({
     const handleSave = () => {
         if (!focusedSessionId) return;
 
-        const records = roster.map(s => ({
-            userId: s.id,
-            status: attendanceState[s.id]?.[focusedSessionId] ?? 'unmarked',
-        }));
+        // Only save records that are NOT protected (leave, transfer_out)
+        const records = roster
+            .filter(s => {
+                const origType = getOriginalType(s.id, focusedSessionId);
+                return origType !== 'leave' && origType !== 'transfer_out';
+            })
+            .map(s => ({
+                userId: s.id,
+                status: attendanceState[s.id]?.[focusedSessionId] ?? 'unmarked',
+            }));
 
         startTransition(async () => {
             await saveAttendance(focusedSessionId, records);
@@ -272,29 +384,32 @@ export function CourseDetailClient({
         setFocusedSessionId(focusedSessionId === sessionId ? null : sessionId);
     };
 
-    // Render attendance cell
     const renderAttendanceCell = (status: string, studentId: string, sessionId: string) => {
-        const canEdit = isEditing && status !== 'leave';
+        const origType = getOriginalType(studentId, sessionId);
+        const canEdit = isEditing && origType !== 'leave' && origType !== 'transfer_out';
         const isOfficialStudent = officialStudents.some(s => s.id === studentId);
 
-        // Get initial status to determine persistent type (Single, Makeup, Transfer)
-        const initialStatus = roster.find(r => r.id === studentId)?.attendance[sessionId] ?? 'unmarked';
-
-        // Determine type label (單 / 補 / 轉)
+        // Determine type label using getOriginalType (authoritative, survives saves)
         let typeLabel = "";
-        if (!isOfficialStudent) {
-            const statusToUse = (status && status !== 'unmarked') ? status : initialStatus;
-            if (statusToUse === 'makeup') { typeLabel = "補"; }
-            else if (statusToUse === 'transfer_in') { typeLabel = "轉"; }
-            else { typeLabel = "單"; }
+        if (origType === 'transfer_out') {
+            const meta = transferMetadata[sessionId]?.[studentId];
+            typeLabel = meta ? `轉讓 ${meta.toName}` : "轉讓";
+        } else if (origType === 'transfer_in') {
+            const meta = transferMetadata[sessionId]?.[studentId];
+            typeLabel = meta ? `${meta.fromName} 轉讓` : "轉入";
+        } else if (origType === 'makeup') {
+            typeLabel = "補";
+        } else if (origType === 'single') {
+            typeLabel = "單";
         }
 
         // Determine dynamic color for label when checked
         const getLabelColor = () => {
             if (status === 'unmarked') return "text-white/40";
-            if (status === 'present' || status === 'makeup' || status === 'transfer_in') return "text-emerald-500";
+            if (status === 'present') return "text-emerald-500";
             if (status === 'absent') return "text-rose-500";
             if (status === 'leave') return "text-blue-500";
+            if (status === 'transfer_out') return "text-purple-400";
             return "text-white/70";
         };
 
@@ -303,9 +418,10 @@ export function CourseDetailClient({
                 onClick={canEdit ? () => toggleAttendance(studentId, sessionId) : undefined}
                 className={cn(
                     "w-full h-full flex flex-col items-center justify-center transition-all duration-200 relative",
-                    status === 'present' || status === 'makeup' || status === 'transfer_in' ? "bg-emerald-500/20" :
+                    status === 'present' ? "bg-emerald-500/20" :
                         status === 'absent' ? "bg-rose-500/20" :
-                            status === 'leave' ? "bg-blue-500/20" : "bg-transparent",
+                            (status === 'leave' || origType === 'leave') ? "bg-blue-500/20" :
+                                (status === 'transfer_out' || origType === 'transfer_out') ? "bg-purple-500/20" : "bg-transparent",
                     canEdit && "cursor-pointer hover:brightness-125 active:scale-95 group/cell"
                 )}
             >
@@ -317,24 +433,29 @@ export function CourseDetailClient({
                         <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
                     )
                 ) : (
-                    // Show Status Icon/Text
-                    <span className={cn(
-                        "text-xs font-black",
-                        status === 'present' || status === 'makeup' || status === 'transfer_in' ? "text-emerald-500" :
-                            status === 'absent' ? "text-rose-500" :
-                                status === 'leave' ? "text-blue-500" : "text-muted-foreground/30"
-                    )}>
-                        {status === 'present' || status === 'makeup' || status === 'transfer_in' ? <Check className="h-4 w-4 stroke-[4px]" /> :
-                            status === 'absent' ? <X className="h-4 w-4 stroke-[4px]" /> :
-                                status === 'leave' ? "假" : <div className="w-1.5 h-1.5 rounded-full bg-white/10" />}
-                    </span>
-                )}
+                    <div className="flex flex-col items-center justify-center gap-0.5">
+                        <span className={cn(
+                            "text-xs font-bold px-1 text-center leading-none",
+                            status === 'present' ? "text-emerald-500 font-black" :
+                                status === 'absent' ? "text-rose-500 font-black" :
+                                    status === 'leave' ? "text-blue-500 font-black" :
+                                        status === 'transfer_out' ? "text-purple-400" :
+                                            (status === 'transfer_in' || status === 'makeup') ? "text-white/40" : "text-white/40"
+                        )}>
+                            {status === 'present' ? <Check className="h-4 w-4 stroke-[4px]" /> :
+                                status === 'absent' ? <X className="h-4 w-4 stroke-[4px]" /> :
+                                    status === 'leave' ? "請假" :
+                                        (status === 'transfer_out' || status === 'transfer_in' || status === 'makeup') ? typeLabel :
+                                            <div className="w-1.5 h-1.5 rounded-full bg-white/10" />}
+                        </span>
 
-                {/* Sub-label for marked cells (Additional students only) */}
-                {typeLabel && status !== 'unmarked' && (
-                    <span className={cn("text-[9px] font-black absolute bottom-1.5", getLabelColor())}>
-                        {typeLabel}
-                    </span>
+                        {/* Sub-label for marked cells (Additional students only) */}
+                        {typeLabel && (status === 'present' || status === 'absent') && (
+                            <span className={cn("text-[8px] font-black leading-none", getLabelColor())}>
+                                {typeLabel}
+                            </span>
+                        )}
+                    </div>
                 )}
 
                 {/* Edit Indicator */}
@@ -423,9 +544,9 @@ export function CourseDetailClient({
                     <div className="w-full md:w-44 shrink-0 mt-4 md:mt-0">
                         {userEnrollment.enrollmentStatus.isEnrolled ? (
                             <div className="flex flex-col items-stretch gap-2">
-                                <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-500/10 text-green-600 border border-green-500/20">
+                                <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-muted/20 text-muted-foreground border border-muted-foreground/10">
                                     <Check className="h-4 w-4 shrink-0" />
-                                    <span className="text-sm font-bold">已報名</span>
+                                    <span className="text-sm font-bold">待出席</span>
                                 </div>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -496,14 +617,28 @@ export function CourseDetailClient({
                 )}
             </div>
 
-            {/* Block 2: My Attendance Progress */}
+            {/* Block 2: My Attendance Progress (Leave/Transfer) */}
             {userEnrollment.enrollmentStatus.isEnrolled && (
                 <div className="pt-5 pb-3 bg-muted/20 border border-muted/50 rounded-2xl space-y-4">
                     <div className="px-5 flex items-center justify-between">
-                        <h3 className="text-sm font-bold flex items-center gap-2 text-foreground/90">
-                            <CalendarIcon className="h-4 w-4 text-primary" />
-                            我的上課進度
-                        </h3>
+                        <div className="flex flex-col gap-1">
+                            <h3 className="text-sm font-bold flex items-center gap-2 text-foreground/90">
+                                <CalendarIcon className="h-4 w-4 text-primary" />
+                                請假/轉讓
+                            </h3>
+                            {course.type === 'normal' && (() => {
+                                const myAttendanceRecord = roster.find(s => s.id === userEnrollment.userId)?.attendance || {};
+                                const usedTransfers = Object.values(myAttendanceRecord).filter(v => v === 'transfer_out').length;
+                                const usedMakeups = Object.values(myAttendanceRecord).filter(v => v === 'makeup').length;
+                                const totalUsed = usedTransfers + usedMakeups;
+                                const quota = Math.ceil(sessions.length / 4);
+                                return (
+                                    <p className="text-[11px] text-muted-foreground font-medium pl-6">
+                                        剩餘額度: <span className={cn("font-bold", totalUsed >= quota ? "text-rose-500" : "text-primary")}>{totalUsed}</span>/{quota} 次 (補課+轉讓)
+                                    </p>
+                                );
+                            })()}
+                        </div>
                         <span className="text-[11px] text-muted-foreground font-medium">共 {sessions.length} 堂課</span>
                     </div>
 
@@ -516,11 +651,24 @@ export function CourseDetailClient({
                                 const isToday = session.date === todayStr;
                                 const sessionDate = parseISO(session.date);
 
+                                // Quota calculation for disabling buttons
+                                const myAttendanceRecord = roster.find(s => s.id === userEnrollment.userId)?.attendance || {};
+                                const usedTransfers = Object.values(myAttendanceRecord).filter(v => v === 'transfer_out').length;
+                                const usedMakeups = Object.values(myAttendanceRecord).filter(v => v === 'makeup').length;
+                                const totalUsed = usedTransfers + usedMakeups;
+                                const quota = Math.ceil(sessions.length / 4);
+
+                                // Freeze logic: session in the past, or already has any status in DB (including present/absent)
+                                const isFrozen = isPast || myAttendance !== 'unmarked';
+
+                                // User reached quota for 'normal' courses
+                                const quotaReached = course.type === 'normal' && totalUsed >= quota;
+
                                 return (
                                     <div key={session.id} className={cn(
                                         "flex flex-col shrink-0 w-[160px] snap-start rounded-2xl transition-all duration-300 overflow-hidden backdrop-blur-md border shadow-2xl group relative",
-                                        isPast
-                                            ? "bg-neutral-950/40 border-white/[0.05] cursor-default opacity-60"
+                                        isFrozen
+                                            ? "bg-neutral-900 border-white/5 shadow-none"
                                             : isToday
                                                 ? "bg-gradient-to-br from-primary/30 to-primary/10 border-primary/40 ring-1 ring-primary/20 shadow-primary/10 hover:border-primary/60 cursor-pointer"
                                                 : "bg-gradient-to-br from-white/[0.08] to-white/[0.01] border-white/[0.1] hover:border-white/[0.3] shadow-black/20 cursor-pointer"
@@ -531,55 +679,59 @@ export function CourseDetailClient({
                                             <div className="flex items-center justify-between w-full">
                                                 <div className={cn(
                                                     "h-6 px-2 rounded-md flex items-center justify-center font-bold text-[10px]",
-                                                    isPast ? "bg-white/[0.05] text-muted-foreground/50" : isToday ? "bg-primary text-primary-foreground" : "bg-white/[0.1] text-foreground"
+                                                    isFrozen ? "bg-white/[0.02] text-muted-foreground/30" : isToday ? "bg-primary text-primary-foreground" : "bg-white/[0.1] text-foreground"
                                                 )}>
                                                     堂 {session.number}
                                                 </div>
-                                                <Badge variant="ghost" className={cn("h-4 p-0 text-[10px] uppercase font-black tracking-widest bg-transparent border-none shadow-none", ATTENDANCE_DISPLAY[myAttendance]?.color)}>
-                                                    {ATTENDANCE_DISPLAY[myAttendance]?.label || (isPast ? "未標記" : "待出席")}
+                                                <Badge variant="ghost" className={cn("h-4 p-0 text-[10px] uppercase font-black tracking-widest bg-transparent border-none shadow-none",
+                                                    myAttendance === 'leave' ? "text-blue-500" :
+                                                        myAttendance === 'transfer_out' ? "text-purple-400" :
+                                                            isFrozen ? "text-muted-foreground/30" : ATTENDANCE_DISPLAY[myAttendance]?.color)}>
+                                                    {myAttendance === 'leave' ? "請假" :
+                                                        myAttendance === 'transfer_out' ? "轉出" :
+                                                            ATTENDANCE_DISPLAY[myAttendance]?.label || (isPast ? "已結束" : "待出席")}
                                                 </Badge>
                                             </div>
 
-                                            {/* Main Date Display - Font matching Roster */}
+                                            {/* Main Date Display */}
                                             <div className="space-y-1 pb-1">
-                                                <p className={cn("text-sm font-bold", isPast ? "text-muted-foreground/50" : "text-foreground")}>
+                                                <p className={cn("text-base font-bold tracking-tight", isFrozen ? "text-muted-foreground/30" : "text-white")}>
                                                     {format(sessionDate, "MM/dd")}
                                                 </p>
-                                                <div className={cn("h-1 w-8 mx-auto rounded-full", isPast ? "bg-white/5" : "bg-primary/20")} />
+                                                <div className={cn("h-1 w-8 mx-auto rounded-full", isFrozen ? "bg-white/[0.02]" : "bg-primary/20")} />
                                             </div>
                                         </div>
 
-                                        {/* Actions at bottom */}
-                                        {!isPast ? (
-                                            <div className="mt-auto grid grid-cols-2 border-t border-white/[0.08] bg-white/[0.02] transition-colors group-hover:bg-white/[0.07]">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-10 rounded-none text-[11px] font-bold text-foreground hover:bg-primary/40 border-r border-white/[0.08] transition-all"
-                                                    onClick={() => {
-                                                        setSelectedSession(session);
-                                                        setIsLeaveDialogOpen(true);
-                                                    }}
-                                                >
-                                                    請假
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-10 rounded-none text-[11px] font-bold text-foreground hover:bg-primary/40 transition-all"
-                                                    onClick={() => {
-                                                        setSelectedSession(session);
-                                                        setIsTransferDialogOpen(true);
-                                                    }}
-                                                >
-                                                    轉讓
-                                                </Button>
-                                            </div>
-                                        ) : (
-                                            <div className="mt-auto h-10 flex items-center justify-center border-t border-white/[0.05] bg-transparent">
-                                                <span className="text-[11px] text-muted-foreground/30 font-bold tracking-widest">COMPLETED</span>
-                                            </div>
-                                        )}
+                                        {/* Actions at bottom - Consistently show buttons but disable if frozen or quota reached */}
+                                        <div className="mt-auto grid grid-cols-2 border-t border-white/[0.08] bg-white/[0.02] transition-colors group-hover:bg-white/[0.07]">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                disabled={isFrozen || quotaReached || isPending}
+                                                className={cn(
+                                                    "h-10 rounded-none text-[11px] font-bold border-r border-white/[0.08] transition-all",
+                                                    (isFrozen || quotaReached) ? "text-muted-foreground/20" : "text-blue-400 hover:bg-blue-500/20 hover:text-blue-300"
+                                                )}
+                                                onClick={() => {
+                                                    setSelectedSession(session);
+                                                    setIsLeaveDialogOpen(true);
+                                                }}
+                                            >
+                                                請假
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                disabled={isFrozen || quotaReached || isPending}
+                                                className={cn(
+                                                    "h-10 rounded-none text-[11px] font-bold transition-all",
+                                                    (isFrozen || quotaReached) ? "text-muted-foreground/20" : "text-purple-400 hover:bg-purple-500/20 hover:text-purple-300"
+                                                )}
+                                                onClick={() => openTransferDialog(session)}
+                                            >
+                                                轉讓
+                                            </Button>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -785,9 +937,17 @@ export function CourseDetailClient({
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>申請請假</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            確定要申請 {selectedSession && format(parseISO(selectedSession.date), "MM/dd")} 的課程請假嗎？
-                            請假名額將釋出給補課或轉入的同學。
+                        <AlertDialogDescription asChild className="space-y-4">
+                            <div>
+                                <p>
+                                    確定要申請 {selectedSession && format(parseISO(selectedSession.date), "MM/dd")} 的課程請假嗎？
+                                    請假名額將釋出給補課或轉入的同學。
+                                </p>
+                                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 leading-relaxed">
+                                    <p className="font-bold mb-1">⚠️ 注意：</p>
+                                    <p>請假手續一旦完成即無法撤回或修改，請確認後再提交。</p>
+                                </div>
+                            </div>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -800,24 +960,175 @@ export function CourseDetailClient({
                 </AlertDialogContent>
             </AlertDialog>
 
-            <AlertDialog open={isTransferDialogOpen} onOpenChange={setIsTransferDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>申請轉讓</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            確定要將 {selectedSession && format(parseISO(selectedSession.date), "MM/dd")} 的堂次轉讓嗎？
-                            轉讓後將佔用您的補課/轉讓額度。
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>返回</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleTransferRequest} disabled={isPending}>
-                            {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            確認轉讓
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <Dialog open={isTransferDialogOpen} onOpenChange={(open) => {
+                setIsTransferDialogOpen(open);
+                if (!open) {
+                    setTransferStep('pick');
+                    setSelectedTransferUser(null);
+                    setTransferSearch('');
+                }
+            }}>
+                <DialogContent className="sm:max-w-[480px] max-h-[80vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {transferStep === 'pick' ? '選擇接手學員' : '確認轉讓'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {transferStep === 'pick'
+                                ? `將 ${selectedSession ? format(parseISO(selectedSession.date), "MM/dd") : ''} 的課程名額轉讓給指定學員`
+                                : `確定要將名額轉讓給 ${selectedTransferUser?.name} 嗎？`}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {transferStep === 'pick' ? (
+                        <div className="flex-1 overflow-y-auto space-y-4 py-2">
+                            {isLoadingCandidates ? (
+                                <div className="flex items-center justify-center py-10">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Waitlist Section */}
+                                    {transferCandidates.waitlist.length > 0 && (
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
+                                                候補名單（優先）
+                                            </h4>
+                                            <div className="space-y-1">
+                                                {transferCandidates.waitlist.map((user) => (
+                                                    <button
+                                                        key={user.id}
+                                                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10 transition-colors text-left group"
+                                                        onClick={() => {
+                                                            setSelectedTransferUser(user);
+                                                            setTransferStep('confirm');
+                                                        }}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-8 w-8 rounded-full bg-orange-500/20 flex items-center justify-center text-xs font-bold text-orange-400">
+                                                                {user.position}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-bold text-foreground">{user.name}</p>
+                                                                <p className="text-[10px] text-muted-foreground">候補第 {user.position} 名</p>
+                                                            </div>
+                                                        </div>
+                                                        <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-foreground transition-colors" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* All Members Section */}
+                                    <div className="space-y-2">
+                                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
+                                            {transferCandidates.waitlist.length > 0 ? '或選擇其他社員' : '全部社員'}
+                                        </h4>
+                                        {/* Search */}
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                                            <input
+                                                type="text"
+                                                placeholder="搜尋社員姓名..."
+                                                value={transferSearch}
+                                                onChange={(e) => setTransferSearch(e.target.value)}
+                                                className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-muted/50 bg-muted/10 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all"
+                                            />
+                                        </div>
+                                        <div className="max-h-[240px] overflow-y-auto space-y-1 custom-scrollbar">
+                                            {filteredMembers.length === 0 ? (
+                                                <p className="text-center text-sm text-muted-foreground/50 py-6">找不到符合的社員</p>
+                                            ) : (
+                                                filteredMembers.slice(0, 50).map((user) => (
+                                                    <button
+                                                        key={user.id}
+                                                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-transparent hover:border-muted/50 hover:bg-muted/10 transition-colors text-left group"
+                                                        onClick={() => {
+                                                            setSelectedTransferUser(user);
+                                                            setTransferStep('confirm');
+                                                        }}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-8 w-8 rounded-full bg-muted/30 flex items-center justify-center text-xs font-bold text-foreground/70">
+                                                                {user.name.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-medium text-foreground">{user.name}</p>
+                                                                <p className="text-[10px] text-muted-foreground">
+                                                                    {user.role === 'guest' ? '非社員' : '社員'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-foreground transition-colors" />
+                                                    </button>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    ) : (
+                        /* Confirm Step */
+                        <div className="space-y-4 py-2">
+                            <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/20 border border-muted/30">
+                                <div className="h-12 w-12 rounded-full bg-purple-500/20 flex items-center justify-center text-lg font-bold text-purple-400">
+                                    {selectedTransferUser?.name.charAt(0)}
+                                </div>
+                                <div>
+                                    <p className="text-base font-bold">{selectedTransferUser?.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {selectedTransferUser?.role === 'guest' ? '非社員' : '社員'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {selectedTransferUser?.role === 'guest' && (
+                                <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg text-xs text-orange-400 leading-relaxed">
+                                    <p className="font-bold mb-1">⚠️ 非社員轉讓提醒：</p>
+                                    <p>接手人為非社員，需補繳差額堂卡。目前需由幹部手動處理，轉讓後請主動告知幹部。</p>
+                                </div>
+                            )}
+
+                            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 leading-relaxed">
+                                <p className="font-bold mb-1">⚠️ 重要提醒：</p>
+                                <p>轉讓手續一旦完成即無法撤回或修改，名額將直接移交給接手學員，請再次確認資訊無誤。</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 mt-2">
+                        {transferStep === 'confirm' ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setTransferStep('pick')}
+                                    className="w-full sm:w-auto font-bold border-white/10 hover:bg-white/5"
+                                >
+                                    返回選擇
+                                </Button>
+                                <Button
+                                    onClick={() => handleTransferRequest(selectedTransferUser?.id ?? null)}
+                                    disabled={isPending}
+                                    className="w-full sm:w-auto font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-lg transition-all active:scale-95"
+                                >
+                                    {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                    確認轉讓
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsTransferDialogOpen(false)}
+                                className="w-full sm:w-auto font-bold border-white/10 hover:bg-white/5"
+                            >
+                                取消
+                            </Button>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={isLeaderDialogOpen} onOpenChange={setIsLeaderDialogOpen}>
                 <DialogContent className="sm:max-w-[400px]">

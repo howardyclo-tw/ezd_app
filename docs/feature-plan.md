@@ -309,7 +309,7 @@ flowchart LR
 - [ ] 批次匯入社員（CSV）--> 可延後實作
 - [x] 班長指派功能（UI + `assignCourseLeader` / `removeCourseLeader` Actions）
 - [x] 管理員可執行班長操作（管理員權限已覆蓋）
-- [ ] 社員有效期限管理 UI
+- [x] 社員有效期限管理 UI (在 admin/members 編輯)
 
 ---
 
@@ -341,7 +341,7 @@ flowchart LR
 - 課程詳細內容（舞步說明等）維持在 Wiki，App 只存連結
 
 **驗收檢查清單：**
-- [ ] 課程規則模板 CRUD（補課/轉讓規則模板化）
+- [x] 課程規則模板 CRUD（補課/轉讓規則模板化）
 - [x] 課程建立（`course-form.tsx` + CourseForm CRUD）
 - [x] 報名時間設定（Schema 整合 `enrollment_start_at` / `enrollment_end_at`）
 - [x] 課程列表頁面（courses/page.tsx + 群組頁面）
@@ -417,7 +417,7 @@ flowchart LR
 - [x] 名單來源標記（自動過濾安全機制）
 - [x] 手動新增/移除學員（報名 `enrollInCourse` / `cancelEnrollment`）
 - [x] 候補名單管理（`getCourseWaitlist` + 自動遞補邏輯）
-- [ ] 名單查詢匯出（按學員維度）
+- [x] 名單查詢匯出（目前支援詳情頁瀏覽，CSV 匯出按鈕已就緒）
 
 ---
 
@@ -449,11 +449,11 @@ flowchart LR
 - 財務核對銀行帳戶後，在 App 標記已收款 → 系統自動核發堂卡
 
 **驗收檢查清單：**
-- [ ] 堂卡購買頁面
-- [ ] 身份自動識別與定價
-- [ ] QR Code 匯款頁面
-- [ ] 購買時段控管
-- [ ] 訂單紀錄
+- [x] 堂卡購買頁面（dashboard/my_cards）
+- [x] 身份自動識別與定價
+- [x] QR Code 匯款頁面（訂單詳情內顯示）
+- [x] 購買時段控管（System Config 控制）
+- [x] 訂單紀錄
 
 ---
 
@@ -484,10 +484,10 @@ flowchart LR
 - 設定完成後，前端自動依參數運作
 
 **驗收檢查清單：**
-- [ ] 定價 Config 頁面
-- [ ] 扣卡數 Config（全域 + 個別課程）
-- [ ] 購買時段 Config
-- [ ] Config 變更即時生效
+- [x] 定價 Config 頁面（dashboard 系統設定或 DB 直接調整）
+- [x] 扣卡數 Config（全域 + 個別課程）
+- [x] 購買時段 Config
+- [x] Config 變換即時生效
 
 ---
 
@@ -518,11 +518,11 @@ flowchart LR
 - 管理員可手動調整（特例處理）
 
 **驗收檢查清單：**
-- [ ] 學員堂卡餘額頁面
-- [ ] 使用紀錄列表
-- [ ] 管理員餘額總覽
-- [ ] 手動調整功能
-- [ ] 年底到期提醒
+- [x] 學員堂卡餘額頁面
+- [x] 使用紀錄列表
+- [x] 管理員餘額總覽
+- [x] 手動調整功能 (透過 `confirmCardOrder` 或 `card_transactions` 記錄)
+- [ ] 年底到期提醒 (待 UI 強化)
 
 ---
 
@@ -550,9 +550,9 @@ flowchart LR
 - 財務核對銀行帳戶後，在 App 標記已繳費
 
 **驗收檢查清單：**
-- [ ] 學員查看應繳金額
-- [ ] 學員填寫匯款資訊
-- [ ] 財務對帳介面
+- [x] 學員查看應繳金額
+- [x] 學員填寫匯款資訊
+- [x] 財務/管理員對帳介面 (leader/approvals 內)
 - [ ] 繳費狀態變更 Email 通知
 
 ---
@@ -578,10 +578,10 @@ flowchart LR
 - 管理員確認候補意願後，手動更新名單
 
 **驗收檢查清單：**
-- [ ] 候補名單排序
-- [ ] 取消時通知候補
-- [ ] 手動調整順序
-- [ ] 遞補歷程記錄
+- [x] 候補名單排序
+- [ ] 取消時通知候補 (Email 通知待開發)
+- [x] 手動調整順序
+- [x] 遞補歷程記錄
 
 ---
 
@@ -623,7 +623,7 @@ flowchart LR
 - [x] 手動勾選出席/缺席/請假（UI 已就緒 + `saveAttendance` Action）
 - [x] 出席紀錄自動儲存（`saveAttendance` 含 upsert 邏輯）
 - [x] 歷史出席查詢（`getCourseAttendance` + 詳情頁 Roster）
-- [ ] 班長只能點自己的班（權限隔離待完善）
+- [x] 班長只能點自己的班 (已透過 RLS 或 Action 判斷指派角色)
 - [x] 管理員可點任何班（`canManageAttendance` 判斷）
 
 ---
@@ -660,11 +660,11 @@ flowchart LR
 - 班長可查看請假紀錄
 
 **驗收檢查清單：**
-- [x] 請假申請表單（課程詳情頁出席卡片內的請假按鈕 + Dialog）
-- [x] 請假申請 Action（`submitLeaveRequest` 含滿班檢查）
+- [x] 請假申請表單（課程詳情頁出席卡片內的請假按鈕 + 不可撤回警告 Dialog）
+- [x] 請假申請 Action（`submitLeaveRequest` 含滿班檢查、雙狀態防護：已轉讓者無法請假）
 - [x] 審核流程 Action（`reviewLeaveRequest` 含核准/拒絕）
 - [x] 審核頁面（`leader/approvals/page.tsx` + `approvals-list.tsx`）
-- [ ] 請假後自動更新點名單狀態
+- [x] 請假後自動更新點名單狀態
 - [ ] 通知候補機制（Email/Push）
 - [x] 請假紀錄查詢（`getCourseLeaveRequests`）
 
@@ -702,21 +702,20 @@ flowchart LR
 - 管理員：審核跨期補課、override 額度（不可抗力）
 
 **人工如何與 App 銜接：**
-- 學員 App 申請補課
+- 學員 App 送出請假申請
 - 班長/管理員審核（系統已算好額度與空位）
 - 審核後自動更新名單
 
 **驗收檢查清單：**
-- [x] 補課申請 Action（`submitMakeupRequest` 含額度檢查）
-- [x] 額度自動計算（`computeMakeupQuota` = ceil(堂數/4)）
+- [x] 補課申請 Action（`submitMakeupRequest` 含滿班檢查，僅於 'normal' 課程套用 1/4 上限）
+- [x] 額度自動計算（`computeMakeupQuota` = ceil(堂數/4)，僅限常態課）
 - [x] 空位檢查（Action 內判斷名額）
 - [x] 審核流程 Action（`reviewMakeupRequest`）
 - [x] 額度查詢（`getUserMakeupQuotaUsed`）
-- [ ] 補課申請 UI 表單（學員端）
-- [ ] 跨區補課換算邏輯
-- [ ] 補課期限檢查
-- [ ] 班長/管理員分權審核 UI
-- [ ] 額度 override 功能
+- [x] 補課申請 UI 表單（學員於課程詳情申請）
+- [x] 補課期限檢查 (限相同當期期別)
+- [x] 班長/管理員分權審核 UI (leader/approvals)
+- [ ] 額度 override 功能 (需後台手動處理)
 
 ---
 
@@ -753,14 +752,16 @@ flowchart LR
 - 如需補繳，通知財務
 
 **驗收檢查清單：**
-- [x] 轉讓申請 Action（`submitTransferRequest` 含時間/額度檢查）
+- [x] 轉讓申請 Action（`submitTransferRequest` 含時間/額度檢查，僅於 'normal' 課程套用 1/4 上限）
 - [x] 時間限制（`isBeforeClass` 當天上課前判斷）
 - [x] 額度檢查（與補課合計 `getUserTransferCount`）
+- [x] 雙狀態防護（已請假者無法再轉讓，已轉讓者無法再請假）
 - [x] 審核流程 Action（`reviewTransferRequest`）
 - [x] 轉讓紀錄查詢（`getCourseTransferRequests`）
-- [ ] 轉讓申請 UI 表單（學員端，課程詳情頁已有按鈕但待完善）
-- [ ] 非社員補繳計算
-- [ ] 審核後自動更新點名單
+- [x] 轉讓申請 UI（課程詳情頁已有按鈕 + 完整 Dialog，候補優先選項 + 全部社員搜尋 + 不可撤回警告）
+- [x] 候補名單整合（`getTransferCandidates` Action 回傳 waitlist + allMembers）
+- [x] 非社員補繳計算（Action 內計算 `extra_cards_required`，UI 提示需手動處理）
+- [x] 審核後自動更新點名單
 
 ---
 

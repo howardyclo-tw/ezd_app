@@ -528,31 +528,94 @@ export async function submitLeaveRequest(
     if (!enrollment) throw new Error('您未報名此課程，無法申請請假');
     if (enrollment.type !== 'full') throw new Error('單堂報名不支援請假申請');
 
-    // Check no duplicate
-    const { data: existing } = await supabase
+    // --- Dual Status Guard ---
+    // Guard: Prevent duplicate leave intents. If one exists, we will update it.
+    const { data: existingLeave } = await supabase
         .from('leave_requests')
         .select('id, status')
         .eq('session_id', sessionId)
         .eq('user_id', user.id)
         .maybeSingle();
 
-    if (existing) {
-        return { success: false, message: `已有請假申請（狀態：${existing.status}）` };
+    if (existingLeave && existingLeave.status !== 'rejected' && existingLeave.status !== 'approved') {
+        throw new Error('此堂課已有審核中的請假紀錄');
     }
 
-    const { error } = await supabase.from('leave_requests').insert({
+    // Guard: Prevent leave if a transfer request already exists for this session
+    const { data: existingTransfer } = await supabase
+        .from('transfer_requests')
+        .select('id, status')
+        .eq('session_id', sessionId)
+        .eq('from_user_id', user.id)
+        .neq('status', 'rejected')
+        .maybeSingle();
+
+    if (existingTransfer) {
+        throw new Error('此堂課已有轉讓申請，無法重複申請請假');
+    }
+
+    // Guard: Prevent leave if already marked as something other than 'unmarked'
+    const { data: currentAttendance } = await supabase
+        .from('attendance_records')
+        .select('status')
+        .eq('session_id', sessionId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+    if (currentAttendance?.status && currentAttendance.status !== 'unmarked' && currentAttendance.status !== 'present' && currentAttendance.status !== 'absent') {
+        throw new Error('此堂課已有特殊出席狀態（如轉讓/補課），無法申請請假');
+    }
+
+    const payload = {
         course_id: courseId,
         session_id: sessionId,
         user_id: user.id,
         reason: reason ?? null,
-        status: 'pending',
-    });
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+    };
+
+    let error;
+    if (existingLeave) {
+        const res = await supabase.from('leave_requests').update(payload).eq('id', existingLeave.id);
+        error = res.error;
+    } else {
+        const res = await supabase.from('leave_requests').insert(payload);
+        error = res.error;
+    }
 
     if (error) throw new Error(`請假申請失敗: ${error.message}`);
 
+    // --- NEW: Cross-Intent Cleanup ---
+    // Since student is now LEAVING, remove any existing Transfer or Makeup intents for this slot
+    await Promise.all([
+        supabase.from('transfer_requests').delete().eq('session_id', sessionId).eq('from_user_id', user.id),
+        supabase.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id)
+    ]);
+
+    // Update attendance record immediately
+    await supabase.from('attendance_records').upsert({
+        session_id: sessionId,
+        user_id: user.id,
+        status: 'leave',
+        marked_by: user.id,
+        marked_at: new Date().toISOString(),
+    }, { onConflict: 'session_id,user_id' });
+
     revalidatePath(`/`, `layout`);
-    return { success: true, message: '請假申請已送出，等待班長確認' };
+    return { success: true, message: '請假成功，已更新點名單' };
 }
+
+const ATTENDANCE_LABELS: Record<string, string> = {
+    leave: '請假',
+    transfer_out: '轉出',
+    transfer_in: '轉入',
+    makeup: '補課',
+    present: '出席',
+    absent: '缺席',
+    unmarked: '待點名'
+};
 
 export async function reviewLeaveRequest(
     requestId: string,
@@ -569,6 +632,22 @@ export async function reviewLeaveRequest(
 
     if (!req) throw new Error('找不到申請記錄');
 
+    // 1. Guard check if approving
+    if (decision === 'approved') {
+        const { data: current } = await supabase
+            .from('attendance_records')
+            .select('status')
+            .eq('session_id', req.session_id)
+            .eq('user_id', req.user_id)
+            .maybeSingle();
+
+        if (current?.status && !['unmarked', 'present', 'absent', 'leave'].includes(current.status)) {
+            const label = ATTENDANCE_LABELS[current.status] || current.status;
+            throw new Error(`此堂課已有其他生效中的記錄 (${label})，無法重新核准。請先處理現有記錄。`);
+        }
+    }
+
+    // 2. Perform the status update
     const { error } = await supabase
         .from('leave_requests')
         .update({
@@ -581,7 +660,7 @@ export async function reviewLeaveRequest(
 
     if (error) throw new Error(`審核失敗: ${error.message}`);
 
-    // If approved, update attendance record to 'leave'
+    // 3. Post-update side effects
     if (decision === 'approved') {
         await supabase
             .from('attendance_records')
@@ -592,10 +671,24 @@ export async function reviewLeaveRequest(
                 marked_by: user.id,
                 marked_at: new Date().toISOString(),
             }, { onConflict: 'session_id,user_id' });
+
+        // Cleanup: remove competing records from other tables
+        await Promise.all([
+            supabase.from('transfer_requests').delete().eq('session_id', req.session_id).eq('from_user_id', req.user_id),
+            supabase.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.user_id)
+        ]);
+    } else {
+        // If rejected, remove the attendance record ONLY IF it is currently 'leave'
+        await supabase
+            .from('attendance_records')
+            .delete()
+            .eq('session_id', req.session_id)
+            .eq('user_id', req.user_id)
+            .eq('status', 'leave');
     }
 
     revalidatePath('/', 'layout');
-    return { success: true, message: decision === 'approved' ? '已核准請假' : '已拒絕請假' };
+    return { success: true, message: decision === 'approved' ? '已核准請假' : '已駁回請假' };
 }
 
 // ------------------------------------------------------------------
@@ -612,7 +705,7 @@ export async function submitMakeupRequest(
 
     // Check user and original/target courses
     const [originalCourseRes, targetRes, userEnrollmentRes] = await Promise.all([
-        supabase.from('courses').select('group_id').eq('id', originalCourseId).maybeSingle(),
+        supabase.from('courses').select('group_id, type').eq('id', originalCourseId).maybeSingle(),
         supabase.from('course_sessions').select('course_id, courses ( group_id, capacity )').eq('id', targetSessionId).maybeSingle(),
         supabase.from('enrollments').select('type').eq('course_id', originalCourseId).eq('user_id', user.id).eq('status', 'enrolled').maybeSingle(),
     ]);
@@ -625,6 +718,17 @@ export async function submitMakeupRequest(
     if (!originalCourse) throw new Error('原始課程不存在');
     if (!userEnrollment) throw new Error('您未報名原始課程');
 
+    // Rule 0: Cannot makeup in a course you are already enrolled in
+    const { data: targetEnrollment } = await supabase
+        .from('enrollments')
+        .select('id')
+        .eq('course_id', targetCourseId)
+        .eq('user_id', user.id)
+        .eq('status', 'enrolled')
+        .maybeSingle();
+
+    if (targetEnrollment) throw new Error('您已報名目標課程，無需申請補課');
+
     // Rule 1: No cross-period makeup
     const targetGroup = (target.courses as any)?.group_id;
     if (originalCourse.group_id !== targetGroup) {
@@ -636,45 +740,126 @@ export async function submitMakeupRequest(
         throw new Error('單堂報名學員不支援補課申請');
     }
 
-    // --- Quota Calculation ---
-    // Get original course sessions count for quota calculation
-    const { count: sessionsCount } = await supabase
-        .from('course_sessions')
+    // --- Quota Calculation (Only for 'normal' courses) ---
+    if (originalCourse.type === 'normal') {
+        const { count: sessionsCount } = await supabase
+            .from('course_sessions')
+            .select('*', { count: 'exact', head: true })
+            .eq('course_id', originalCourseId);
+
+        const totalQuota = computeMakeupQuota(sessionsCount ?? 8);
+
+        // Check used quota (makeup + transfers combined)
+        const usedMakeup = await getUserMakeupQuotaUsed(user.id, originalCourseId);
+        const usedTransfer = await getUserTransferCount(user.id, originalCourseId);
+        const totalUsed = usedMakeup + usedTransfer;
+
+        if (totalUsed >= totalQuota) {
+            return {
+                success: false,
+                message: `補課/轉讓額度已用完（${totalUsed}/${totalQuota}）`,
+            };
+        }
+    }
+
+    // Rule 3: Target session capacity check
+    const { count: enrolledInTarget } = await supabase
+        .from('attendance_records')
         .select('*', { count: 'exact', head: true })
-        .eq('course_id', originalCourseId);
+        .eq('session_id', targetSessionId)
+        .in('status', ['present', 'makeup', 'transfer_in']);
 
-    const totalQuota = computeMakeupQuota(sessionsCount ?? 8);
+    // Also count official students who haven't marked yet (they own the slot)
+    const { count: officialEnrolled } = await supabase
+        .from('enrollments')
+        .select('*', { count: 'exact', head: true })
+        .eq('course_id', targetCourseId)
+        .eq('status', 'enrolled');
 
-    // Check used quota (makeup + transfers combined)
-    const usedMakeup = await getUserMakeupQuotaUsed(user.id, originalCourseId);
-    const usedTransfer = await getUserTransferCount(user.id, originalCourseId);
-    const totalUsed = usedMakeup + usedTransfer;
+    if ((officialEnrolled ?? 0) >= (target.courses as any).capacity) {
+        // Technically we should check if someone in target has applied for leave
+        const { count: leaveApproved } = await supabase
+            .from('attendance_records')
+            .select('*', { count: 'exact', head: true })
+            .eq('session_id', targetSessionId)
+            .eq('status', 'leave');
 
-    if (totalUsed >= totalQuota) {
-        return {
-            success: false,
-            message: `補課/轉讓額度已用完（${totalUsed}/${totalQuota}）`,
-        };
+        const effectiveOccupied = (officialEnrolled ?? 0) - (leaveApproved ?? 0) + (enrolledInTarget ?? 0);
+        if (effectiveOccupied >= (target.courses as any).capacity) {
+            throw new Error('目標堂次已滿人，無法補課');
+        }
+    }
+
+    // --- Duplicate Guard ---
+    // Guard: Prevent duplicate makeup for same target session. Reuse if exists.
+    const { data: existingMakeup } = await supabase
+        .from('makeup_requests')
+        .select('id, status')
+        .eq('target_session_id', targetSessionId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+    if (existingMakeup && existingMakeup.status !== 'rejected' && existingMakeup.status !== 'approved') {
+        throw new Error('您已對此堂次提交過進行中的補課申請');
+    }
+
+    // Guard: Prevent makeup if a transfer already exists for the ORIGINAL session
+    const { data: existingTransferForOriginal } = await supabase
+        .from('transfer_requests')
+        .select('id')
+        .eq('session_id', originalSessionId)
+        .eq('from_user_id', user.id)
+        .neq('status', 'rejected')
+        .maybeSingle();
+
+    if (existingTransferForOriginal) {
+        throw new Error('此堂課已有轉讓申請，無法重複申請補課');
     }
 
     // Determine cross-zone quota cost
-    // For MVP, same course type = 1, cross-type special↔normal = special rule
     let quotaUsed = 1;
 
-    const { error } = await supabase.from('makeup_requests').insert({
+    const payload = {
         original_course_id: originalCourseId,
         original_session_id: originalSessionId,
         target_course_id: targetCourseId,
         target_session_id: targetSessionId,
         user_id: user.id,
-        status: 'pending',
+        status: 'approved',
         quota_used: quotaUsed,
-    });
+        reviewed_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+    };
+
+    let error;
+    if (existingMakeup) {
+        const res = await supabase.from('makeup_requests').update(payload).eq('id', existingMakeup.id);
+        error = res.error;
+    } else {
+        const res = await supabase.from('makeup_requests').insert(payload);
+        error = res.error;
+    }
 
     if (error) throw new Error(`補課申請失敗: ${error.message}`);
 
+    // --- NEW: Cross-Intent Cleanup ---
+    // Student is now using this slot for Makeup, remove any existing Leave or Transfer intents for the ORIGINAL session
+    await Promise.all([
+        supabase.from('leave_requests').delete().eq('session_id', originalSessionId).eq('user_id', user.id),
+        supabase.from('transfer_requests').delete().eq('session_id', originalSessionId).eq('from_user_id', user.id)
+    ]);
+
+    // Update attendance record immediately
+    await supabase.from('attendance_records').upsert({
+        session_id: targetSessionId,
+        user_id: user.id,
+        status: 'makeup',
+        marked_by: user.id,
+        marked_at: new Date().toISOString(),
+    }, { onConflict: 'session_id,user_id' });
+
     revalidatePath('/', 'layout');
-    return { success: true, message: `補課申請已送出（使用 ${quotaUsed} 額度，剩餘 ${totalQuota - totalUsed - quotaUsed}）` };
+    return { success: true, message: `補課成功！已扣除 ${quotaUsed} 額度，並更新目標堂次名單。` };
 }
 
 export async function reviewMakeupRequest(
@@ -692,6 +877,22 @@ export async function reviewMakeupRequest(
 
     if (!req) throw new Error('找不到申請記錄');
 
+    // 1. Guard check if approving
+    if (decision === 'approved') {
+        const { data: current } = await supabase
+            .from('attendance_records')
+            .select('status')
+            .eq('session_id', req.target_session_id)
+            .eq('user_id', req.user_id)
+            .maybeSingle();
+
+        if (current?.status && !['unmarked', 'present', 'absent', 'makeup'].includes(current.status)) {
+            const label = ATTENDANCE_LABELS[current.status] || current.status;
+            throw new Error(`目標堂次已有其他生效中的記錄 (${label})，無法核准補課申請。`);
+        }
+    }
+
+    // 2. Perform the status update
     const { error } = await supabase
         .from('makeup_requests')
         .update({
@@ -704,7 +905,7 @@ export async function reviewMakeupRequest(
 
     if (error) throw new Error(`審核失敗: ${error.message}`);
 
-    // If approved, create attendance record on target session
+    // 3. Post-update side effects
     if (decision === 'approved') {
         await supabase
             .from('attendance_records')
@@ -715,10 +916,60 @@ export async function reviewMakeupRequest(
                 marked_by: user.id,
                 marked_at: new Date().toISOString(),
             }, { onConflict: 'session_id,user_id' });
+    } else {
+        // If rejected, wipe the attendance record to clear the slot
+        await supabase
+            .from('attendance_records')
+            .delete()
+            .eq('session_id', req.target_session_id)
+            .eq('user_id', req.user_id);
     }
 
     revalidatePath('/', 'layout');
-    return { success: true, message: decision === 'approved' ? '已核准補課' : '已拒絕補課' };
+    return { success: true, message: decision === 'approved' ? '已核准補課' : '已駁回補課' };
+}
+
+// ------------------------------------------------------------------
+// Transfer Candidate Lookup
+// ------------------------------------------------------------------
+
+export async function getTransferCandidates(
+    courseId: string
+): Promise<{
+    waitlist: { id: string; name: string; role: string; position: number }[];
+    allMembers: { id: string; name: string; role: string }[];
+}> {
+    const { supabase, user } = await getCurrentUser();
+
+    // 1. Get waitlisted users for this course (ordered by position)
+    const { data: waitlistData } = await supabase
+        .from('enrollments')
+        .select('waitlist_position, profiles ( id, name, role )')
+        .eq('course_id', courseId)
+        .eq('status', 'waitlist')
+        .order('waitlist_position');
+
+    const waitlist = (waitlistData ?? []).map((w: any) => ({
+        id: w.profiles?.id ?? '',
+        name: w.profiles?.name ?? '未知',
+        role: w.profiles?.role ?? 'guest',
+        position: w.waitlist_position ?? 0,
+    })).filter((w: any) => w.id && w.id !== user.id);
+
+    // 2. Get all active members (exclude self)
+    const { data: membersData } = await supabase
+        .from('profiles')
+        .select('id, name, role')
+        .neq('id', user.id)
+        .order('name');
+
+    const allMembers = (membersData ?? []).map((m: any) => ({
+        id: m.id,
+        name: m.name ?? '未知',
+        role: m.role ?? 'guest',
+    }));
+
+    return { waitlist, allMembers };
 }
 
 // ------------------------------------------------------------------
@@ -758,17 +1009,72 @@ export async function submitTransferRequest(
     if (!isBeforeClass(session.session_date, courseData?.start_time ?? '00:00')) {
         throw new Error('課程已開始，無法進行轉讓');
     }
-    const { count: sessionsCount } = await supabase
-        .from('course_sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('course_id', courseId);
+    // --- Quota Calculation (Only for 'normal' courses) ---
+    const { data: courseMeta } = await supabase.from('courses').select('type').eq('id', courseId).maybeSingle();
 
-    const totalQuota = computeMakeupQuota(sessionsCount ?? 8);
-    const usedMakeup = await getUserMakeupQuotaUsed(user.id, courseId);
-    const usedTransfer = await getUserTransferCount(user.id, courseId);
+    if (courseMeta?.type === 'normal') {
+        const { count: sessionsCount } = await supabase
+            .from('course_sessions')
+            .select('*', { count: 'exact', head: true })
+            .eq('course_id', courseId);
 
-    if (usedMakeup + usedTransfer >= totalQuota) {
-        return { success: false, message: `補課/轉讓額度已用完（${usedMakeup + usedTransfer}/${totalQuota}）` };
+        const totalQuota = computeMakeupQuota(sessionsCount ?? 8);
+        const usedMakeup = await getUserMakeupQuotaUsed(user.id, courseId);
+        const usedTransfer = await getUserTransferCount(user.id, courseId);
+
+        if (usedMakeup + usedTransfer >= totalQuota) {
+            return { success: false, message: `補課/轉讓額度已用完（${usedMakeup + usedTransfer}/${totalQuota}）` };
+        }
+    }
+
+    // Guard: Prevent duplicate transfer requests for same session. Reuse if exists.
+    const { data: existingTransfer } = await supabase
+        .from('transfer_requests')
+        .select('id, status')
+        .eq('session_id', sessionId)
+        .eq('from_user_id', user.id)
+        .maybeSingle();
+
+    if (existingTransfer && existingTransfer.status !== 'rejected' && existingTransfer.status !== 'approved') {
+        throw new Error('此堂課已有審核中的轉讓紀錄');
+    }
+
+    // Guard: Prevent transfer if a leave request already exists for this session
+    const { data: existingLeave } = await supabase
+        .from('leave_requests')
+        .select('id, status')
+        .eq('session_id', sessionId)
+        .eq('user_id', user.id)
+        .neq('status', 'rejected')
+        .maybeSingle();
+
+    if (existingLeave) {
+        throw new Error('此堂課已有請假申請，無法重複申請轉讓');
+    }
+
+    // Guard: Prevent transfer if already marked as something other than 'unmarked'
+    const { data: currentAttendance } = await supabase
+        .from('attendance_records')
+        .select('status')
+        .eq('session_id', sessionId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+    if (currentAttendance?.status && currentAttendance.status !== 'unmarked' && currentAttendance.status !== 'present' && currentAttendance.status !== 'absent') {
+        throw new Error('此堂課已有特殊出席狀態（如轉讓/補課），無法申請轉讓');
+    }
+
+    // Guard: Prevent transfer if a makeup request already exists for this original session
+    const { data: existingMakeup } = await supabase
+        .from('makeup_requests')
+        .select('id')
+        .eq('original_session_id', sessionId)
+        .eq('user_id', user.id)
+        .neq('status', 'rejected')
+        .maybeSingle();
+
+    if (existingMakeup) {
+        throw new Error('此堂課已有補課申請，無法重複申請轉讓');
     }
 
     // Compute extra cards if non-member receives member spot
@@ -797,20 +1103,56 @@ export async function submitTransferRequest(
         }
     }
 
-    const { error } = await supabase.from('transfer_requests').insert({
+    const payload = {
         course_id: courseId,
         session_id: sessionId,
         from_user_id: user.id,
         to_user_id: toUserId,
         to_user_name: toUserName ?? null,
         extra_cards_required: extraCardsRequired,
-        status: 'pending',
-    });
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+    };
+
+    let result;
+    if (existingTransfer) {
+        result = await supabase.from('transfer_requests').update(payload).eq('id', existingTransfer.id).select().single();
+    } else {
+        result = await supabase.from('transfer_requests').insert(payload).select().single();
+    }
+
+    const { error, data: newReq } = result;
 
     if (error) throw new Error(`轉讓申請失敗: ${error.message}`);
 
+    // --- NEW: Cross-Intent Cleanup ---
+    // Student is now TRANSFERRING, remove any existing Leave or Makeup intents for this slot
+    await Promise.all([
+        supabase.from('leave_requests').delete().eq('session_id', sessionId).eq('user_id', user.id),
+        supabase.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id)
+    ]);
+
+    // Update attendance: sender = transfer_out, receiver = transfer_in
+    await Promise.all([
+        supabase.from('attendance_records').upsert({
+            session_id: sessionId,
+            user_id: user.id,
+            status: 'transfer_out',
+            marked_by: user.id,
+            marked_at: new Date().toISOString(),
+        }, { onConflict: 'session_id,user_id' }),
+        toUserId ? supabase.from('attendance_records').upsert({
+            session_id: sessionId,
+            user_id: toUserId,
+            status: 'transfer_in',
+            marked_by: user.id,
+            marked_at: new Date().toISOString(),
+        }, { onConflict: 'session_id,user_id' }) : Promise.resolve(),
+    ]);
+
     revalidatePath(`/`, `layout`);
-    return { success: true, message: '轉讓申請已送出，等待班長確認' };
+    return { success: true, message: '轉讓成功，已更新點名單' };
 }
 
 export async function reviewTransferRequest(
@@ -828,6 +1170,23 @@ export async function reviewTransferRequest(
 
     if (!req) throw new Error('找不到申請記錄');
 
+    // 1. Guard check if approving
+    if (decision === 'approved') {
+        const [fromAtt, toAtt] = await Promise.all([
+            supabase.from('attendance_records').select('status').eq('session_id', req.session_id).eq('user_id', req.from_user_id).maybeSingle(),
+            req.to_user_id ? supabase.from('attendance_records').select('status').eq('session_id', req.session_id).eq('user_id', req.to_user_id).maybeSingle() : Promise.resolve({ data: null })
+        ]);
+
+        if (fromAtt.data?.status && !['unmarked', 'present', 'absent', 'transfer_out'].includes(fromAtt.data.status)) {
+            const label = ATTENDANCE_LABELS[fromAtt.data.status] || fromAtt.data.status;
+            throw new Error(`轉出學員此堂課已有其他記錄 (${label})，無法重新核准轉讓。`);
+        }
+        if (toAtt.data?.status && !['unmarked', 'present', 'absent', 'transfer_in'].includes(toAtt.data.status)) {
+            const label = ATTENDANCE_LABELS[toAtt.data.status] || toAtt.data.status;
+            throw new Error(`轉入學員此堂課已有其他記錄 (${label})，無法重新核准轉讓。`);
+        }
+    }
+
     const { error } = await supabase
         .from('transfer_requests')
         .update({
@@ -841,6 +1200,7 @@ export async function reviewTransferRequest(
     if (error) throw new Error(`審核失敗: ${error.message}`);
 
     if (decision === 'approved') {
+
         // Mark original user as transfer_out, new user as transfer_in
         await supabase.from('attendance_records').upsert([
             {
@@ -858,10 +1218,27 @@ export async function reviewTransferRequest(
                 marked_at: new Date().toISOString(),
             }] : []),
         ], { onConflict: 'session_id,user_id' });
+
+        // Cleanup: remove competing records
+        await Promise.all([
+            supabase.from('leave_requests').delete().eq('session_id', req.session_id).eq('user_id', req.from_user_id),
+            supabase.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.from_user_id)
+        ]);
+    } else {
+        // If rejected, delete ONLY IF it's currently a transfer status
+        const deletePromises = [
+            supabase.from('attendance_records').delete().eq('session_id', req.session_id).eq('user_id', req.from_user_id).eq('status', 'transfer_out')
+        ];
+        if (req.to_user_id) {
+            deletePromises.push(
+                supabase.from('attendance_records').delete().eq('session_id', req.session_id).eq('user_id', req.to_user_id).eq('status', 'transfer_in') as any
+            );
+        }
+        await Promise.all(deletePromises);
     }
 
     revalidatePath('/', 'layout');
-    return { success: true, message: decision === 'approved' ? '已核准轉讓' : '已拒絕轉讓' };
+    return { success: true, message: decision === 'approved' ? '已核准轉讓' : '已駁回轉讓' };
 }
 
 // ------------------------------------------------------------------

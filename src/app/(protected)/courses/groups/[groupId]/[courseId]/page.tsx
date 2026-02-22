@@ -125,9 +125,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         attendanceMap[record.user_id][record.session_id] = record.status;
     }
 
-    // 1. Get all students from enrollments (Official)
+    // 1. Get all students from enrollments (Official = Enrolled only)
     const enrollmentRoster = (roster ?? [])
-        .filter((e: any) => e.profiles)
+        .filter((e: any) => e.profiles && e.status === 'enrolled')
         .map((e: any) => ({
             id: e.profiles.id,
             name: e.profiles.name,
@@ -137,8 +137,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             attendance: attendanceMap[e.profiles.id] ?? {},
         }));
 
-    // 2. Find ANYONE ELSE who has an attendance record but is not in the enrollment roster (Additional/Makeup)
-    // We need profiles for these people too.
+    // 2. Find ANYONE ELSE who has an attendance record but is not in the enrollment roster (Additional/Makeup/Transfer)
+    // This includes: waitlisted students with attendance, external users with attendance, and makeup students.
     const enrolledIds = new Set(enrollmentRoster.map(s => s.id));
     const additionalUserIds = Object.keys(attendanceMap).filter(id => !enrolledIds.has(id));
 
@@ -161,6 +161,27 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
 
     // Combined Roster
     const rosterWithAttendance = [...enrollmentRoster, ...additionalRoster];
+
+    // Fetch transfer metadata for detailed labels (names)
+    const { data: transfers } = await supabase
+        .from('transfer_requests')
+        .select('session_id, from_user_id, to_user_id, from_profile:profiles!transfer_requests_from_user_id_fkey(name), to_profile:profiles!transfer_requests_to_user_id_fkey(name)')
+        .eq('course_id', course.id)
+        .eq('status', 'approved');
+
+    const transferMetadata: Record<string, Record<string, { fromName: string; toName: string }>> = {};
+    (transfers ?? []).forEach(t => {
+        if (!transferMetadata[t.session_id]) transferMetadata[t.session_id] = {};
+        const fromName = (t.from_profile as any)?.name ?? '未知';
+        const toName = (t.to_profile as any)?.name ?? (t as any).to_user_name ?? '外部人士';
+
+        // Map for sender
+        transferMetadata[t.session_id][t.from_user_id] = { fromName, toName };
+        // Map for receiver
+        if (t.to_user_id) {
+            transferMetadata[t.session_id][t.to_user_id] = { fromName, toName };
+        }
+    });
 
     return (
         <CourseDetailClient
@@ -188,6 +209,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
                 isCancelled: s.is_cancelled,
             }))}
             roster={rosterWithAttendance}
+            transferMetadata={transferMetadata}
             enrolledCount={enrolledCount ?? 0}
             userEnrollment={{
                 userId: user.id,
