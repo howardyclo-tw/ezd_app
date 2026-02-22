@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Users } from "lucide-react";
+import { ChevronLeft, UserSquare } from "lucide-react";
 import Link from 'next/link';
-import { Card, CardContent } from "@/components/ui/card";
+import { MembersClient } from '@/components/admin/members-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,36 +22,67 @@ export default async function AdminMembersPage() {
         redirect('/dashboard');
     }
 
+    // Fetch all profiles
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, employee_id, role, member_valid_until, card_balance')
+        .order('name', { ascending: true });
+
+    // Fetch all course leaders with course info
+    const { data: leaderData } = await supabase
+        .from('course_leaders')
+        .select(`
+            user_id,
+            courses ( name, course_groups ( title ) )
+        `);
+
+    // Build leader map: user_id -> [ { courseName, groupTitle } ]
+    const leaderMap = new Map<string, { courseName: string; groupTitle: string }[]>();
+    for (const ld of leaderData ?? []) {
+        const course = ld.courses as any;
+        if (!course) continue;
+        const entry = {
+            courseName: course.name,
+            groupTitle: course.course_groups?.title || '',
+        };
+        const existing = leaderMap.get(ld.user_id) || [];
+        existing.push(entry);
+        leaderMap.set(ld.user_id, existing);
+    }
+
+    // Merge data
+    const members = (profiles ?? []).map(p => ({
+        id: p.id,
+        name: p.name || '(未設定姓名)',
+        employee_id: p.employee_id,
+        role: p.role,
+        member_valid_until: p.member_valid_until,
+        card_balance: p.card_balance ?? 0,
+        leader_courses: leaderMap.get(p.id) || [],
+    }));
+
     return (
         <div className="container max-w-5xl py-6 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-2">
-                    <Button variant="ghost" size="icon" asChild className="rounded-full h-9 w-9 -ml-2 shrink-0">
-                        <Link href="/dashboard"><ChevronLeft className="h-5 w-5" /></Link>
+                <div className="flex items-center gap-1 -ml-2">
+                    <Button variant="ghost" size="icon" asChild className="rounded-full h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground">
+                        <Link href="/dashboard"><ChevronLeft className="h-6 w-6" /></Link>
                     </Button>
-                    <div className="space-y-1">
-                        <h1 className="text-2xl font-bold tracking-tight leading-tight">社員管理</h1>
-                        <p className="text-sm text-muted-foreground font-medium mt-0.5">
-                            管理全體社員權限、會籍期限與基本資訊
-                        </p>
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-black shrink-0 shadow-sm border border-muted/20">
+                            <UserSquare className="h-5 w-5" />
+                        </div>
+                        <div className="space-y-0.5 select-none">
+                            <h1 className="text-2xl font-bold tracking-tight leading-none text-foreground">社員管理</h1>
+                            <p className="text-[13px] text-muted-foreground font-medium">
+                                管理全體社員權限、會籍期限與基本資訊（共 {members.length} 人）
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <Card className="border-dashed border-muted/50 bg-muted/5">
-                <CardContent className="flex flex-col items-center justify-center py-24 text-center">
-                    <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
-                        <Users className="h-8 w-8 text-muted-foreground/40" />
-                    </div>
-                    <h3 className="text-lg font-bold text-foreground/80">社員管理介面開發中</h3>
-                    <p className="text-sm text-muted-foreground mt-1 px-4 max-w-sm">
-                        此功能目前正在進行內部開發與數據對帳中，將於近期開放。
-                    </p>
-                    <Button variant="outline" className="mt-8 font-bold" asChild>
-                        <Link href="/dashboard">返回控制台</Link>
-                    </Button>
-                </CardContent>
-            </Card>
+            <MembersClient members={members} />
         </div>
     );
 }

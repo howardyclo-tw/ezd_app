@@ -18,7 +18,8 @@ import {
   ChevronRight,
   UserSquare,
   Banknote,
-  ClipboardCheck
+  ClipboardCheck,
+  Settings
 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -277,6 +278,18 @@ export default async function DashboardPage() {
                     <div className="flex-1">
                       <p className="text-sm font-bold">社員管理</p>
                       <p className="text-[10px] text-muted-foreground font-bold">管理權限與資歷資訊</p>
+                    </div>
+                  </div>
+                </Link>
+
+                <Link href="/admin/settings">
+                  <div className="flex items-center gap-4 p-4 rounded-2xl border border-muted/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-all group">
+                    <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all">
+                      <Settings className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold">系統管理</p>
+                      <p className="text-[10px] text-muted-foreground font-bold">堂卡定價、購買時段等參數設定</p>
                     </div>
                   </div>
                 </Link>

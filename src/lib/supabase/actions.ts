@@ -1475,6 +1475,58 @@ export async function reviewTransferRequest(
 }
 
 // ------------------------------------------------------------------
+// Member Profile Actions
+// ------------------------------------------------------------------
+
+export async function updateMemberProfile(
+    userId: string,
+    data: { role?: string; member_valid_until?: string | null }
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    // Admin check
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有管理員可以修改社員資料');
+
+    const updateData: Record<string, any> = {};
+    if (data.role !== undefined) updateData.role = data.role;
+    if (data.member_valid_until !== undefined) updateData.member_valid_until = data.member_valid_until;
+
+    if (Object.keys(updateData).length === 0) {
+        return { success: false, message: '沒有要更新的欄位' };
+    }
+
+    const { error } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', userId);
+
+    if (error) throw new Error(`更新社員資料失敗: ${error.message}`);
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: '社員資料已更新' };
+}
+
+export async function updateSystemConfig(
+    entries: { key: string; value: string }[]
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有管理員可以修改系統設定');
+
+    for (const entry of entries) {
+        const { error } = await supabase
+            .from('system_config')
+            .upsert({ key: entry.key, value: entry.value }, { onConflict: 'key' });
+        if (error) throw new Error(`更新 ${entry.key} 失敗: ${error.message}`);
+    }
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: `已更新 ${entries.length} 項設定` };
+}
+
+// ------------------------------------------------------------------
 // Card Order Actions
 // ------------------------------------------------------------------
 
@@ -1483,8 +1535,23 @@ export async function createCardOrder(quantity: number): Promise<{ success: bool
 
     // Check purchase window is open
     const config = await getSystemConfig();
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    // Check master toggle
     if (config['card_purchase_open'] !== 'true') {
         throw new Error('堂卡購買時段尚未開放');
+    }
+
+    // Check date window
+    const startDate = config['card_purchase_start'];
+    if (startDate && startDate.trim() !== '' && todayStr < startDate) {
+        throw new Error(`購卡時段尚未開始 (預計開放日期: ${startDate})`);
+    }
+
+    const endDate = config['card_purchase_end'];
+    if (endDate && endDate.trim() !== '' && todayStr > endDate) {
+        throw new Error(`購卡時段已結束 (截止日期: ${endDate})`);
     }
 
     const minPurchase = parseInt(config['card_min_purchase'] ?? '5', 10);

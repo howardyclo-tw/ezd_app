@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Calendar } from 'lucide-react';
 import { getAvailableMakeupQuotaSessions } from '@/lib/supabase/queries';
 import { MyCoursesClient } from '@/components/dashboard/my-courses-client';
 
@@ -119,17 +119,22 @@ export default async function MyCoursesPage() {
         <div className="container max-w-5xl py-6 space-y-4">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                <div className="flex items-start gap-2">
-                    <Button variant="ghost" size="icon" asChild className="rounded-full h-9 w-9 -ml-2 shrink-0">
+                <div className="flex items-center gap-1 -ml-2">
+                    <Button variant="ghost" size="icon" asChild className="rounded-full h-10 w-10 shrink-0">
                         <Link href="/dashboard">
-                            <ChevronLeft className="h-5 w-5" />
+                            <ChevronLeft className="h-6 w-6" />
                         </Link>
                     </Button>
-                    <div className="space-y-1">
-                        <h1 className="text-2xl font-bold tracking-tight leading-tight">我的課程</h1>
-                        <p className="text-sm text-muted-foreground font-medium mt-0.5">
-                            管理您的課表與出席紀錄 <span className="text-xs opacity-60 ml-1">(請假/轉讓請點選以下課程卡片進入課程頁面申請)</span>
-                        </p>
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-black shrink-0 shadow-sm border border-muted/20">
+                            <Calendar className="h-5 w-5" />
+                        </div>
+                        <div className="space-y-0.5 select-none">
+                            <h1 className="text-2xl font-bold tracking-tight leading-none text-foreground">我的課程</h1>
+                            <p className="text-[13px] text-muted-foreground font-medium">
+                                管理您的課表與出席紀錄 <span className="text-[11px] opacity-60 ml-1">(請假/轉讓請點選課程頁面申請)</span>
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -25,7 +25,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Upload, Save, X, Clock, Plus, Trash2, Pencil, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, Upload, Save, X, Clock, Plus, Trash2, Pencil, AlertTriangle, PlusCircle, PencilLine, ChevronLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { format, addDays } from 'date-fns';
@@ -320,13 +320,18 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                 })}
                 className="space-y-6"
             >
-                {/* Header - Desktop */}
-                <div className="hidden sm:flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md py-4 border-b">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">{isEdit ? '編輯課程' : '新增課程'}</h1>
-                        <p className="text-muted-foreground text-sm">{isEdit ? '修改課程資訊後點擊儲存' : '填寫課程資訊以建立新課程'}</p>
+                {/* Header - Desktop & Mobile consistency */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-10 bg-background/80 backdrop-blur-md py-4 border-b">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-black shrink-0 shadow-sm border border-muted/20">
+                            {isEdit ? <PencilLine className="h-5 w-5" /> : <PlusCircle className="h-5 w-5" />}
+                        </div>
+                        <div className="space-y-0.5 select-none text-left">
+                            <h1 className="text-2xl font-bold tracking-tight leading-none text-foreground">{isEdit ? '編輯課程' : '新增課程'}</h1>
+                            <p className="text-muted-foreground text-[13px] font-medium leading-none mt-1">{isEdit ? '修改課程資訊後點擊儲存' : '填寫課程資訊以建立新課程'}</p>
+                        </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 justify-end">
                         <Button
                             variant="outline"
                             type="button"
@@ -348,11 +353,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                     </div>
                 </div>
 
-                {/* Mobile Header */}
-                <div className="sm:hidden space-y-1 mb-4">
-                    <h1 className="text-2xl font-bold tracking-tight">{isEdit ? '編輯課程' : '新增課程'}</h1>
-                    <p className="text-muted-foreground text-sm">{isEdit ? '修改課程資訊後點擊儲存' : '填寫課程資訊以建立新課程'}</p>
-                </div>
+
 
                 <div className="grid gap-6 md:grid-cols-2">
                     {/* 基本資訊 */}

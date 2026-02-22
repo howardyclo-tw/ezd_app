@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ShieldCheck } from "lucide-react";
 import Link from 'next/link';
 import { ApprovalsTabsClient } from '@/components/leader/approvals-tabs-client';
 
@@ -82,15 +82,20 @@ export default async function LeaderApprovalsPage() {
     return (
         <div className="container max-w-5xl py-6 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-2">
-                    <Button variant="ghost" size="icon" asChild className="rounded-full h-9 w-9 -ml-2 shrink-0">
-                        <Link href="/dashboard"><ChevronLeft className="h-5 w-5" /></Link>
+                <div className="flex items-center gap-1 -ml-2">
+                    <Button variant="ghost" size="icon" asChild className="rounded-full h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground">
+                        <Link href="/dashboard"><ChevronLeft className="h-6 w-6" /></Link>
                     </Button>
-                    <div className="space-y-1">
-                        <h1 className="text-2xl font-bold tracking-tight leading-tight">申請審核</h1>
-                        <p className="text-sm text-muted-foreground font-medium mt-0.5">
-                            核對堂卡匯款與檢視請假、補課、轉讓等系統自動化紀錄
-                        </p>
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-black shrink-0 shadow-sm border border-muted/20">
+                            <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <div className="space-y-0.5 select-none">
+                            <h1 className="text-2xl font-bold tracking-tight leading-none text-foreground">申請審核</h1>
+                            <p className="text-[13px] text-muted-foreground font-medium">
+                                核對堂卡匯款與檢視請假、補課、轉讓等系統自動化紀錄
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
