@@ -26,7 +26,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     const courseQuery = supabase.from('courses').select(`
             *,
             course_groups ( id, title, region, slug ),
-            course_sessions ( id, session_date, session_number, is_cancelled, cancel_note ),
+            course_sessions ( id, session_date, session_number ),
             course_leaders ( id, user_id, profiles!course_leaders_user_id_fkey ( id, name, role ) )
         `);
 
@@ -206,7 +206,6 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
                 id: s.id,
                 date: s.session_date,
                 number: s.session_number,
-                isCancelled: s.is_cancelled,
             }))}
             roster={rosterWithAttendance}
             transferMetadata={transferMetadata}

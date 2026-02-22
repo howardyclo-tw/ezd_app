@@ -95,8 +95,6 @@ export interface CourseSession {
   course_id: string;
   session_date: string; // "YYYY-MM-DD"
   session_number: number;
-  is_cancelled: boolean;
-  cancel_note?: string | null;
   created_at: string;
 }
 

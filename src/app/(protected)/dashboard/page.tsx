@@ -242,7 +242,7 @@ export default async function DashboardPage() {
                       "text-sm font-bold",
                       totalPendingAppsCount > 0 ? "text-orange-600" : "text-foreground"
                     )}>申請審核</p>
-                    <p className="text-[10px] text-muted-foreground font-bold">處理待對帳堂卡及異常監控</p>
+                    <p className="text-[10px] text-muted-foreground font-bold">核對堂卡匯款與檢視請假、補課、轉讓等系統自動化紀錄</p>
                   </div>
                   {/* Badge */}
                   <div className={cn(
@@ -264,7 +264,7 @@ export default async function DashboardPage() {
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-bold">新增課程</p>
-                      <p className="text-[10px] text-muted-foreground font-bold">建立新的常態或 MV 班級</p>
+                      <p className="text-[10px] text-muted-foreground font-bold">建立新的常態、風格體驗跟專攻班等課程</p>
                     </div>
                   </div>
                 </Link>

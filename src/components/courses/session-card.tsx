@@ -100,12 +100,12 @@ export function SessionCard({
                         </div>
 
                         {/* Metadata Row 2: Location */}
-                        {room && (
+                        {room ? (
                             <div className="flex items-center gap-1.5 text-[12px] sm:text-[13px] text-muted-foreground/80 font-medium leading-none">
                                 <MapPin className="h-3.5 w-3.5 shrink-0 opacity-60" />
                                 <span className="truncate">{room}</span>
                             </div>
-                        )}
+                        ) : null}
 
                     </div>
                 </div>

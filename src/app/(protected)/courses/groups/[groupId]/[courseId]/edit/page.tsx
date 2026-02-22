@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import { CourseForm } from '@/components/admin/course-form';
 import { parseISO } from 'date-fns';
+import { isAdmin } from '@/types/database';
 
 export default async function EditCoursePage({ params }: { params: Promise<{ groupId: string, courseId: string }> }) {
     const { groupId, courseId } = await params;
@@ -11,6 +12,16 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+    if (!profile || !isAdmin(profile.role)) {
+        redirect('/dashboard');
+    }
+
     // Fetch course data
     const isIdUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(courseId);
     const { data: course, error } = await supabase
@@ -18,8 +29,17 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
         .select(`
             *,
             course_groups ( id, slug ),
-            course_sessions ( session_date ),
-            course_leaders ( profiles!course_leaders_user_id_fkey ( name ) )
+            course_sessions ( 
+                id, 
+                session_date, 
+                session_number, 
+                attendance_records ( id ),
+                leave_requests ( id ),
+                makeup_requests_original:makeup_requests!makeup_requests_original_session_id_fkey ( id ),
+                makeup_requests_target:makeup_requests!makeup_requests_target_session_id_fkey ( id ),
+                transfer_requests ( id )
+            ),
+            course_leaders ( user_id, profiles!course_leaders_user_id_fkey ( name ) )
         `)
         .or(isIdUuid ? `id.eq.${courseId},slug.eq.${courseId}` : `slug.eq.${courseId}`)
         .maybeSingle();
@@ -31,17 +51,28 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
 
     // Sort and format sessions
     const sessions = (course.course_sessions as any[])
-        .sort((a: any, b: any) => a.session_date.localeCompare(b.session_date))
-        .map((s: any) => ({ date: parseISO(s.session_date) }));
+        .sort((a: any, b: any) => a.session_number - b.session_number)
+        .map((s: any) => {
+            const hasAttendance = (s.attendance_records?.length || 0) > 0;
+            const hasLeave = (s.leave_requests?.length || 0) > 0;
+            const hasMakeup = (s.makeup_requests_original?.length || 0) > 0 || (s.makeup_requests_target?.length || 0) > 0;
+            const hasTransfer = (s.transfer_requests?.length || 0) > 0;
 
-    const group = course.course_groups as any;
-    const leaderName = (course.course_leaders as any[])?.[0]?.profiles?.name || 'none';
+            return {
+                id: s.id,
+                date: parseISO(s.session_date),
+                hasData: hasAttendance || hasLeave || hasMakeup || hasTransfer
+            };
+        });
+
+    const leaderId = (course.course_leaders as any[])?.[0]?.user_id || 'none';
 
     const initialData = {
-        groupId: group?.slug || group?.id || '',
+        id: course.id,
+        groupId: course.group_id,
         name: course.name,
         description: course.description || '',
-        leader: leaderName,
+        leader: leaderId,
         type: course.type as any,
         teacher: course.teacher,
         room: course.room,

@@ -22,6 +22,7 @@ import {
     ArrowRight,
     Search,
     Info,
+    X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { batchEnrollInSessions, submitMakeupRequest } from '@/lib/supabase/actions';
@@ -225,10 +226,10 @@ export function SessionEnrollmentDialog({
                                             key={s.id}
                                             onClick={() => toggleTargetSession(s.id)}
                                             className={cn(
-                                                "flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer group/item",
+                                                "flex items-center justify-between p-5 rounded-2xl border-2 transition-all group/item",
                                                 selectedTargetSessionIds.has(s.id)
                                                     ? "bg-primary/[0.03] border-primary font-black text-primary"
-                                                    : "bg-muted/5 border-transparent hover:bg-muted/10 text-muted-foreground"
+                                                    : "bg-muted/5 border-transparent hover:bg-muted/10 text-muted-foreground cursor-pointer"
                                             )}
                                         >
                                             <div className="flex items-center gap-4">
@@ -238,7 +239,9 @@ export function SessionEnrollmentDialog({
                                                 )}>
                                                     {selectedTargetSessionIds.has(s.id) && <Check className="h-4 w-4 text-white stroke-[4]" />}
                                                 </div>
-                                                <span className="text-base font-bold">第 {s.session_number} 堂 ({s.session_date})</span>
+                                                <div className="flex flex-col">
+                                                    <span className="text-base font-bold">第 {s.session_number} 堂 ({s.session_date})</span>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -269,10 +272,10 @@ export function SessionEnrollmentDialog({
                                             key={s.id}
                                             onClick={() => toggleTargetSession(s.id)}
                                             className={cn(
-                                                "shrink-0 px-5 py-2.5 rounded-full border-2 text-sm font-black transition-all cursor-pointer",
+                                                "shrink-0 px-5 py-2.5 rounded-full border-2 text-sm font-black transition-all",
                                                 selectedTargetSessionIds.has(s.id)
                                                     ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20"
-                                                    : "bg-muted/10 border-transparent hover:border-primary/30 text-muted-foreground"
+                                                    : "bg-muted/10 border-transparent hover:border-primary/30 text-muted-foreground cursor-pointer"
                                             )}
                                         >
                                             L{s.session_number} ({s.session_date.slice(5)})

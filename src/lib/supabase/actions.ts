@@ -467,6 +467,239 @@ export async function removeCourseLeader(courseId: string, targetUserId: string)
 }
 
 // ------------------------------------------------------------------
+// Course Admin Actions (Groups & Courses)
+// ------------------------------------------------------------------
+
+export async function createCourseGroup(title: string): Promise<{ success: boolean; message: string; id?: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    // Verify current user is admin
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有管理員可以建立課程檔期');
+
+    const { data, error } = await supabase
+        .from('course_groups')
+        .insert({ title, created_by: user.id })
+        .select()
+        .single();
+
+    if (error) throw new Error(`建立檔期失敗: ${error.message}`);
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: '成功建立課程檔期', id: data.id };
+}
+
+export async function updateCourseGroup(id: string, title: string): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    // Verify current user is admin
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有管理員可以修改課程檔期');
+
+    const { error } = await supabase
+        .from('course_groups')
+        .update({ title })
+        .eq('id', id);
+
+    if (error) throw new Error(`修正檔期失敗: ${error.message}`);
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: '成功修正課程檔期標題' };
+}
+
+export async function createCourse(data: any): Promise<{ success: boolean; message: string; id?: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    // Admin check
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有管理員可以建立課程');
+
+    // 1. Insert Course
+    const { data: course, error: courseError } = await supabase
+        .from('courses')
+        .insert({
+            group_id: data.groupId,
+            name: data.name,
+            description: data.description,
+            type: data.type,
+            teacher: data.teacher,
+            room: data.room,
+            start_time: data.start_time,
+            end_time: data.end_time,
+            capacity: data.capacity,
+            status: data.status,
+            created_by: user.id
+        })
+        .select()
+        .single();
+
+    if (courseError) throw new Error(`建立課程失敗: ${courseError.message}`);
+
+    // 2. Insert Sessions
+    const sessions = data.sessions.map((s: any, index: number) => ({
+        course_id: course.id,
+        session_date: s.date instanceof Date ? s.date.toISOString().split('T')[0] : s.date,
+        session_number: index + 1
+    }));
+
+    const { error: sessionError } = await supabase.from('course_sessions').insert(sessions);
+    if (sessionError) throw new Error(`建立課程時段失敗: ${sessionError.message}`);
+
+    // 3. Handle Leader
+    if (data.leader && data.leader !== 'none') {
+        const { data: leaderProfile } = await supabase.from('profiles').select('id').eq('name', data.leader).maybeSingle();
+        if (leaderProfile) {
+            await assignCourseLeader(course.id, leaderProfile.id);
+        } else if (data.leader.length > 20) { // Likely a UUID
+            await assignCourseLeader(course.id, data.leader);
+        }
+    }
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: '成功建立課程', id: course.id };
+}
+
+export async function updateCourse(id: string, data: any): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    // Admin check
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有管理員可以更新課程');
+
+    // 1. Update Course
+    const { error: courseError } = await supabase
+        .from('courses')
+        .update({
+            group_id: data.groupId,
+            name: data.name,
+            description: data.description,
+            type: data.type,
+            teacher: data.teacher,
+            room: data.room,
+            start_time: data.start_time,
+            end_time: data.end_time,
+            capacity: data.capacity,
+            status: data.status,
+        })
+        .eq('id', id);
+
+    if (courseError) throw new Error(`更新課程失敗: ${courseError.message}`);
+
+    // 2. Sync Sessions
+    const nextSessions = data.sessions.map((s: any, index: number) => {
+        let dateStr = s.date;
+        if (s.date instanceof Date) {
+            // Local date ISO string: YYYY-MM-DD
+            const y = s.date.getFullYear();
+            const m = String(s.date.getMonth() + 1).padStart(2, '0');
+            const d = String(s.date.getDate()).padStart(2, '0');
+            dateStr = `${y}-${m}-${d}`;
+        } else if (typeof s.date === 'string' && s.date.includes('T')) {
+            dateStr = s.date.split('T')[0];
+        }
+
+        return {
+            id: s.id,
+            course_id: id,
+            session_date: dateStr,
+            session_number: index + 1
+        };
+    });
+
+    // Identify sessions to delete
+    const nextSessionIds = nextSessions.filter((s: any) => s.id).map((s: any) => s.id);
+    const { data: existingSessions } = await supabase
+        .from('course_sessions')
+        .select('id')
+        .eq('course_id', id);
+
+    const idsToRemove = existingSessions?.filter(es => !nextSessionIds.includes(es.id)).map(es => es.id) || [];
+
+    if (idsToRemove.length > 0) {
+        // DATA INTEGRITY CHECK: Block deletion if session has critical data
+        // Check Attendance
+        const { count: attendanceCount } = await supabase
+            .from('attendance_records')
+            .select('*', { count: 'exact', head: true })
+            .in('session_id', idsToRemove);
+
+        if (attendanceCount && attendanceCount > 0) {
+            throw new Error('無法刪除已有紀錄的課堂。此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統管理員。');
+        }
+
+        // Check Requests (Leave, Makeup, Transfer)
+        const [leaveRes, makeupRes, transferRes] = await Promise.all([
+            supabase.from('leave_requests').select('id', { count: 'exact', head: true }).in('session_id', idsToRemove),
+            supabase.from('makeup_requests').select('id', { count: 'exact', head: true }).or(`original_session_id.in.(${idsToRemove.join(',')}),target_session_id.in.(${idsToRemove.join(',')})`),
+            supabase.from('transfer_requests').select('id', { count: 'exact', head: true }).in('session_id', idsToRemove)
+        ]);
+
+        if ((leaveRes.count || 0) > 0 || (makeupRes.count || 0) > 0 || (transferRes.count || 0) > 0) {
+            throw new Error('無法刪除已有紀錄的課堂。此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統管理員。');
+        }
+    }
+
+    // Upsert sessions
+    for (const [index, session] of nextSessions.entries()) {
+        const sessionData = {
+            course_id: id,
+            session_date: session.session_date,
+            session_number: index + 1
+        };
+
+        if (session.id) {
+            const { error: updateError } = await supabase
+                .from('course_sessions')
+                .update(sessionData)
+                .eq('id', session.id);
+            if (updateError) throw new Error(`更新課堂失敗: ${updateError.message}`);
+        } else {
+            const { error: insertError } = await supabase
+                .from('course_sessions')
+                .insert(sessionData);
+            if (insertError) throw new Error(`新增課堂失敗: ${insertError.message}`);
+        }
+    }
+
+    // Delete missing ones
+    if (idsToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+            .from('course_sessions')
+            .delete()
+            .in('id', idsToRemove);
+        if (deleteError) throw new Error(`刪除多餘課堂失敗: ${deleteError.message}`);
+    }
+
+    // 3. Handle Leader
+    if (data.leader && data.leader !== 'none') {
+        // Find leader ID if it's a name
+        const { data: leaderProfile } = await supabase.from('profiles').select('id').eq('name', data.leader).maybeSingle();
+        const leaderId = leaderProfile?.id || (data.leader.length > 20 ? data.leader : null);
+
+        if (leaderId) {
+            // Check if already assigned
+            const { data: currentLeader } = await supabase.from('course_leaders').select('user_id').eq('course_id', id).maybeSingle();
+            if (currentLeader?.user_id !== leaderId) {
+                if (currentLeader) {
+                    await removeCourseLeader(id, currentLeader.user_id);
+                }
+                await assignCourseLeader(id, leaderId);
+            }
+        }
+    } else {
+        // Remove if 'none'
+        const { data: currentLeader } = await supabase.from('course_leaders').select('user_id').eq('course_id', id).maybeSingle();
+        if (currentLeader) {
+            await removeCourseLeader(id, currentLeader.user_id);
+        }
+    }
+
+    revalidatePath('/', 'layout');
+    revalidatePath(`/courses/groups/${data.groupId}/${id}`);
+    return { success: true, message: '成功更新課程' };
+}
+
+// ------------------------------------------------------------------
 // Attendance Actions
 // ------------------------------------------------------------------
 

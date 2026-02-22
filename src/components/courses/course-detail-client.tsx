@@ -87,7 +87,6 @@ interface SessionInfo {
     id: string;
     date: string; // "YYYY-MM-DD"
     number: number;
-    isCancelled: boolean;
 }
 
 interface StudentInfo {
@@ -493,7 +492,7 @@ export function CourseDetailClient({
                     </div>
                 </div>
 
-                {isAdminOrLeader && (
+                {isAdmin && (
                     <div className="flex items-center gap-2 shrink-0">
                         <Link href={`/courses/groups/${course.groupId}/${course.id}/edit`}>
                             <Button className="h-9 px-3 sm:px-4 text-sm font-bold bg-white text-black hover:bg-white/90 shadow-lg rounded-lg transition-all active:scale-95">
@@ -858,11 +857,22 @@ export function CourseDetailClient({
                                         .sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0))
                                         .map((student) => (
                                             <tr key={student.id} className="border-b border-muted/10 hover:bg-white/[0.02] transition-colors group">
-                                                <td className="p-3 text-xs font-bold sticky left-0 bg-card/95 backdrop-blur-sm z-30 border-r border-muted/50">
+                                                <td
+                                                    className={cn(
+                                                        "p-3 text-xs font-bold sticky left-0 bg-card/95 backdrop-blur-sm z-30 border-r border-muted/50",
+                                                        currentUserRole === 'admin' && "cursor-pointer hover:bg-white/5 active:bg-white/10"
+                                                    )}
+                                                    onClick={() => {
+                                                        if (currentUserRole === 'admin') {
+                                                            setSelectedStudent(student);
+                                                            setIsLeaderDialogOpen(true);
+                                                        }
+                                                    }}
+                                                >
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-bold">{student.name}</span>
                                                         {student.isLeader && (
-                                                            <Crown className="h-3.5 w-3.5 text-white fill-white/10" />
+                                                            <Crown className="h-3.5 w-3.5 text-white fill-white/10 animate-in fade-in zoom-in duration-300" />
                                                         )}
                                                     </div>
                                                 </td>

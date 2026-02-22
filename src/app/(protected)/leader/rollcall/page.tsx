@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft, Users, Clock, MapPin, ChevronRight, ClipboardCheck } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { cn } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -114,7 +115,10 @@ export default async function LeaderRollcallPage() {
                                     <CardContent className="p-5 flex items-center justify-between gap-4">
                                         <div className="flex-1 min-w-0 space-y-3">
                                             <div>
-                                                <Badge variant="outline" className="mb-2 text-[10px] font-bold uppercase tracking-wider text-primary border-primary/20 bg-primary/5">
+                                                <Badge
+                                                    variant="outline"
+                                                    className="mb-2 text-[10px] font-bold uppercase tracking-wider text-primary border-primary/20 bg-primary/5"
+                                                >
                                                     第 {session.session_number} 堂
                                                 </Badge>
                                                 <h3 className="font-bold text-base leading-tight truncate text-foreground tracking-tight group-hover:text-primary transition-colors">

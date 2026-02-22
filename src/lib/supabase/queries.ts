@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * Supabase query helpers — server-side only
  * Use these in Server Components and Server Actions
@@ -445,4 +447,15 @@ export async function getUserAttendanceHistory(userId: string, limit = 10) {
 
     if (error) throw new Error(`getUserAttendanceHistory: ${error.message}`);
     return data;
+}
+/** Get all user profiles (for selection) */
+export async function getProfiles() {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name, role')
+        .order('name');
+
+    if (error) throw new Error(`getProfiles: ${error.message}`);
+    return data as Profile[];
 }

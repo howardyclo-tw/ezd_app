@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, SubmitHandler } from 'react-hook-form';
+import { useForm, SubmitHandler, useFieldArray } from 'react-hook-form';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,17 +25,48 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Upload, Save, X, Clock, Plus, Trash2 } from 'lucide-react';
+import { CalendarIcon, Upload, Save, X, Clock, Plus, Trash2, Pencil, AlertTriangle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { format, addDays } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogDescription
+} from '@/components/ui/dialog';
+import {
+    createCourse,
+    updateCourse,
+    createCourseGroup,
+    updateCourseGroup
+} from '@/lib/supabase/actions';
+import { getCourseGroups, getProfiles } from '@/lib/supabase/queries';
+import { toast } from 'sonner';
+
+interface CourseGroup {
+    id: string;
+    title: string;
+}
+
+interface Profile {
+    id: string;
+    name: string;
+    role: string;
+}
 
 
 const sessionSchema = z.object({
+    id: z.string().optional(),
     date: z.date({
         message: '請選擇日期',
     }),
+    hasData: z.boolean().optional(),
 });
 
 const courseSchema = z.object({
@@ -113,7 +144,7 @@ function TimePicker({ value, onChange }: { value: string; onChange: (v: string) 
 }
 
 export interface CourseFormProps {
-    initialData?: Partial<CourseFormValues>;
+    initialData?: Partial<CourseFormValues> & { id?: string };
     mode?: 'create' | 'edit';
 }
 
@@ -121,6 +152,69 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
     const router = useRouter();
     const isEdit = mode === 'edit';
     const isInitialLoad = useRef(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [groups, setGroups] = useState<CourseGroup[]>([]);
+    const [profiles, setProfiles] = useState<Profile[]>([]);
+    const [isLoadingData, setIsLoadingData] = useState(true);
+
+    // Group Modal State
+    const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+    const [editingGroup, setEditingGroup] = useState<CourseGroup | null>(null);
+    const [groupTitle, setGroupTitle] = useState('');
+    const [isGroupSubmitting, setIsGroupSubmitting] = useState(false);
+
+    // Deletion Warning Modal
+    const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
+    const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
+
+    useEffect(() => {
+        async function loadData() {
+            try {
+                const [groupsData, profilesData] = await Promise.all([
+                    getCourseGroups(),
+                    getProfiles()
+                ]);
+                setGroups(groupsData as CourseGroup[]);
+                setProfiles(profilesData as Profile[]);
+            } catch (err) {
+                console.error('Failed to load form data:', err);
+                toast.error('無法載入部分資料，請重新整理頁面');
+            } finally {
+                setIsLoadingData(false);
+            }
+        }
+        loadData();
+    }, []);
+
+    const handleSaveGroup = async () => {
+        if (!groupTitle.trim()) {
+            toast.error('請輸入檔期名稱');
+            return;
+        }
+        setIsGroupSubmitting(true);
+        try {
+            if (editingGroup) {
+                await updateCourseGroup(editingGroup.id, groupTitle);
+                setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, title: groupTitle } : g));
+                toast.success('已修正檔期標題');
+            } else {
+                const res = await createCourseGroup(groupTitle);
+                if (res.id) {
+                    const newGroup = { id: res.id, title: groupTitle };
+                    setGroups(prev => [...prev, newGroup]);
+                    form.setValue('groupId', res.id);
+                    toast.success('已建立新檔期');
+                }
+            }
+            setIsGroupModalOpen(false);
+            setEditingGroup(null);
+            setGroupTitle('');
+        } catch (err: any) {
+            toast.error(err.message || '操作失敗');
+        } finally {
+            setIsGroupSubmitting(false);
+        }
+    };
 
     const form = useForm<CourseFormValues>({
         resolver: zodResolver(courseSchema) as any,
@@ -146,40 +240,74 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
     const firstDate = watch('first_session_at');
     const sessionsCount = watch('sessions_count');
 
-    // Auto-generate sessions when start date or count changes
+    const { fields, append, remove, replace } = useFieldArray({
+        control: form.control,
+        name: "sessions"
+    });
+
+    // Auto-generate sessions when first date or count changes (only for new courses or if empty)
     useEffect(() => {
+        if (isEdit || !firstDate || !sessionsCount) return;
+
         // Skip if it's the first run in edit mode to avoid overwriting existing sessions
         if (isEdit && isInitialLoad.current) {
             isInitialLoad.current = false;
             return;
         }
 
-        if (!firstDate || !sessionsCount) return;
-
+        // Only auto-generate if we don't have sessions or if it's clearly a fresh start
         const currentSessions = form.getValues('sessions');
+        if (currentSessions.length === 0 || (!isEdit && currentSessions.length !== sessionsCount)) {
+            const newSessions = Array.from({ length: sessionsCount }, (_, i) => ({
+                date: addDays(firstDate, i * 7)
+            }));
+            replace(newSessions as any);
+        }
+    }, [firstDate, sessionsCount, isEdit, replace]);
 
-        const newSessions = Array.from({ length: sessionsCount }, (_, i) => {
-            return { date: addDays(firstDate, i * 7) };
-        });
+    // Track sessions_count changes specifically to append/remove
+    useEffect(() => {
+        const currentCount = fields.length;
+        if (currentCount === 0 || !firstDate) return;
 
-        setValue('sessions', newSessions, { shouldValidate: true });
-    }, [firstDate, sessionsCount, setValue, isEdit]);
-
-    const [isSubmitting, setIsSubmitting] = useState(false);
+        if (sessionsCount > currentCount) {
+            // Append
+            const lastDate = fields[fields.length - 1]?.date || firstDate;
+            for (let i = 0; i < (sessionsCount - currentCount); i++) {
+                append({
+                    date: addDays(lastDate, (i + 1) * 7)
+                });
+            }
+        } else if (sessionsCount < currentCount && sessionsCount > 0) {
+            // Remove from end
+            for (let i = 0; i < (currentCount - sessionsCount); i++) {
+                remove(currentCount - 1 - i);
+            }
+        }
+    }, [sessionsCount, fields.length, append, remove, firstDate]);
 
     const onSubmit: SubmitHandler<CourseFormValues> = async (data) => {
         setIsSubmitting(true);
         try {
-            console.log('Form submitted:', data);
-            // Simulate an API call
-            await new Promise((resolve) => setTimeout(resolve, 800));
-            if (isEdit) {
-                router.back();
+            let res;
+            if (isEdit && initialData?.id) {
+                res = await updateCourse(initialData.id as string, data);
             } else {
-                router.push('/courses');
+                res = await createCourse(data);
             }
-        } catch (error) {
+
+            if (res.success) {
+                toast.success(res.message);
+                if (isEdit) {
+                    router.back();
+                } else {
+                    router.push('/courses');
+                }
+            }
+        } catch (error: any) {
             console.error('Failed to save course:', error);
+            toast.error(error.message || '儲存失敗');
+        } finally {
             setIsSubmitting(false);
         }
     };
@@ -245,16 +373,18 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                         <Select
                                             onValueChange={(val) => {
                                                 if (val === 'create-new') {
-                                                    alert('這裡將開啟「建立新檔期」彈窗');
+                                                    setEditingGroup(null);
+                                                    setGroupTitle('');
+                                                    setIsGroupModalOpen(true);
                                                 } else {
                                                     field.onChange(val);
                                                 }
                                             }}
-                                            defaultValue={field.value}
+                                            value={field.value}
                                         >
                                             <FormControl>
                                                 <SelectTrigger className="h-11">
-                                                    <SelectValue placeholder="請選擇這門課所屬的檔期" />
+                                                    <SelectValue placeholder={isLoadingData ? "載入中..." : "請選擇這門課所屬的檔期"} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
@@ -262,9 +392,28 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                     <Plus className="h-4 w-4 mr-2 inline-block -mt-0.5" /> 建立新檔期
                                                 </SelectItem>
                                                 <div className="h-px bg-muted my-1 font-bold" />
-                                                <SelectItem value="2026-trial">HQ 2026 3月 常態試跳</SelectItem>
-                                                <SelectItem value="2026-h1">HQ 2026 H1 常態課程</SelectItem>
-                                                <SelectItem value="2026-workshop">HQ 2026 1~2月 風格體驗 & Workshop</SelectItem>
+                                                {groups.map((g) => (
+                                                    <div key={g.id} className="flex items-center justify-between group px-1">
+                                                        <SelectItem value={g.id} className="flex-1">
+                                                            {g.title}
+                                                        </SelectItem>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                setEditingGroup(g);
+                                                                setGroupTitle(g.title);
+                                                                setIsGroupModalOpen(true);
+                                                            }}
+                                                        >
+                                                            <Pencil className="h-3 w-3" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -357,16 +506,19 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>班長</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                                 <SelectTrigger className="h-11">
-                                                    <SelectValue placeholder="選擇班長" />
+                                                    <SelectValue placeholder={isLoadingData ? "載入中..." : "選擇班長"} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="none">未指定</SelectItem>
-                                                <SelectItem value="王小明">王小明</SelectItem>
-                                                <SelectItem value="小明">小明</SelectItem>
+                                                {profiles.map((p) => (
+                                                    <SelectItem key={p.id} value={p.id}>
+                                                        {p.name} {p.role === 'leader' ? '(班長)' : p.role === 'admin' ? '(管理員)' : ''}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -496,7 +648,10 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                             className="text-sm h-9 w-full sm:w-auto mt-1 sm:mt-0 font-bold border-muted"
                                             onClick={() => {
                                                 const current = form.getValues('sessions');
-                                                setValue('sessions', [...current, { date: addDays(current[current.length - 1]?.date || firstDate, 7) }]);
+                                                const lastDate = current[current.length - 1]?.date || firstDate;
+                                                append({
+                                                    date: addDays(lastDate, 7)
+                                                });
                                                 setValue('sessions_count', current.length + 1);
                                             }}
                                         >
@@ -505,69 +660,82 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                     </div>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                                        {form.watch('sessions')?.map((session, index) => (
-                                            <div key={index} className="flex items-center gap-2 p-2 sm:p-3 rounded-lg border bg-muted/30 transition-colors hover:bg-muted/50">
-                                                <div className="flex-none flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-xs font-bold text-primary">
-                                                    {index + 1}
+                                        {fields.map((field, index) => {
+                                            const hasData = form.watch(`sessions.${index}.hasData`);
+
+                                            return (
+                                                <div key={field.id} className="flex flex-col p-3 sm:p-4 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-none flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold bg-primary/10 text-primary">
+                                                            {index + 1}
+                                                        </div>
+                                                        <div className="flex-1 flex items-center gap-2">
+                                                            {/* Hidden fields for ID and hasData to ensure they are preserved in onSubmit data */}
+                                                            <input type="hidden" {...form.register(`sessions.${index}.id` as any)} />
+                                                            <input type="hidden" {...form.register(`sessions.${index}.hasData` as any)} />
+
+                                                            <FormField
+                                                                control={form.control as any}
+                                                                name={`sessions.${index}.date`}
+                                                                render={({ field: sessionField }) => (
+                                                                    <FormItem className="flex-1 space-y-0">
+                                                                        <Popover>
+                                                                            <PopoverTrigger asChild>
+                                                                                <FormControl>
+                                                                                    <Button
+                                                                                        variant="outline"
+                                                                                        className={cn(
+                                                                                            "w-full h-11 px-3 text-left font-normal bg-background text-sm",
+                                                                                            !sessionField.value && "text-muted-foreground"
+                                                                                        )}
+                                                                                    >
+                                                                                        <span className="truncate">
+                                                                                            {sessionField.value ? (
+                                                                                                format(sessionField.value, "PPP", { locale: zhTW })
+                                                                                            ) : (
+                                                                                                "選擇日期"
+                                                                                            )}
+                                                                                        </span>
+                                                                                        <CalendarIcon className="ml-auto h-3 w-3 opacity-50 shrink-0" />
+                                                                                    </Button>
+                                                                                </FormControl>
+                                                                            </PopoverTrigger>
+                                                                            <PopoverContent className="w-auto p-0" align="start">
+                                                                                <Calendar
+                                                                                    mode="single"
+                                                                                    selected={sessionField.value}
+                                                                                    defaultMonth={sessionField.value}
+                                                                                    onSelect={sessionField.onChange}
+                                                                                    initialFocus
+                                                                                    locale={zhTW}
+                                                                                />
+                                                                            </PopoverContent>
+                                                                        </Popover>
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="flex-none h-9 w-9 text-muted-foreground hover:text-destructive shrink-0"
+                                                            onClick={() => {
+                                                                if (hasData) {
+                                                                    setPendingDeleteIndex(index);
+                                                                    setIsDeleteWarningOpen(true);
+                                                                } else {
+                                                                    remove(index);
+                                                                    setValue('sessions_count', fields.length - 1);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                                <FormField
-                                                    control={form.control as any}
-                                                    name={`sessions.${index}.date`}
-                                                    render={({ field }) => (
-                                                        <FormItem className="flex-1 space-y-0">
-                                                            <Popover>
-                                                                <PopoverTrigger asChild>
-                                                                    <FormControl>
-                                                                        <Button
-                                                                            variant="outline"
-                                                                            className={cn(
-                                                                                "w-full h-11 px-3 text-left font-normal bg-background text-sm",
-                                                                                !field.value && "text-muted-foreground"
-                                                                            )}
-                                                                        >
-                                                                            <span className="truncate">
-                                                                                {field.value ? (
-                                                                                    format(field.value, "PPP", { locale: zhTW })
-                                                                                ) : (
-                                                                                    "選擇日期"
-                                                                                )}
-                                                                            </span>
-                                                                            <CalendarIcon className="ml-auto h-3 w-3 opacity-50 shrink-0" />
-                                                                        </Button>
-                                                                    </FormControl>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent className="w-auto p-0" align="start">
-                                                                    <Calendar
-                                                                        mode="single"
-                                                                        selected={field.value}
-                                                                        defaultMonth={field.value}
-                                                                        onSelect={field.onChange}
-                                                                        initialFocus
-                                                                        locale={zhTW}
-                                                                    />
-                                                                </PopoverContent>
-                                                            </Popover>
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                {form.watch('sessions').length > 1 && (
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="flex-none h-9 w-9 text-muted-foreground hover:text-destructive shrink-0"
-                                                        onClick={() => {
-                                                            const current = form.getValues('sessions');
-                                                            const filtered = current.filter((_, i) => i !== index);
-                                                            setValue('sessions', filtered);
-                                                            setValue('sessions_count', filtered.length);
-                                                        }}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -623,6 +791,55 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                     </Button>
                 </div>
             </form>
+            <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>{editingGroup ? '編輯課程檔期' : '建立新課程檔期'}</DialogTitle>
+                        <DialogDescription>
+                            輸入檔期名稱，例如「HQ 2026 H1 常態課程」
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <FormLabel>標題</FormLabel>
+                            <Input
+                                id="name"
+                                value={groupTitle}
+                                onChange={(e) => setGroupTitle(e.target.value)}
+                                placeholder="請輸入標題"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsGroupModalOpen(false)}>取消</Button>
+                        <Button onClick={handleSaveGroup} disabled={isGroupSubmitting}>
+                            {isGroupSubmitting && <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+                            儲存
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isDeleteWarningOpen} onOpenChange={setIsDeleteWarningOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2 text-amber-600 mb-2">
+                            <AlertTriangle className="h-5 w-5" />
+                            <DialogTitle>無法刪除此課堂</DialogTitle>
+                        </div>
+                        <DialogDescription className="text-sm leading-relaxed">
+                            無法刪除已有紀錄的課堂。
+                            <br /><br />
+                            此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統管理員。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDeleteWarningOpen(false)} className="w-full sm:w-auto">
+                            我知道了
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Form>
     );
 }
