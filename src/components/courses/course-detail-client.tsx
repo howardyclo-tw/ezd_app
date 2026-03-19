@@ -685,7 +685,7 @@ export function CourseDetailClient({
                                 <CalendarIcon className="h-4 w-4 text-primary" />
                                 請假/轉讓
                             </h3>
-                            {course.type === 'normal' && (() => {
+                            {(course.type === 'normal' || course.type === 'special') && (() => {
                                 const myAttendanceRecord = roster.find(s => s.id === userEnrollment.userId)?.attendance || {};
                                 const usedTransfers = Object.values(myAttendanceRecord).filter(v => v === 'transfer_out').length;
                                 const usedMakeups = Object.values(myAttendanceRecord).filter(v => v === 'makeup').length;

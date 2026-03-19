@@ -940,15 +940,16 @@ export async function submitMakeupRequest(
     const { supabase, user } = await getCurrentUser();
 
     // Check user and original/target courses
-    const [originalCourseRes, targetRes, userEnrollmentRes] = await Promise.all([
+    const [originalCourseRes, targetRes, enrollmentsRes] = await Promise.all([
         supabase.from('courses').select('group_id, type').eq('id', originalCourseId).maybeSingle(),
         supabase.from('course_sessions').select('course_id, courses ( group_id, capacity )').eq('id', targetSessionId).maybeSingle(),
-        supabase.from('enrollments').select('type').eq('course_id', originalCourseId).eq('user_id', user.id).eq('status', 'enrolled').maybeSingle(),
+        supabase.from('enrollments').select('type').eq('course_id', originalCourseId).eq('user_id', user.id).eq('status', 'enrolled'),
     ]);
 
     const originalCourse = originalCourseRes.data;
     const target = targetRes.data;
-    const userEnrollment = userEnrollmentRes.data;
+    const enrollments = enrollmentsRes.data || [];
+    const userEnrollment = enrollments.find(e => e.type === 'full') || enrollments[0];
 
     if (!target) throw new Error('目標堂次不存在');
     if (!originalCourse) throw new Error('原始課程不存在');
@@ -961,6 +962,7 @@ export async function submitMakeupRequest(
         .eq('course_id', targetCourseId)
         .eq('user_id', user.id)
         .eq('status', 'enrolled')
+        .limit(1)
         .maybeSingle();
 
     if (targetEnrollment) throw new Error('您已報名目標課程，無需申請補課');
@@ -972,12 +974,12 @@ export async function submitMakeupRequest(
     }
 
     // Rule 2: Only full-term enrollees can makeup
-    if (userEnrollment.type !== 'full') {
+    if (userEnrollment?.type !== 'full') {
         throw new Error('單堂報名學員不支援補課申請');
     }
 
-    // --- Quota Calculation (Only for 'normal' courses) ---
-    if (originalCourse.type === 'normal') {
+    // --- Quota Calculation (For 'normal' and 'special' courses) ---
+    if (originalCourse.type === 'normal' || originalCourse.type === 'special') {
         const { count: sessionsCount } = await supabase
             .from('course_sessions')
             .select('*', { count: 'exact', head: true })

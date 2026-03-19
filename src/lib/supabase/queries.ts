@@ -374,7 +374,8 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
     // Start both queries in parallel
     const [
         { data: attendance, error: attError },
-        { data: requested, error: reqError }
+        { data: requested, error: reqError },
+        { data: enrollments, error: enrError }
     ] = await Promise.all([
         supabase
             .from('attendance_records')
@@ -391,6 +392,7 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
                         name,
                         teacher,
                         group_id,
+                        type,
                         course_groups (
                             id,
                             slug,
@@ -406,16 +408,35 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
             .from('makeup_requests')
             .select('original_session_id')
             .eq('user_id', userId)
-            .in('status', ['pending', 'approved'])
+            .in('status', ['pending', 'approved']),
+
+        supabase
+            .from('enrollments')
+            .select('course_id')
+            .eq('user_id', userId)
+            .eq('type', 'full')
+            .in('status', ['enrolled', 'waitlist'])
     ]);
 
     if (attError) throw new Error(`getAvailableMakeupQuotaSessions (att): ${attError.message}`);
     if (reqError) throw new Error(`getAvailableMakeupQuotaSessions (req): ${reqError.message}`);
+    if (enrError) throw new Error(`getAvailableMakeupQuotaSessions (enr): ${enrError.message}`);
 
     const usedSessionIds = new Set(requested.map(r => r.original_session_id));
+    const fullEnrollmentCourseIds = new Set(enrollments.map(e => e.course_id));
 
     return (attendance ?? [])
-        .filter(a => !usedSessionIds.has(a.session_id))
+        .filter(a => {
+            const course = (a.course_sessions as any).courses;
+            // Remove if already used
+            if (usedSessionIds.has(a.session_id)) return false;
+            // Only 'normal' and 'special' courses offer makeup quotas
+            if (course.type !== 'normal' && course.type !== 'special') return false;
+            // Only 'full' enrolled students get makeup quotas
+            if (!fullEnrollmentCourseIds.has(course.id)) return false;
+            
+            return true;
+        })
         .map(a => ({
             sessionId: (a.course_sessions as any).id,
             date: (a.course_sessions as any).session_date,
