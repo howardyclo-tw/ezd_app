@@ -1249,7 +1249,7 @@ export async function submitTransferRequest(
     // --- Quota Calculation (Only for 'normal' courses) ---
     const { data: courseMeta } = await supabase.from('courses').select('type').eq('id', courseId).maybeSingle();
 
-    if (courseMeta?.type === 'normal') {
+    if (courseMeta?.type === 'normal' || courseMeta?.type === 'special') {
         const { count: sessionsCount } = await supabase
             .from('course_sessions')
             .select('*', { count: 'exact', head: true })
@@ -1261,6 +1261,14 @@ export async function submitTransferRequest(
 
         if (usedMakeup + usedTransfer >= totalQuota) {
             return { success: false, message: `補課/轉讓額度已用完（${usedMakeup + usedTransfer}/${totalQuota}）` };
+        }
+
+        // Rule: Only member to member transfer for regular courses
+        if (toUserId) {
+            const { data: toProfile } = await supabase.from('profiles').select('role').eq('id', toUserId).maybeSingle();
+            if (toProfile?.role === 'guest') {
+                return { success: false, message: '常態課程僅限社員之間互相轉讓' };
+            }
         }
     }
 

@@ -307,9 +307,16 @@ export function CourseDetailClient({
         }
     };
 
-    const filteredMembers = transferCandidates.allMembers.filter(m =>
-        m.name.toLowerCase().includes(transferSearch.toLowerCase())
-    );
+    const filteredMembers = transferCandidates.allMembers.filter(m => {
+        const matchesSearch = m.name.toLowerCase().includes(transferSearch.toLowerCase());
+        const isRegularCourse = course.type === 'normal' || course.type === 'special';
+        const isMember = m.role !== 'guest';
+        
+        if (isRegularCourse) {
+            return matchesSearch && isMember;
+        }
+        return matchesSearch;
+    });
 
     // Helper: determine the "original type" of a student for a session
     // Uses transferMetadata (from transfer_requests table) as authoritative source
@@ -650,6 +657,7 @@ export function CourseDetailClient({
                                 isFull={enrolledCount >= course.capacity}
                                 enrolledCount={enrolledCount}
                                 capacity={course.capacity}
+                                courseType={course.type}
                             />
                         )}
                     </div>
@@ -669,7 +677,7 @@ export function CourseDetailClient({
             </div>
 
             {/* Block 2: My Attendance Progress (Leave/Transfer) */}
-            {userEnrollment.enrollmentStatus.isEnrolled && (
+            {userEnrollment.enrollmentStatus.isFullEnrolled && (
                 <div className="pt-5 pb-3 bg-muted/20 border border-muted/50 rounded-2xl space-y-4">
                     <div className="px-5 flex items-center justify-between">
                         <div className="flex flex-col gap-1">
@@ -1190,7 +1198,7 @@ export function CourseDetailClient({
                                 </Button>
                                 <Button
                                     onClick={() => handleTransferRequest(selectedTransferUser?.id ?? null)}
-                                    disabled={isPending}
+                                    disabled={isPending || ((course.type === 'normal' || course.type === 'special') && selectedTransferUser?.role === 'guest')}
                                     className="w-full sm:w-auto font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-lg transition-all active:scale-95"
                                 >
                                     {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
