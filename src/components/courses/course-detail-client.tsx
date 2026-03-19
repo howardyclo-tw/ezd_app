@@ -871,7 +871,7 @@ export function CourseDetailClient({
                         <table className="w-full text-left border-collapse table-fixed min-w-[500px]">
                             <thead className="sticky top-0 z-50">
                                 <tr className="bg-muted/10 border-b border-muted backdrop-blur-md">
-                                    <th className="p-3 text-xs font-black uppercase text-muted-foreground italic sticky left-0 top-0 bg-card/95 backdrop-blur-sm z-[60] w-[140px] border-r border-muted/50 shadow-[4px_0_10px_-5px_rgba(0,0,0,0.1)]">
+                                    <th className="p-3 text-xs font-black uppercase text-muted-foreground italic sticky left-0 top-0 bg-card/95 backdrop-blur-sm z-[60] w-[85px] border-r border-muted/50 shadow-[4px_0_10px_-5px_rgba(0,0,0,0.1)]">
                                         姓名
                                     </th>
                                     {sessions.map(s => {
@@ -887,7 +887,7 @@ export function CourseDetailClient({
                                                 key={s.id}
                                                 onClick={() => toggleFocus(s.id)}
                                                 className={cn(
-                                                    "p-2 text-center border-r border-muted/30 last:border-0 w-[100px] transition-all cursor-pointer relative group/header overflow-visible",
+                                                    "p-1 text-center border-r border-muted/30 last:border-0 w-[65px] transition-all cursor-pointer relative group/header overflow-visible",
                                                     isFocused ? "z-30 bg-white/5" : "hover:bg-muted/5"
                                                 )}
                                             >
@@ -920,12 +920,12 @@ export function CourseDetailClient({
                                 {/* Official Students Section */}
                                 <tr className="bg-muted/5">
                                     <td colSpan={sessions.length + 1} className="px-3 py-2 text-[11px] font-black text-muted-foreground uppercase tracking-widest border-b border-muted/20">
-                                        常態學員
+                                        整期學員
                                     </td>
                                 </tr>
                                 {officialStudents.length === 0 ? (
                                     <tr className="border-b border-muted/20">
-                                        <td colSpan={sessions.length + 1} className="py-8 text-center text-xs text-muted-foreground italic">尚無常態學員</td>
+                                        <td colSpan={sessions.length + 1} className="py-8 text-center text-xs text-muted-foreground italic">尚無整期學員</td>
                                     </tr>
                                 ) : (
                                     officialStudents
