@@ -60,10 +60,29 @@ export default async function LeaderRollcallPage() {
     // Filter sessions: 
     // If admin, keep all. 
     // If leader, keep only those where user is in course_leaders.
-    const mySessions = (sessions ?? []).filter((s: any) => {
+    const mySessionsRaw = (sessions ?? []).filter((s: any) => {
         if (isAdmin) return true;
         const leaders = s.courses?.course_leaders || [];
         return leaders.some((l: any) => l.user_id === user.id);
+    });
+
+    // To get the LOGICAL session number (index by date), we need ALL session dates for these courses
+    const courseIds = [...new Set(mySessionsRaw.map((s: any) => s.courses?.id).filter(Boolean))];
+    const { data: allCourseSessions } = await supabase
+        .from('course_sessions')
+        .select('id, course_id, session_date')
+        .in('course_id', courseIds)
+        .order('session_date');
+
+    const mySessions = mySessionsRaw.map((s: any) => {
+        const courseId = s.courses?.id;
+        const courseAllSessions = (allCourseSessions ?? []).filter((as: any) => as.course_id === courseId);
+        const sessionIndex = courseAllSessions.findIndex((as: any) => as.id === s.id);
+        
+        return {
+            ...s,
+            logical_session_number: sessionIndex !== -1 ? sessionIndex + 1 : s.session_number
+        };
     });
 
     return (
@@ -139,7 +158,7 @@ export default async function LeaderRollcallPage() {
                                                         variant="outline"
                                                         className="text-[10px] font-bold uppercase tracking-wider text-primary border-primary/20 bg-primary/5"
                                                     >
-                                                        第 {session.session_number} 堂
+                                                        第 {session.logical_session_number} 堂
                                                     </Badge>
                                                     {isMyClass && (
                                                         <Badge variant="secondary" className="text-[10px] font-black bg-primary/10 text-primary border-none gap-1">

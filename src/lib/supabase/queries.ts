@@ -24,10 +24,12 @@ import type {
 
 export async function getCourseGroups() {
     const supabase = await createClient();
+    const nowStr = new Date().toISOString().split('T')[0];
     const { data, error } = await supabase
         .from('course_groups')
         .select('*')
-        .order('period_start', { ascending: false });
+        .or(`period_end.is.null,period_end.gte.${nowStr}`)
+        .order('created_at', { ascending: false });
 
     if (error) throw new Error(`getCourseGroups: ${error.message}`);
     return data as CourseGroup[];

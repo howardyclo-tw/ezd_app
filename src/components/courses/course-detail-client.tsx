@@ -76,7 +76,6 @@ interface CourseInfo {
     endTime: string;
     capacity: number;
     cardsPerSession: number;
-    status: string;
     leader: string;
     groupTitle: string;
     groupId: string;

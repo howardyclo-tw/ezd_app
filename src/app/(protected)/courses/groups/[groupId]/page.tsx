@@ -10,9 +10,6 @@ export const dynamic = 'force-dynamic';
 
 // Helper: compute course status for display
 function getCourseDisplayStatus(course: any): string {
-    if (course.status === 'closed') return 'ended';
-    if (course.status === 'draft') return 'upcoming';
-
     const now = new Date();
     const enrollStart = course.enrollment_start_at ? new Date(course.enrollment_start_at) : null;
     const enrollEnd = course.enrollment_end_at ? new Date(course.enrollment_end_at) : null;
@@ -94,16 +91,26 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
             .eq('type', 'full'),
     ]);
 
-    // Infer period from group data
-    const inferredPeriod = groupData.period_start && groupData.period_end
-        ? `${groupData.period_start.replace(/-/g, '/')}~${groupData.period_end.replace(/-/g, '/')}`
-        : '檔期時間未定';
+
 
     // Map courses to CourseCard format
+    let minDate: string | null = groupData.period_start || null;
+    let maxDate: string | null = groupData.period_end || null;
+
     const courseCards = (courses ?? []).map(course => {
         const sessions = (course.course_sessions as any[]) ?? [];
-        const firstSession = sessions.sort((a: any, b: any) => a.session_date.localeCompare(b.session_date))[0];
+        sessions.sort((a: any, b: any) => a.session_date.localeCompare(b.session_date));
+        
+        const firstSession = sessions[0];
         const lastSession = sessions[sessions.length - 1];
+
+        // Track overall min/max dates if group ones are missing
+        if (!groupData.period_start && firstSession?.session_date) {
+            if (!minDate || firstSession.session_date < minDate) minDate = firstSession.session_date;
+        }
+        if (!groupData.period_end && lastSession?.session_date) {
+            if (!maxDate || lastSession.session_date > maxDate) maxDate = lastSession.session_date;
+        }
 
         const cShortId = course.slug || course.id;
         const gShortId = groupData.slug || groupData.id;
@@ -128,6 +135,13 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
             endDate: lastSession?.session_date ?? '',
         };
     });
+
+    // Final Period string calculation
+    const formattedMin = minDate ? minDate.replace(/-/g, '/') : null;
+    const formattedMax = maxDate ? maxDate.replace(/-/g, '/') : null;
+    const inferredPeriod = formattedMin && formattedMax
+        ? `${formattedMin}~${formattedMax}`
+        : (formattedMin || formattedMax || '檔期時間未定');
 
     // Check registration status
     const now = new Date();

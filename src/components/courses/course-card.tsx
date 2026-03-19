@@ -38,9 +38,6 @@ const statusMap: Record<string, { label: string, color: string, variant: "defaul
 
 // Helper: compute course status for display
 export function getCourseDisplayStatus(course: any): string {
-    if (course.status === 'closed') return 'ended';
-    if (course.status === 'draft') return 'upcoming';
-
     const now = new Date();
     const enrollStart = course.enrollment_start_at ? new Date(course.enrollment_start_at) : null;
     const enrollEnd = course.enrollment_end_at ? new Date(course.enrollment_end_at) : null;

@@ -34,25 +34,29 @@ export default async function MyCoursesPage() {
     const upcomingSessions = (myEnrollments ?? []).flatMap((enrollment: any) => {
         const course = enrollment.courses;
         const group = course.course_groups;
-        const sessions = course.course_sessions ?? [];
+        const sessions = [...(course.course_sessions ?? [])].sort((a: any, b: any) => a.session_date.localeCompare(b.session_date));
 
         const gId = group?.slug || group?.id;
         const cId = course?.slug || course?.id;
 
         return sessions
             .filter((s: any) => s.session_date >= today)
-            .map((s: any) => ({
-                groupTitle: group?.title ?? '未知檔期',
-                courseName: course.name,
-                teacher: course.teacher,
-                date: s.session_date,
-                time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
-                room: course.room,
-                sessionNumber: s.session_number,
-                status: enrollment.status as 'enrolled' | 'waitlist',
-                waitlistPosition: enrollment.waitlist_position ?? undefined,
-                href: (gId && cId) ? `/courses/groups/${gId}/${cId}` : undefined,
-            }));
+            .map((s: any) => {
+                // Find chronological index
+                const sessionIndex = sessions.findIndex(ps => ps.id === s.id);
+                return {
+                    groupTitle: group?.title ?? '未知檔期',
+                    courseName: course.name,
+                    teacher: course.teacher,
+                    date: s.session_date,
+                    time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
+                    room: course.room,
+                    sessionNumber: sessionIndex + 1,
+                    status: enrollment.status as 'enrolled' | 'waitlist',
+                    waitlistPosition: enrollment.waitlist_position ?? undefined,
+                    href: (gId && cId) ? `/courses/groups/${gId}/${cId}` : undefined,
+                };
+            });
     }).sort((a: any, b: any) => a.date.localeCompare(b.date));
 
     // ── 2. History: attendance records ──

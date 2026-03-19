@@ -224,16 +224,15 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
                 endTime: course.end_time?.slice(0, 5) ?? '',
                 capacity: course.capacity,
                 cardsPerSession: course.cards_per_session,
-                status: course.status,
                 leader: leaders.join(', ') || '',
                 groupTitle: (course.course_groups as any)?.title ?? '',
                 groupId: (course.course_groups as any)?.slug ?? (course.course_groups as any)?.id ?? '',
                 groupUuid: course.group_id,
             }}
-            sessions={sortedSessions.map((s: any) => ({
+            sessions={sortedSessions.map((s: any, i: number) => ({
                 id: s.id,
                 date: s.session_date,
-                number: s.session_number,
+                number: i + 1,
             }))}
             roster={rosterWithAttendance}
             transferMetadata={transferMetadata}

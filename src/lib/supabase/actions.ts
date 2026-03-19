@@ -69,7 +69,6 @@ export async function enrollInCourse(
 
     if (!course) throw new Error('課程不存在');
     if (!profile) throw new Error('使用者資料不存在');
-    if (course.status !== 'published') throw new Error('課程尚未開放報名');
 
     const now = new Date();
     if (course.enrollment_start_at && new Date(course.enrollment_start_at) > now) {
@@ -529,7 +528,6 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
             start_time: data.start_time,
             end_time: data.end_time,
             capacity: data.capacity,
-            status: data.status,
             created_by: user.id
         })
         .select()
@@ -537,8 +535,13 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
 
     if (courseError) throw new Error(`建立課程失敗: ${courseError.message}`);
 
-    // 2. Insert Sessions
-    const sessions = data.sessions.map((s: any, index: number) => ({
+    // 2. Insert Sessions (sort by date to assign correct session_number)
+    const sortedSessions = [...data.sessions].sort((a: any, b: any) => {
+        const dateA = a.date instanceof Date ? a.date.getTime() : new Date(a.date).getTime();
+        const dateB = b.date instanceof Date ? b.date.getTime() : new Date(b.date).getTime();
+        return dateA - dateB;
+    });
+    const sessions = sortedSessions.map((s: any, index: number) => ({
         course_id: course.id,
         session_date: s.date instanceof Date ? s.date.toISOString().split('T')[0] : s.date,
         session_number: index + 1
@@ -581,17 +584,15 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
             start_time: data.start_time,
             end_time: data.end_time,
             capacity: data.capacity,
-            status: data.status,
         })
         .eq('id', id);
 
     if (courseError) throw new Error(`更新課程失敗: ${courseError.message}`);
 
-    // 2. Sync Sessions
-    const nextSessions = data.sessions.map((s: any, index: number) => {
+    // 2. Sync Sessions (sort by date to assign correct session_number)
+    const sortedNextSessions = [...data.sessions].map((s: any) => {
         let dateStr = s.date;
         if (s.date instanceof Date) {
-            // Local date ISO string: YYYY-MM-DD
             const y = s.date.getFullYear();
             const m = String(s.date.getMonth() + 1).padStart(2, '0');
             const d = String(s.date.getDate()).padStart(2, '0');
@@ -599,14 +600,15 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
         } else if (typeof s.date === 'string' && s.date.includes('T')) {
             dateStr = s.date.split('T')[0];
         }
+        return { ...s, session_date: dateStr };
+    }).sort((a: any, b: any) => a.session_date.localeCompare(b.session_date));
 
-        return {
-            id: s.id,
-            course_id: id,
-            session_date: dateStr,
-            session_number: index + 1
-        };
-    });
+    const nextSessions = sortedNextSessions.map((s: any, index: number) => ({
+        id: s.id,
+        course_id: id,
+        session_date: s.session_date,
+        session_number: index + 1
+    }));
 
     // Identify sessions to delete
     const nextSessionIds = nextSessions.filter((s: any) => s.id).map((s: any) => s.id);

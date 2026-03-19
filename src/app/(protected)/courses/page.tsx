@@ -16,9 +16,6 @@ function getGroupStatus(periodStart: string | null, periodEnd: string | null): s
 
 // Helper: compute course status for display
 function getCourseDisplayStatus(course: any): string {
-    if (course.status === 'closed') return 'ended';
-    if (course.status === 'draft') return 'upcoming';
-
     const now = new Date();
     const enrollStart = course.enrollment_start_at ? new Date(course.enrollment_start_at) : null;
     const enrollEnd = course.enrollment_end_at ? new Date(course.enrollment_end_at) : null;
@@ -51,7 +48,6 @@ export default async function CourseGroupsPage() {
                 end_time,
                 room,
                 type,
-                status,
                 capacity,
                 enrollment_start_at,
                 enrollment_end_at,

@@ -80,7 +80,6 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
         end_time: course.end_time?.slice(0, 5) || '20:30',
         sessions_count: sessions.length,
         capacity: course.capacity,
-        status: course.status as any,
         first_session_at: sessions[0]?.date,
         sessions: sessions,
     };
