@@ -241,17 +241,17 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         .eq('course_id', course.id)
         .eq('status', 'approved');
 
-    const transferMetadata: Record<string, Record<string, { fromName: string; toName: string }>> = {};
+    const transferMetadata: Record<string, Record<string, { type: 'transfer_out' | 'transfer_in'; fromName: string; toName: string }>> = {};
     (transfers ?? []).forEach(t => {
         if (!transferMetadata[t.session_id]) transferMetadata[t.session_id] = {};
         const fromName = (t.from_profile as any)?.name ?? '未知';
         const toName = (t.to_profile as any)?.name ?? (t as any).to_user_name ?? '外部人士';
 
         // Map for sender
-        transferMetadata[t.session_id][t.from_user_id] = { fromName, toName };
+        transferMetadata[t.session_id][t.from_user_id] = { type: 'transfer_out', fromName, toName };
         // Map for receiver
         if (t.to_user_id) {
-            transferMetadata[t.session_id][t.to_user_id] = { fromName, toName };
+            transferMetadata[t.session_id][t.to_user_id] = { type: 'transfer_in', fromName, toName };
         }
     });
 

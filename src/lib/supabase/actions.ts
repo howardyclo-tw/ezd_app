@@ -1001,29 +1001,31 @@ export async function submitMakeupRequest(
         }
     }
 
-    // Rule 3: Target session capacity check
-    const { count: enrolledInTarget } = await supabase
-        .from('attendance_records')
-        .select('*', { count: 'exact', head: true })
-        .eq('session_id', targetSessionId)
-        .in('status', ['present', 'makeup', 'transfer_in']);
-
-    // Also count official students who haven't marked yet (they own the slot)
-    const { count: officialEnrolled } = await supabase
+    // Base capacity taken by enrollments (Full term + Single session for this target session)
+    const { count: baseEnrolled } = await supabase
         .from('enrollments')
         .select('*', { count: 'exact', head: true })
         .eq('course_id', targetCourseId)
-        .eq('status', 'enrolled');
+        .eq('status', 'enrolled')
+        .or(`type.eq.full,session_id.eq.${targetSessionId}`);
 
-    if ((officialEnrolled ?? 0) >= (target.courses as any).capacity) {
-        // Technically we should check if someone in target has applied for leave
+    if ((baseEnrolled ?? 0) >= (target.courses as any).capacity) {
+        // Calculate freed spots (Leave Requests)
         const { count: leaveApproved } = await supabase
-            .from('attendance_records')
+            .from('leave_requests')
             .select('*', { count: 'exact', head: true })
             .eq('session_id', targetSessionId)
-            .eq('status', 'leave');
+            .eq('status', 'approved');
 
-        const effectiveOccupied = (officialEnrolled ?? 0) - (leaveApproved ?? 0) + (enrolledInTarget ?? 0);
+        // Calculate incoming spots (Makeup Requests)
+        // Note: Transfer requests net out to 0 (1 outgoing = 1 incoming), so they don't affect capacity
+        const { count: makeupApproved } = await supabase
+            .from('makeup_requests')
+            .select('*', { count: 'exact', head: true })
+            .eq('target_session_id', targetSessionId)
+            .eq('status', 'approved');
+
+        const effectiveOccupied = (baseEnrolled ?? 0) - (leaveApproved ?? 0) + (makeupApproved ?? 0);
         if (effectiveOccupied >= (target.courses as any).capacity) {
             throw new Error('目標堂次已滿人，無法補課');
         }
