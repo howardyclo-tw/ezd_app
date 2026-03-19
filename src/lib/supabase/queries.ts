@@ -128,18 +128,22 @@ export async function getUserEnrollmentStatus(
         .from('enrollments')
         .select('*')
         .eq('course_id', courseId)
-        .eq('user_id', userId)
-        .maybeSingle();
+        .eq('user_id', userId);
 
     if (error) throw new Error(`getUserEnrollmentStatus: ${error.message}`);
 
-    if (!data) return { isEnrolled: false, isWaitlisted: false };
+    if (!data || data.length === 0) return { isEnrolled: false, isWaitlisted: false };
+
+    // Prefer 'enrolled' over 'waitlist', and 'full' over 'single' for the status summary
+    const enrolled = data.find(e => e.status === 'enrolled');
+    const waitlisted = data.find(e => e.status === 'waitlist');
+    const primary = enrolled || waitlisted || data[0];
 
     return {
-        isEnrolled: data.status === 'enrolled',
-        isWaitlisted: data.status === 'waitlist',
-        waitlistPosition: data.waitlist_position ?? undefined,
-        enrollment: data,
+        isEnrolled: data.some(e => e.status === 'enrolled'),
+        isWaitlisted: !data.some(e => e.status === 'enrolled') && data.some(e => e.status === 'waitlist'),
+        waitlistPosition: primary.waitlist_position ?? undefined,
+        enrollment: primary,
     };
 }
 

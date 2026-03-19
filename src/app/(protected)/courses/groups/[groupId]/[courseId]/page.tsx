@@ -71,13 +71,12 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             .eq('course_id', course.id)
             .eq('status', 'enrolled'),
 
-        // 2. Current user enrollment status
+        // 2. Current user enrollment status (may have multiple for single-sessions)
         supabase
             .from('enrollments')
             .select('*')
             .eq('course_id', course.id)
-            .eq('user_id', user.id)
-            .maybeSingle(),
+            .eq('user_id', user.id),
 
         // 3. Current user card balance
         supabase
@@ -135,29 +134,47 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         attendanceMap[record.user_id][record.session_id] = record.status;
     }
 
-    // 1. Get all students from enrollments (Official = Enrolled only)
-    const enrollmentRoster = (roster ?? [])
-        .filter((e: any) => e.profiles && e.status === 'enrolled')
-        .map((e: any) => ({
-            id: e.profiles.id,
-            name: e.profiles.name,
-            role: e.profiles.role,
-            isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === e.profiles.id),
-            type: 'official' as const,
-            attendance: attendanceMap[e.profiles.id] ?? {},
-        }));
+    // Group enrollments by user to handle multiple single-session enrollments
+    const enrollmentsByUser: Record<string, any[]> = {};
+    (roster ?? []).forEach(e => {
+        if (!e.profiles) return;
+        if (!enrollmentsByUser[e.user_id]) enrollmentsByUser[e.user_id] = [];
+        enrollmentsByUser[e.user_id].push(e);
+    });
 
-    // 2. Find ANYONE ELSE who has an attendance record but is not in the enrollment roster (Additional/Makeup/Transfer)
-    // This includes: waitlisted students with attendance, external users with attendance, and makeup students.
-    const enrolledIds = new Set(enrollmentRoster.map(s => s.id));
-    const additionalUserIds = Object.keys(attendanceMap).filter(id => !enrolledIds.has(id));
+    const enrolledUserIds = new Set<string>();
+    const enrollmentRoster: any[] = [];
+
+    Object.entries(enrollmentsByUser).forEach(([userId, userEnrollments]) => {
+        const hasFullEnrolled = userEnrollments.some(e => e.status === 'enrolled' && e.type === 'full');
+        const hasSingleEnrolled = userEnrollments.some(e => e.status === 'enrolled' && e.type === 'single');
+        const isEnrolled = hasFullEnrolled || hasSingleEnrolled;
+
+        if (isEnrolled) {
+            enrolledUserIds.add(userId);
+            const p = userEnrollments[0].profiles;
+            enrollmentRoster.push({
+                id: p.id,
+                name: p.name,
+                role: p.role,
+                isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === p.id),
+                // Categorize: full-term is official, only single-term is additional
+                type: hasFullEnrolled ? 'official' : 'additional',
+                attendance: attendanceMap[p.id] ?? {},
+                enrolledSessionIds: userEnrollments.filter(e => e.status === 'enrolled').map(e => e.session_id).filter(Boolean),
+            });
+        }
+    });
+
+    // 2. Find ANYONE ELSE who has an attendance record but is not in the enrollment roster (Makeup/Transfer)
+    const otherAttendanceUserIds = Object.keys(attendanceMap).filter(id => !enrolledUserIds.has(id));
 
     let additionalRoster: any[] = [];
-    if (additionalUserIds.length > 0) {
+    if (otherAttendanceUserIds.length > 0) {
         const { data: additionalProfiles } = await supabase
             .from('profiles')
             .select('id, name, role')
-            .in('id', additionalUserIds);
+            .in('id', otherAttendanceUserIds);
 
         additionalRoster = (additionalProfiles ?? []).map(p => ({
             id: p.id,
@@ -223,9 +240,11 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             userEnrollment={{
                 userId: user.id,
                 enrollmentStatus: {
-                    isEnrolled: enrollment?.status === 'enrolled',
-                    isWaitlisted: enrollment?.status === 'waitlist',
-                    waitlistPosition: enrollment?.waitlist_position ?? undefined,
+                    isEnrolled: (enrollment as any[] || []).some(e => e.status === 'enrolled'),
+                    isFullEnrolled: (enrollment as any[] || []).some(e => e.status === 'enrolled' && e.type === 'full'),
+                    isWaitlisted: (enrollment as any[] || []).some(e => e.status === 'waitlist'),
+                    waitlistPosition: (enrollment as any[] || []).find(e => e.status === 'waitlist')?.waitlist_position ?? undefined,
+                    enrolledSessionIds: (enrollment as any[] || []).filter(e => e.status === 'enrolled').map(e => e.session_id).filter(Boolean),
                 }
             }}
             cardBalance={userProfileWithCardBalance?.card_balance ?? 0}

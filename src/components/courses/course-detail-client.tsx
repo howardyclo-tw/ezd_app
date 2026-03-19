@@ -96,6 +96,7 @@ interface StudentInfo {
     isLeader: boolean;
     type: 'official' | 'additional';
     attendance: Record<string, string>; // sessionId -> status
+    enrolledSessionIds?: string[]; // For single-session enrollments tracking
 }
 
 type AttendanceMap = Record<string, Record<string, string>>;
@@ -109,8 +110,10 @@ interface CourseDetailClientProps {
         userId: string;
         enrollmentStatus: {
             isEnrolled: boolean;
+            isFullEnrolled: boolean;
             isWaitlisted: boolean;
             waitlistPosition?: number | null;
+            enrolledSessionIds?: string[];
         }
     };
     cardBalance: number;
@@ -312,7 +315,8 @@ export function CourseDetailClient({
     // Uses transferMetadata (from transfer_requests table) as authoritative source
     const getOriginalType = (studentId: string, sessionId: string): string => {
         const meta = transferMetadata[sessionId]?.[studentId];
-        const dbStatus = roster.find(r => r.id === studentId)?.attendance[sessionId] ?? 'unmarked';
+        const student = roster.find(r => r.id === studentId);
+        const dbStatus = student?.attendance[sessionId] ?? 'unmarked';
         const isOfficial = officialStudents.some(s => s.id === studentId);
 
         // Check transfer_requests table first (survives saves)
@@ -328,9 +332,19 @@ export function CourseDetailClient({
         }
         if (dbStatus === 'transfer_out') return 'transfer_out';
         if (dbStatus === 'transfer_in') return 'transfer_in';
-        if (dbStatus === 'makeup') return 'makeup';
         if (dbStatus === 'leave') return 'leave';
-        if (!isOfficial) return 'single';
+
+        // Guest logic (Single, Makeup, Transfer) - isolate to focused session if specified
+        const isGuestForCurrentSession = sessionId === focusedSessionId || !focusedSessionId;
+
+        if (dbStatus === 'makeup') return isGuestForCurrentSession ? 'makeup' : 'none';
+        
+        // Single enrollment check
+        if (!isOfficial && student?.enrolledSessionIds?.includes(sessionId)) {
+            return isGuestForCurrentSession ? 'single' : 'none';
+        }
+        
+        if (!isOfficial) return 'none';
         return 'normal';
     };
 
@@ -467,7 +481,7 @@ export function CourseDetailClient({
                     typeLabel ? (
                         <span className="text-xs font-bold text-white/40">{typeLabel}</span>
                     ) : (
-                        <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+                        origType === 'none' ? null : <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
                     )
                 ) : (
                     <div className="flex flex-col items-center justify-center gap-0.5">
@@ -579,11 +593,11 @@ export function CourseDetailClient({
 
                     {/* Enrollment Action */}
                     <div className="w-full md:w-44 shrink-0 mt-4 md:mt-0">
-                        {userEnrollment.enrollmentStatus.isEnrolled ? (
+                        {(userEnrollment.enrollmentStatus.isFullEnrolled) ? (
                             <div className="flex flex-col items-stretch gap-2">
                                 <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-muted/20 text-muted-foreground border border-muted-foreground/10">
                                     <Check className="h-4 w-4 shrink-0" />
-                                    <span className="text-sm font-bold">待出席</span>
+                                    <span className="text-sm font-bold">已報名全堂</span>
                                 </div>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -682,7 +696,14 @@ export function CourseDetailClient({
                     {/* Horizontal Scrollable Slider - Outer wrapper provides the left/right margin */}
                     <div className="px-5">
                         <div className="flex gap-4 overflow-x-auto pb-3 snap-x custom-scrollbar">
-                            {sessions.map((session) => {
+                            {sessions
+                                .filter(s => {
+                                    // If full enrolled, show all
+                                    if (userEnrollment.enrollmentStatus.isFullEnrolled) return true;
+                                    // If single-session enrolled, only show those specific sessions
+                                    return userEnrollment.enrollmentStatus.enrolledSessionIds?.includes(s.id);
+                                })
+                                .map((session) => {
                                 const myAttendance = roster.find(s => s.id === userEnrollment.userId)?.attendance?.[session.id] || 'unmarked';
                                 const isPast = new Date(session.date) < new Date(todayStr);
                                 const isToday = session.date === todayStr;
@@ -936,30 +957,34 @@ export function CourseDetailClient({
                                         加報學員 ({focusedSessionId ? format(parseISO(sessions.find(s => s.id === focusedSessionId)?.date || ''), "M/d") : ''} 名單)
                                     </td>
                                 </tr>
-                                {additionalStudents.filter(s => {
-                                    // Stay visible if they have a status in ANY session (initial or current)
-                                    const hasAnyStatus = sessions.some(session => {
-                                        const current = attendanceState[s.id]?.[session.id];
-                                        const initial = roster.find(r => r.id === s.id)?.attendance[session.id] ?? 'unmarked';
-                                        return (current && current !== 'unmarked') || (initial && initial !== 'unmarked');
+                                {(() => {
+                                    const filteredAdditionalList = additionalStudents.filter(student => {
+                                        // If a session is focused, only show those relevant to THIS session
+                                        if (focusedSessionId) {
+                                            const current = attendanceState[student.id]?.[focusedSessionId];
+                                            const initial = roster.find(r => r.id === student.id)?.attendance[focusedSessionId] ?? 'unmarked';
+                                            const isEnrolledInSession = student.enrolledSessionIds?.includes(focusedSessionId);
+                                            return (current && current !== 'unmarked') || (initial && initial !== 'unmarked') || isEnrolledInSession;
+                                        }
+
+                                        // Fallback: stay visible if they have a status in ANY session OR an enrollment record for ONE session
+                                        return sessions.some(session => {
+                                            const current = attendanceState[student.id]?.[session.id];
+                                            const initial = roster.find(r => r.id === student.id)?.attendance[session.id] ?? 'unmarked';
+                                            const isEnrolledInSession = student.enrolledSessionIds?.includes(session.id);
+                                            return (current && current !== 'unmarked') || (initial && initial !== 'unmarked') || isEnrolledInSession;
+                                        });
                                     });
-                                    return hasAnyStatus;
-                                }).length === 0 ? (
-                                    <tr className="border-b border-muted/20">
-                                        <td colSpan={sessions.length + 1} className="py-8 text-center text-xs text-muted-foreground italic">該堂無加報學員</td>
-                                    </tr>
-                                ) : (
-                                    additionalStudents
-                                        .filter(s => {
-                                            // Stay visible if they have a status in ANY session (initial or current)
-                                            const hasAnyStatus = sessions.some(session => {
-                                                const current = attendanceState[s.id]?.[session.id];
-                                                const initial = roster.find(r => r.id === s.id)?.attendance[session.id] ?? 'unmarked';
-                                                return (current && current !== 'unmarked') || (initial && initial !== 'unmarked');
-                                            });
-                                            return hasAnyStatus;
-                                        })
-                                        .map((student) => (
+
+                                    if (filteredAdditionalList.length === 0) {
+                                        return (
+                                            <tr className="border-b border-muted/20">
+                                                <td colSpan={sessions.length + 1} className="py-8 text-center text-xs text-muted-foreground italic">該堂無加報學員</td>
+                                            </tr>
+                                        );
+                                    }
+
+                                    return filteredAdditionalList.map((student) => (
                                             <tr key={student.id} className="border-b border-muted/10 hover:bg-white/[0.02] transition-colors group">
                                                 <td className="p-3 text-xs font-bold sticky left-0 bg-card/95 backdrop-blur-sm z-30 border-r border-muted/50">
                                                     <div className="flex items-center gap-2">
@@ -979,9 +1004,9 @@ export function CourseDetailClient({
                                                     );
                                                 })}
                                             </tr>
-                                        ))
-                                )}
-                            </tbody>
+                                        ));
+                                    })()}
+                                </tbody>
                         </table>
                     </div>
                 </div>

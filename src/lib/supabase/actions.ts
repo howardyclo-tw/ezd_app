@@ -127,7 +127,7 @@ export async function enrollInCourse(
             source: 'self',
             enrolled_at: new Date().toISOString(),
             cancelled_at: null,
-        });
+        }, { onConflict: 'course_id,user_id,session_id' });
 
         if (error) throw new Error(`加入候補失敗: ${error.message}`);
 
@@ -151,7 +151,7 @@ export async function enrollInCourse(
         source: 'self',
         enrolled_at: new Date().toISOString(),
         cancelled_at: null,
-    }).select('id').single();
+    }, { onConflict: 'course_id,user_id,session_id' }).select('id').single();
 
     if (enrollError) throw new Error(`報名失敗: ${enrollError.message}`);
 
@@ -231,10 +231,11 @@ export async function batchEnrollInCourses(
         user_id: user.id,
         status: 'enrolled',
         type: 'full' as const,
+        session_id: null,
         source: 'self' as const,
     }));
 
-    const { data: inserted, error: enrollError } = await supabase.from('enrollments').upsert(enrollments, { onConflict: 'course_id,user_id' }).select('id, course_id');
+    const { data: inserted, error: enrollError } = await supabase.from('enrollments').upsert(enrollments, { onConflict: 'course_id,user_id,session_id' }).select('id, course_id');
     if (enrollError) {
         // Rollback balance (not perfect but better than nothing)
         await supabase.from('profiles').update({ card_balance: profile.card_balance }).eq('id', user.id);
@@ -357,12 +358,13 @@ export async function batchEnrollInSessions(
 export async function cancelEnrollment(courseId: string): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
-    const { data: enrollment } = await supabase
+    const { data: enrollments } = await supabase
         .from('enrollments')
         .select('id, status')
         .eq('course_id', courseId)
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .eq('user_id', user.id);
+
+    const enrollment = enrollments?.find(e => e.status !== 'cancelled') || enrollments?.[0];
 
     if (!enrollment) return { success: false, message: '您未報名此課程' };
 
@@ -750,13 +752,14 @@ export async function submitLeaveRequest(
     const { supabase, user } = await getCurrentUser();
 
     // Check user is enrolled in FULL TERM (new rule: single-session doesn't allow leave)
-    const { data: enrollment } = await supabase
+    const { data: enrollments } = await supabase
         .from('enrollments')
         .select('id, type')
         .eq('course_id', courseId)
         .eq('user_id', user.id)
-        .eq('status', 'enrolled')
-        .maybeSingle();
+        .eq('status', 'enrolled');
+
+    const enrollment = enrollments?.find(e => e.type === 'full') || enrollments?.[0];
 
     if (!enrollment) throw new Error('您未報名此課程，無法申請請假');
     if (enrollment.type !== 'full') throw new Error('單堂報名不支援請假申請');
@@ -1218,13 +1221,14 @@ export async function submitTransferRequest(
     const { supabase, user } = await getCurrentUser();
 
     // Check quota and enrollment type
-    const { data: enrollment } = await supabase
+    const { data: enrollments } = await supabase
         .from('enrollments')
         .select('id, type')
         .eq('course_id', courseId)
         .eq('user_id', user.id)
-        .eq('status', 'enrolled')
-        .maybeSingle();
+        .eq('status', 'enrolled');
+
+    const enrollment = enrollments?.find(e => e.type === 'full') || enrollments?.[0];
 
     if (!enrollment) throw new Error('您未報名此課程');
     if (enrollment.type !== 'full') throw new Error('單堂報名不支援轉讓申請');
