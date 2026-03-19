@@ -157,7 +157,8 @@ export function MembersClient({ members }: MembersClientProps) {
                         return (
                             <Card
                                 key={member.id}
-                                className="border-muted/40 bg-card hover:bg-muted/10 transition-colors group"
+                                className="border-muted/40 bg-card hover:bg-muted/10 transition-colors group cursor-pointer active:scale-[0.98]"
+                                onClick={() => openEdit(member)}
                             >
                                 <CardContent className="p-4 flex items-center gap-4">
                                     {/* Avatar / Role Icon */}
@@ -201,15 +202,6 @@ export function MembersClient({ members }: MembersClientProps) {
                                         )}
                                     </div>
 
-                                    {/* Edit Button */}
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-9 w-9 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        onClick={() => openEdit(member)}
-                                    >
-                                        <Edit2 className="h-4 w-4" />
-                                    </Button>
                                 </CardContent>
                             </Card>
                         );
