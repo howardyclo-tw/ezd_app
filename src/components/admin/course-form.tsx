@@ -320,8 +320,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                 })}
                 className="space-y-6"
             >
-                {/* Header - Desktop & Mobile consistency */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-10 bg-background/80 backdrop-blur-md py-4 border-b">
+                {/* Header - Sticky below main nav */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-14 z-40 bg-background/95 backdrop-blur-md py-4 border-b">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-black shrink-0 shadow-sm border border-muted/20">
                             {isEdit ? <PencilLine className="h-5 w-5" /> : <PlusCircle className="h-5 w-5" />}
@@ -348,7 +348,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                             ) : (
                                 !isEdit && <Plus className="mr-2 h-4 w-4" />
                             )}
-                            {isEdit ? '儲存變更' : '建立課程'}
+                            {isEdit ? '完成' : '完成'}
                         </Button>
                     </div>
                 </div>
@@ -777,20 +777,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                     </Card>
                 </div>
 
-                {/* Mobile Bottom Actions (Static) */}
-                <div className="flex sm:hidden gap-3 mt-8 pb-4">
-                    <Button variant="outline" type="button" onClick={() => router.back()} className="flex-1 font-bold text-sm h-11 border-muted">
-                        取消
-                    </Button>
-                    <Button type="submit" className="flex-1 font-bold text-sm h-11" disabled={isSubmitting}>
-                        {isSubmitting ? (
-                            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        ) : (
-                            <Save className="mr-2 h-4 w-4" />
-                        )}
-                        {isSubmitting ? '儲存中...' : '儲存課程'}
-                    </Button>
-                </div>
+
             </form>
             <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
                 <DialogContent className="sm:max-w-[425px]">
