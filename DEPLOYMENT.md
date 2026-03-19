@@ -62,4 +62,5 @@ All routes are properly configured:
 - Protected routes require authentication
 - Mobile navigation is hidden on desktop (md breakpoint and above)
 - All environment variables must be set in Vercel dashboard
+- Project is configured to deploy to `hnd1` (Haneda, Tokyo) for proximity to Supabase.
 
