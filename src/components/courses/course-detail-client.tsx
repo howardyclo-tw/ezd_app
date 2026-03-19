@@ -33,7 +33,7 @@ import { format, parseISO } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import Link from 'next/link';
 import { SessionEnrollmentDialog } from "@/components/courses/session-enrollment-dialog";
-import { saveAttendance, assignCourseLeader, removeCourseLeader, submitLeaveRequest, submitTransferRequest, getTransferCandidates } from '@/lib/supabase/actions';
+import { saveAttendance, assignCourseLeader, removeCourseLeader, submitLeaveRequest, submitTransferRequest, getTransferCandidates, cancelEnrollment } from '@/lib/supabase/actions';
 import {
     Dialog,
     DialogContent,
@@ -199,6 +199,17 @@ export function CourseDetailClient({
             }
         });
     };
+    const handleCancelEnrollment = async () => {
+        startTransition(async () => {
+            try {
+                const res = await cancelEnrollment(course.id);
+                alert(res.message);
+                router.refresh();
+            } catch (err) {
+                alert(err instanceof Error ? err.message : '操作失敗');
+            }
+        });
+    };
 
     const [focusedSessionId, setFocusedSessionId] = useState<string | null>(() => {
         const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -350,22 +361,49 @@ export function CourseDetailClient({
 
     // Save attendance
     const handleSave = () => {
-        if (!focusedSessionId) return;
+        // Find all sessions that have attendance modifications
+        const sessionsToSave = new Set<string>();
+        for (const student of roster) {
+            for (const session of sessions) {
+                const initialStatus = student.attendance[session.id] ?? 'unmarked';
+                const currentStatus = attendanceState[student.id]?.[session.id] ?? 'unmarked';
+                if (initialStatus !== currentStatus) {
+                    sessionsToSave.add(session.id);
+                }
+            }
+        }
 
-        // Only save records that are NOT protected (leave, transfer_out)
-        const records = roster
-            .filter(s => {
-                const origType = getOriginalType(s.id, focusedSessionId);
-                return origType !== 'leave' && origType !== 'transfer_out';
-            })
-            .map(s => ({
-                userId: s.id,
-                status: attendanceState[s.id]?.[focusedSessionId] ?? 'unmarked',
-            }));
+        // If no changes, still save focusedSessionId as fallback to initialize them if necessary
+        if (sessionsToSave.size === 0 && focusedSessionId) {
+            sessionsToSave.add(focusedSessionId);
+        } else if (sessionsToSave.size === 0) {
+            setIsEditing(false);
+            return;
+        }
 
         startTransition(async () => {
-            await saveAttendance(focusedSessionId, records);
-            setIsEditing(false);
+            try {
+                const promises = Array.from(sessionsToSave).map(sessionId => {
+                    // Only save records that are NOT protected (leave, transfer_out)
+                    const records = roster
+                        .filter(s => {
+                            const origType = getOriginalType(s.id, sessionId);
+                            return origType !== 'leave' && origType !== 'transfer_out';
+                        })
+                        .map(s => ({
+                            userId: s.id,
+                            status: attendanceState[s.id]?.[sessionId] ?? 'unmarked',
+                        }));
+
+                    return saveAttendance(sessionId, records);
+                });
+
+                await Promise.all(promises);
+                router.refresh();
+                setIsEditing(false);
+            } catch (err) {
+                alert(err instanceof Error ? err.message : '操作失敗');
+            }
         });
     };
 
@@ -563,7 +601,7 @@ export function CourseDetailClient({
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>返回</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleCancel} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                            <AlertDialogAction onClick={handleCancelEnrollment} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                                 {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                                                 確認取消
                                             </AlertDialogAction>
@@ -899,10 +937,13 @@ export function CourseDetailClient({
                                     </td>
                                 </tr>
                                 {additionalStudents.filter(s => {
-                                    const currentStatus = attendanceState[s.id]?.[focusedSessionId || ''];
-                                    const initialStatus = roster.find(r => r.id === s.id)?.attendance[focusedSessionId || ''] ?? 'unmarked';
-                                    // Stay visible if they started with a status OR currently have one
-                                    return (currentStatus && currentStatus !== 'unmarked') || (initialStatus && initialStatus !== 'unmarked');
+                                    // Stay visible if they have a status in ANY session (initial or current)
+                                    const hasAnyStatus = sessions.some(session => {
+                                        const current = attendanceState[s.id]?.[session.id];
+                                        const initial = roster.find(r => r.id === s.id)?.attendance[session.id] ?? 'unmarked';
+                                        return (current && current !== 'unmarked') || (initial && initial !== 'unmarked');
+                                    });
+                                    return hasAnyStatus;
                                 }).length === 0 ? (
                                     <tr className="border-b border-muted/20">
                                         <td colSpan={sessions.length + 1} className="py-8 text-center text-xs text-muted-foreground italic">該堂無加報學員</td>
@@ -910,9 +951,13 @@ export function CourseDetailClient({
                                 ) : (
                                     additionalStudents
                                         .filter(s => {
-                                            const currentStatus = attendanceState[s.id]?.[focusedSessionId || ''];
-                                            const initialStatus = roster.find(r => r.id === s.id)?.attendance[focusedSessionId || ''] ?? 'unmarked';
-                                            return (currentStatus && currentStatus !== 'unmarked') || (initialStatus && initialStatus !== 'unmarked');
+                                            // Stay visible if they have a status in ANY session (initial or current)
+                                            const hasAnyStatus = sessions.some(session => {
+                                                const current = attendanceState[s.id]?.[session.id];
+                                                const initial = roster.find(r => r.id === s.id)?.attendance[session.id] ?? 'unmarked';
+                                                return (current && current !== 'unmarked') || (initial && initial !== 'unmarked');
+                                            });
+                                            return hasAnyStatus;
                                         })
                                         .map((student) => (
                                             <tr key={student.id} className="border-b border-muted/10 hover:bg-white/[0.02] transition-colors group">
