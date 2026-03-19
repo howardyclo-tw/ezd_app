@@ -72,30 +72,6 @@ export function EnrollmentButton({
                     <Check className="h-4 w-4 shrink-0" />
                     <span className="text-sm font-bold">已報名</span>
                 </div>
-
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:bg-transparent hover:text-destructive font-medium justify-center transition-colors">
-                            <UserMinus className="h-3.5 w-3.5 mr-1" />
-                            取消報名
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>確認取消報名？</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                取消後你的名額將釋出給候補學員。
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>返回</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleCancel} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                確認取消
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
             </div>
         );
     }

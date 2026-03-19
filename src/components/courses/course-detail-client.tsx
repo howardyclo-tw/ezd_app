@@ -606,29 +606,6 @@ export function CourseDetailClient({
                                     <Check className="h-4 w-4 shrink-0" />
                                     <span className="text-sm font-bold">已報名全堂</span>
                                 </div>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:bg-transparent hover:text-destructive font-medium justify-center transition-colors">
-                                            <UserMinus className="h-3.5 w-3.5 mr-1" />
-                                            取消報名
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>確認取消報名？</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                取消後你的名額將釋出給候補學員。
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>返回</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleCancelEnrollment} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                                {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                                確認取消
-                                            </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
                             </div>
                         ) : userEnrollment.enrollmentStatus.isWaitlisted ? (
                             <div className="flex flex-col items-stretch gap-2">
@@ -967,20 +944,18 @@ export function CourseDetailClient({
                                 </tr>
                                 {(() => {
                                     const filteredAdditionalList = additionalStudents.filter(student => {
-                                        // If a session is focused, only show those relevant to THIS session
+                                        // If a session is focused, strictly show those relevant to THIS session
                                         if (focusedSessionId) {
                                             const current = attendanceState[student.id]?.[focusedSessionId];
-                                            const initial = roster.find(r => r.id === student.id)?.attendance[focusedSessionId] ?? 'unmarked';
                                             const isEnrolledInSession = student.enrolledSessionIds?.includes(focusedSessionId);
-                                            return (current && current !== 'unmarked') || (initial && initial !== 'unmarked') || isEnrolledInSession;
+                                            return (current && current !== 'unmarked') || isEnrolledInSession;
                                         }
 
-                                        // Fallback: stay visible if they have a status in ANY session OR an enrollment record for ONE session
+                                        // Fallback: stay visible if they have a status in ANY session (should not happen in focused mode)
                                         return sessions.some(session => {
                                             const current = attendanceState[student.id]?.[session.id];
-                                            const initial = roster.find(r => r.id === student.id)?.attendance[session.id] ?? 'unmarked';
                                             const isEnrolledInSession = student.enrolledSessionIds?.includes(session.id);
-                                            return (current && current !== 'unmarked') || (initial && initial !== 'unmarked') || isEnrolledInSession;
+                                            return (current && current !== 'unmarked') || isEnrolledInSession;
                                         });
                                     });
 

@@ -1194,18 +1194,28 @@ export async function getTransferCandidates(
         position: w.waitlist_position ?? 0,
     })).filter((w: any) => w.id && w.id !== user.id);
 
-    // 2. Get all active members (exclude self)
+    // 2. Get all profiles (exclude self and ALREADY ENROLLED students)
+    const { data: enrolledData } = await supabase
+        .from('enrollments')
+        .select('user_id')
+        .eq('course_id', courseId)
+        .eq('status', 'enrolled');
+    
+    const enrolledIds = new Set((enrolledData ?? []).map(e => e.user_id));
+    enrolledIds.add(user.id);
+
     const { data: membersData } = await supabase
         .from('profiles')
         .select('id, name, role')
-        .neq('id', user.id)
         .order('name');
 
-    const allMembers = (membersData ?? []).map((m: any) => ({
-        id: m.id,
-        name: m.name ?? '未知',
-        role: m.role ?? 'guest',
-    }));
+    const allMembers = (membersData ?? [])
+        .filter(m => !enrolledIds.has(m.id))
+        .map((m: any) => ({
+            id: m.id,
+            name: m.name ?? '未知',
+            role: m.role ?? 'guest',
+        }));
 
     return { waitlist, allMembers };
 }
@@ -1264,13 +1274,29 @@ export async function submitTransferRequest(
         if (usedMakeup + usedTransfer >= totalQuota) {
             return { success: false, message: `補課/轉讓額度已用完（${usedMakeup + usedTransfer}/${totalQuota}）` };
         }
+    }
 
-        // Rule: Only member to member transfer for regular courses
-        if (toUserId) {
+    if (toUserId) {
+        if (courseMeta?.type === 'normal' || courseMeta?.type === 'special') {
             const { data: toProfile } = await supabase.from('profiles').select('role').eq('id', toUserId).maybeSingle();
             if (toProfile?.role === 'guest') {
                 return { success: false, message: '常態課程僅限社員之間互相轉讓' };
             }
+        }
+
+        // Guard: Prevent transfer to a user who is already fully enrolled, or already enrolled in this session
+        const { data: targetEnrollments } = await supabase
+            .from('enrollments')
+            .select('type, session_id')
+            .eq('course_id', courseId)
+            .eq('user_id', toUserId)
+            .eq('status', 'enrolled');
+
+        if (targetEnrollments && targetEnrollments.length > 0) {
+            const hasFull = targetEnrollments.some(e => e.type === 'full');
+            const hasSingleSelected = targetEnrollments.some(e => e.type === 'single' && e.session_id === sessionId);
+            if (hasFull) throw new Error('對方已是本班全期學員，無法轉讓');
+            if (hasSingleSelected) throw new Error('對方已單堂報名此堂課，無法再次轉入');
         }
     }
 

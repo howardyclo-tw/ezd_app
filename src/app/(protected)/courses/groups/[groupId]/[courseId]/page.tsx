@@ -153,13 +153,13 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         if (isEnrolled) {
             enrolledUserIds.add(userId);
             const p = userEnrollments[0].profiles;
+            const hasFull = hasFullEnrolled;
             enrollmentRoster.push({
                 id: p.id,
                 name: p.name,
                 role: p.role,
                 isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === p.id),
-                // Categorize: full-term is official, only single-term is additional
-                type: hasFullEnrolled ? 'official' : 'additional',
+                type: hasFull ? 'official' : 'additional',
                 attendance: attendanceMap[p.id] ?? {},
                 enrolledSessionIds: userEnrollments.filter(e => e.status === 'enrolled').map(e => e.session_id).filter(Boolean),
             });
@@ -169,25 +169,26 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     // 2. Find ANYONE ELSE who has an attendance record but is not in the enrollment roster (Makeup/Transfer)
     const otherAttendanceUserIds = Object.keys(attendanceMap).filter(id => !enrolledUserIds.has(id));
 
-    let additionalRoster: any[] = [];
+    let additionalOnlyRoster: any[] = [];
     if (otherAttendanceUserIds.length > 0) {
         const { data: additionalProfiles } = await supabase
             .from('profiles')
             .select('id, name, role')
             .in('id', otherAttendanceUserIds);
 
-        additionalRoster = (additionalProfiles ?? []).map(p => ({
+        additionalOnlyRoster = (additionalProfiles ?? []).map(p => ({
             id: p.id,
             name: p.name,
             role: p.role,
             isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === p.id),
-            type: 'additional' as const,
+            type: 'additional',
             attendance: attendanceMap[p.id] ?? {},
+            enrolledSessionIds: [],
         }));
     }
 
     // Combined Roster
-    const rosterWithAttendance = [...enrollmentRoster, ...additionalRoster];
+    const rosterWithAttendance = [...enrollmentRoster, ...additionalOnlyRoster];
 
     // Fetch transfer metadata for detailed labels (names)
     const { data: transfers } = await supabase
