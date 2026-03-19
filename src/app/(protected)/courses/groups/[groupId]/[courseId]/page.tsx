@@ -56,39 +56,49 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         // Actually, better to just check the slug of the group as well if we want total strictness.
     }
 
-    // Fetch enrolled count
-    const { count: enrolledCount } = await supabase
-        .from('enrollments')
-        .select('*', { count: 'exact', head: true })
-        .eq('course_id', course.id)
-        .eq('status', 'enrolled');
+    // Fetch all independent data in parallel using the resolved course.id
+    const [
+        { count: enrolledCount },
+        { data: enrollment },
+        { data: userProfileWithCardBalance },
+        missedSessions,
+        { data: roster },
+    ] = await Promise.all([
+        // 1. Enrolled count
+        supabase
+            .from('enrollments')
+            .select('*', { count: 'exact', head: true })
+            .eq('course_id', course.id)
+            .eq('status', 'enrolled'),
 
-    // Fetch user status and profile (for card balance)
-    const { data: enrollment } = await supabase
-        .from('enrollments')
-        .select('*')
-        .eq('course_id', course.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
+        // 2. Current user enrollment status
+        supabase
+            .from('enrollments')
+            .select('*')
+            .eq('course_id', course.id)
+            .eq('user_id', user.id)
+            .maybeSingle(),
 
-    const { data: userProfileWithCardBalance } = await supabase
-        .from('profiles')
-        .select('card_balance')
-        .eq('id', user.id)
-        .maybeSingle();
+        // 3. Current user card balance
+        supabase
+            .from('profiles')
+            .select('card_balance')
+            .eq('id', user.id)
+            .maybeSingle(),
 
-    // Fetch missed sessions available for makeup
-    const missedSessions = await getAvailableMakeupQuotaSessions(user.id);
+        // 4. Available makeup sessions
+        getAvailableMakeupQuotaSessions(user.id),
 
-    // Fetch roster: include both enrolled and waitlisted students
-    const { data: roster } = await supabase
-        .from('enrollments')
-        .select('*, profiles ( id, name, role )')
-        .eq('course_id', course.id)
-        .in('status', ['enrolled', 'waitlist'])
-        .order('enrolled_at');
+        // 5. Roster (enrolled + waitlisted)
+        supabase
+            .from('enrollments')
+            .select('*, profiles ( id, name, role )')
+            .eq('course_id', course.id)
+            .in('status', ['enrolled', 'waitlist'])
+            .order('enrolled_at'),
+    ]);
 
-    // Fetch all attendance records for this course's sessions
+    // Attendance records — depends on course.course_sessions being resolved
     const sessionIds = (course.course_sessions as any[]).map((s: any) => s.id);
     let attendanceRecords: any[] = [];
     if (sessionIds.length > 0) {

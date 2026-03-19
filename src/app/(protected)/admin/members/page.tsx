@@ -22,19 +22,20 @@ export default async function AdminMembersPage() {
         redirect('/dashboard');
     }
 
-    // Fetch all profiles
-    const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, name, employee_id, role, member_valid_until, card_balance')
-        .order('name', { ascending: true });
+    // Fetch profiles and leader data in parallel
+    const [
+        { data: profiles },
+        { data: leaderData },
+    ] = await Promise.all([
+        supabase
+            .from('profiles')
+            .select('id, name, employee_id, role, member_valid_until, card_balance')
+            .order('name', { ascending: true }),
 
-    // Fetch all course leaders with course info
-    const { data: leaderData } = await supabase
-        .from('course_leaders')
-        .select(`
-            user_id,
-            courses ( name, course_groups ( title ) )
-        `);
+        supabase
+            .from('course_leaders')
+            .select(`user_id, courses ( name, course_groups ( title ) )`),
+    ]);
 
     // Build leader map: user_id -> [ { courseName, groupTitle } ]
     const leaderMap = new Map<string, { courseName: string; groupTitle: string }[]>();

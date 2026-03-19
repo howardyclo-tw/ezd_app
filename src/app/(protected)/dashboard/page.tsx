@@ -57,65 +57,64 @@ export default async function DashboardPage() {
   const isLeader = userRole === 'leader';
   const isLeaderOrAdmin = isAdmin || isLeader;
 
-  // 1. Fetch upcoming courses count (Synchronized with My Courses page logic)
+  // All independent queries run in parallel after we have user + role
   const today = format(new Date(), 'yyyy-MM-dd');
-  const { data: myEnrollments } = await supabase
-    .from('enrollments')
-    .select(`
-      courses (
-        course_sessions ( session_date )
-      )
-    `)
-    .eq('user_id', user.id)
-    .in('status', ['enrolled', 'waitlist']);
+
+  const [
+    { data: myEnrollments },
+    { data: allMissed },
+    availableMissedSessions,
+    { count: pendingOrdersCount },
+    { data: todaySessions },
+    { count: pendingFinanceCount },
+  ] = await Promise.all([
+    // 1. Upcoming enrolled sessions
+    supabase
+      .from('enrollments')
+      .select(`courses ( course_sessions ( session_date ) )`)
+      .eq('user_id', user.id)
+      .in('status', ['enrolled', 'waitlist']),
+
+    // 2. Missed attendance for makeup quota
+    supabase
+      .from('attendance_records')
+      .select('session_id')
+      .eq('user_id', user.id)
+      .in('status', ['absent', 'leave']),
+
+    // 3. Available makeup sessions (custom query helper)
+    getAvailableMakeupQuotaSessions(user.id),
+
+    // 4. Pending card orders
+    supabase
+      .from('card_orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'remitted']),
+
+    // 5. Today's sessions for rollcall badge
+    supabase
+      .from('course_sessions')
+      .select(`id, courses!inner ( course_leaders!inner ( user_id ) )`)
+      .eq('session_date', today),
+
+    // 6. Pending finance count (admin only)
+    isAdmin
+      ? supabase.from('card_orders').select('id', { count: 'exact', head: true }).in('status', ['pending', 'remitted'])
+      : Promise.resolve({ count: 0 }),
+  ]);
 
   const upcomingSessionsCount = (myEnrollments ?? []).flatMap((enrollment: any) =>
     (enrollment.courses?.course_sessions ?? []).filter((s: any) => s.session_date >= today)
   ).length;
 
-  // 2. Fetch makeup quota stats
-  const { data: allMissed } = await supabase
-    .from('attendance_records')
-    .select('session_id')
-    .eq('user_id', user.id)
-    .in('status', ['absent', 'leave']);
-
   const totalMissedCount = allMissed?.length || 0;
-  const availableMissedSessions = await getAvailableMakeupQuotaSessions(user.id);
-  const availableMakeupQuotaCount = availableMissedSessions.length;
-
-  // 3. Fetch pending card orders
-  const { count: pendingOrdersCount } = await supabase
-    .from('card_orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .in('status', ['pending', 'remitted']);
-
-  // 4. Fetch leader stats (Today's Rollcall)
-  const { data: todaySessions } = await supabase
-    .from('course_sessions')
-    .select(`
-      id,
-      courses!inner (
-        course_leaders!inner ( user_id )
-      )
-    `)
-    .eq('session_date', today);
+  const availableMakeupQuotaCount = (availableMissedSessions as any[]).length;
 
   const myTodaySessionsCount = (todaySessions ?? []).filter((s: any) => {
     if (isAdmin) return true;
     return s.courses.course_leaders.some((l: any) => l.user_id === user.id);
   }).length;
-
-  // 5. Fetch application pending counts
-  const { count: pendingLeaves } = await supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-  const { count: pendingMakeups } = await supabase.from('makeup_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-  const { count: pendingTransfers } = await supabase.from('transfer_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-
-  // 6. Fetch pending card orders (only relevant for admin/finance)
-  const { count: pendingFinanceCount } = isAdmin
-    ? await supabase.from('card_orders').select('id', { count: 'exact', head: true }).in('status', ['pending', 'remitted'])
-    : { count: 0 };
 
   const totalPendingAppsCount = pendingFinanceCount || 0;
 

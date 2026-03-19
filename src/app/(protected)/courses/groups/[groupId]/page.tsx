@@ -68,25 +68,31 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
         redirect(`/courses/groups/${groupData.slug}`);
     }
 
-    // Fetch courses in this group
-    const { data: courses } = await supabase
-        .from('courses')
-        .select(`
-            *,
-            course_sessions ( id, session_date, session_number ),
-            enrollments ( count ),
-            course_leaders ( user_id, profiles!course_leaders_user_id_fkey ( id, name ) )
-        `)
-        .eq('group_id', groupData.id)
-        .order('start_time');
+    // Fetch courses, user enrollments in parallel (both depend on groupData.id)
+    const [
+        { data: courses },
+        { data: userEnrollments },
+    ] = await Promise.all([
+        // Courses in this group
+        supabase
+            .from('courses')
+            .select(`
+                *,
+                course_sessions ( id, session_date, session_number ),
+                enrollments ( count ),
+                course_leaders ( user_id, profiles!course_leaders_user_id_fkey ( id, name ) )
+            `)
+            .eq('group_id', groupData.id)
+            .order('start_time'),
 
-    // Fetch user's existing enrollments for this group (to disable in dialog)
-    const { data: userEnrollments } = await supabase
-        .from('enrollments')
-        .select('course_id')
-        .eq('user_id', user.id)
-        .eq('status', 'enrolled')
-        .eq('type', 'full');
+        // User's existing enrollments for this group (to disable in dialog)
+        supabase
+            .from('enrollments')
+            .select('course_id')
+            .eq('user_id', user.id)
+            .eq('status', 'enrolled')
+            .eq('type', 'full'),
+    ]);
 
     // Infer period from group data
     const inferredPeriod = groupData.period_start && groupData.period_end
