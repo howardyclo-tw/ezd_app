@@ -62,12 +62,28 @@ export default async function CourseGroupsPage() {
         const courses = (g.courses as any[]) ?? [];
         const firstCourse = courses[0];
 
+        let periodDisplay = g.period_start && g.period_end
+            ? `${g.period_start.replace(/-/g, '/')}~${g.period_end.replace(/-/g, '/')}`
+            : '日期未定';
+
+        if (!g.period_start || !g.period_end) {
+            const allSessionDates = courses
+                .flatMap(c => (c.course_sessions as any[]) ?? [])
+                .map(s => s.session_date)
+                .filter(Boolean)
+                .sort();
+            
+            if (allSessionDates.length > 0) {
+                const start = allSessionDates[0].replace(/-/g, '/');
+                const end = allSessionDates[allSessionDates.length - 1].replace(/-/g, '/');
+                periodDisplay = `${start}~${end}`;
+            }
+        }
+
         return {
             id: g.slug || g.id,
             title: g.title,
-            period: g.period_start && g.period_end
-                ? `${g.period_start.replace(/-/g, '/')}~${g.period_end.replace(/-/g, '/')}`
-                : '日期未定',
+            period: periodDisplay,
             status: getGroupStatus(g.period_start, g.period_end),
             courseCount: courses.length,
             courses: courses.map(course => ({

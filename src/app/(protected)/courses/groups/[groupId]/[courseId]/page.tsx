@@ -63,6 +63,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         { data: userProfileWithCardBalance },
         missedSessions,
         { data: roster },
+        { data: makeupsArriving },
+        { data: transfersArriving },
     ] = await Promise.all([
         // 1. Enrolled count
         supabase
@@ -95,6 +97,21 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             .eq('course_id', course.id)
             .in('status', ['enrolled', 'waitlist'])
             .order('enrolled_at'),
+
+        // 6. Makeup students arriving in this course
+        supabase
+            .from('makeup_requests')
+            .select('*, profiles:user_id ( id, name, role )')
+            .eq('target_course_id', course.id)
+            .eq('status', 'approved'),
+        
+        // 7. Transfer students arriving in this course
+        supabase
+            .from('transfer_requests')
+            .select('*, profiles:to_user_id ( id, name, role )')
+            .eq('course_id', course.id)
+            .eq('status', 'approved')
+            .not('to_user_id', 'is', null),
     ]);
 
     // Attendance records — depends on course.course_sessions being resolved
@@ -107,6 +124,32 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             .in('session_id', sessionIds);
         attendanceRecords = attendance ?? [];
     }
+
+    // Build attendance map: { [userId]: { [sessionId]: status } }
+    const attendanceMap: Record<string, Record<string, string>> = {};
+    for (const record of attendanceRecords) {
+        if (!attendanceMap[record.user_id]) attendanceMap[record.user_id] = {};
+        attendanceMap[record.user_id][record.session_id] = record.status;
+    }
+
+    // Track which sessions and users are involved from Makeup/Transfer
+    const externalParticipantsMap: Record<string, { profile: any; sessions: string[] }> = {};
+    (makeupsArriving ?? []).forEach(m => {
+        if (!m.profiles) return;
+        const p = m.profiles as any;
+        if (!externalParticipantsMap[p.id]) {
+            externalParticipantsMap[p.id] = { profile: p, sessions: [] };
+        }
+        externalParticipantsMap[p.id].sessions.push(m.target_session_id);
+    });
+    (transfersArriving ?? []).forEach(t => {
+        if (!t.profiles) return;
+        const p = t.profiles as any;
+        if (!externalParticipantsMap[p.id]) {
+            externalParticipantsMap[p.id] = { profile: p, sessions: [] };
+        }
+        externalParticipantsMap[p.id].sessions.push(t.session_id);
+    });
 
     // Check if current user is a leader of this course
     const isLeaderOfCourse = (course.course_leaders as any[]).some(
@@ -124,15 +167,6 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     const leaders = (course.course_leaders as any[]).map(
         (cl: any) => cl.profiles?.name ?? '未知'
     );
-
-    // Build attendance map: { [userId]: { [sessionId]: status } }
-    const attendanceMap: Record<string, Record<string, string>> = {};
-    for (const record of attendanceRecords) {
-        if (!attendanceMap[record.user_id]) {
-            attendanceMap[record.user_id] = {};
-        }
-        attendanceMap[record.user_id][record.session_id] = record.status;
-    }
 
     // Group enrollments by user to handle multiple single-session enrollments
     const enrollmentsByUser: Record<string, any[]> = {};
@@ -166,25 +200,35 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         }
     });
 
-    // 2. Find ANYONE ELSE who has an attendance record but is not in the enrollment roster (Makeup/Transfer)
-    const otherAttendanceUserIds = Object.keys(attendanceMap).filter(id => !enrolledUserIds.has(id));
+    // 2. Find ANYONE ELSE who has an attendance record or makeup/transfer intent
+    const otherParticipantUserIds = Array.from(new Set([
+        ...Object.keys(attendanceMap),
+        ...Object.keys(externalParticipantsMap)
+    ])).filter(id => !enrolledUserIds.has(id));
 
     let additionalOnlyRoster: any[] = [];
-    if (otherAttendanceUserIds.length > 0) {
+    if (otherParticipantUserIds.length > 0) {
         const { data: additionalProfiles } = await supabase
             .from('profiles')
             .select('id, name, role')
-            .in('id', otherAttendanceUserIds);
+            .in('id', otherParticipantUserIds);
 
-        additionalOnlyRoster = (additionalProfiles ?? []).map(p => ({
-            id: p.id,
-            name: p.name,
-            role: p.role,
-            isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === p.id),
-            type: 'additional',
-            attendance: attendanceMap[p.id] ?? {},
-            enrolledSessionIds: [],
-        }));
+        additionalOnlyRoster = (additionalProfiles ?? []).map(p => {
+            const externalSessions = externalParticipantsMap[p.id]?.sessions || [];
+            // CRITICAL: Also include ALL sessions where this user has attendance records
+            // This prevents students from disappearing when their status is set to 'unmarked'
+            const attendanceSessions = Object.keys(attendanceMap[p.id] ?? {});
+            const allSessions = Array.from(new Set([...externalSessions, ...attendanceSessions]));
+            return {
+                id: p.id,
+                name: p.name,
+                role: p.role,
+                isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === p.id),
+                type: 'additional',
+                attendance: attendanceMap[p.id] ?? {},
+                enrolledSessionIds: allSessions,
+            };
+        });
     }
 
     // Combined Roster
@@ -240,7 +284,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             userEnrollment={{
                 userId: user.id,
                 enrollmentStatus: {
-                    isEnrolled: (enrollment as any[] || []).some(e => e.status === 'enrolled'),
+                    // isEnrolled is true if in enrollment table OR happens to have any attendance record (makeup/transfer)
+                    isEnrolled: (enrollment as any[] || []).some(e => e.status === 'enrolled') || !!attendanceMap[user.id],
                     isFullEnrolled: (enrollment as any[] || []).some(e => e.status === 'enrolled' && e.type === 'full'),
                     isWaitlisted: (enrollment as any[] || []).some(e => e.status === 'waitlist'),
                     waitlistPosition: (enrollment as any[] || []).find(e => e.status === 'waitlist')?.waitlist_position ?? undefined,

@@ -306,16 +306,9 @@ export function CourseDetailClient({
         }
     };
 
-    const filteredMembers = transferCandidates.allMembers.filter(m => {
-        const matchesSearch = m.name.toLowerCase().includes(transferSearch.toLowerCase());
-        const isRegularCourse = course.type === 'normal' || course.type === 'special';
-        const isMember = m.role !== 'guest';
-        
-        if (isRegularCourse) {
-            return matchesSearch && isMember;
-        }
-        return matchesSearch;
-    });
+    const filteredMembers = transferCandidates.allMembers.filter(m => 
+        m.name.toLowerCase().includes(transferSearch.toLowerCase())
+    );
 
     // Helper: determine the "original type" of a student for a session
     // Uses transferMetadata (from transfer_requests table) as authoritative source
@@ -453,7 +446,7 @@ export function CourseDetailClient({
             typeLabel = meta ? `轉讓 ${meta.toName}` : "轉讓";
         } else if (origType === 'transfer_in') {
             const meta = transferMetadata[sessionId]?.[studentId];
-            typeLabel = meta ? `${meta.fromName} 轉讓` : "轉入";
+            typeLabel = meta ? `${meta.fromName} 轉入` : "轉入";
         } else if (origType === 'makeup') {
             typeLabel = "補";
         } else if (origType === 'single') {
@@ -467,14 +460,15 @@ export function CourseDetailClient({
             if (status === 'absent') return "text-rose-500";
             if (status === 'leave') return "text-blue-500";
             if (status === 'transfer_out') return "text-purple-400";
-            return "text-white/70";
+            // For transfer_in/makeup/single, use standard muted color
+            return "text-white/40";
         };
 
         return (
             <div
                 onClick={canEdit ? () => toggleAttendance(studentId, sessionId) : undefined}
                 className={cn(
-                    "w-full h-full flex flex-col items-center justify-center transition-all duration-200 relative",
+                    "w-full h-full flex flex-col items-center justify-center transition-all duration-200 relative px-1",
                     status === 'present' ? "bg-emerald-500/20" :
                         status === 'absent' ? "bg-rose-500/20" :
                             (status === 'leave' || origType === 'leave') ? "bg-blue-500/20" :
@@ -485,30 +479,29 @@ export function CourseDetailClient({
                 {/* Main Content */}
                 {status === 'unmarked' ? (
                     typeLabel ? (
-                        <span className="text-xs font-bold text-white/40">{typeLabel}</span>
+                        <span className="text-[10px] font-bold text-white/40 text-center leading-tight">{typeLabel}</span>
                     ) : (
                         origType === 'none' ? null : <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
                     )
                 ) : (
-                    <div className="flex flex-col items-center justify-center gap-0.5">
+                    <div className="flex flex-col items-center justify-center gap-0.5 w-full">
                         <span className={cn(
                             "text-xs font-bold px-1 text-center leading-none",
                             status === 'present' ? "text-emerald-500 font-black" :
                                 status === 'absent' ? "text-rose-500 font-black" :
                                     status === 'leave' ? "text-blue-500 font-black" :
-                                        status === 'transfer_out' ? "text-purple-400" :
-                                            (status === 'transfer_in' || status === 'makeup') ? "text-white/40" : "text-white/40"
+                                        status === 'transfer_out' ? "text-purple-400" : "text-white/40"
                         )}>
                             {status === 'present' ? <Check className="h-4 w-4 stroke-[4px]" /> :
                                 status === 'absent' ? <X className="h-4 w-4 stroke-[4px]" /> :
                                     status === 'leave' ? "請假" :
-                                        (status === 'transfer_out' || status === 'transfer_in' || status === 'makeup') ? typeLabel :
+                                        (status === 'transfer_out' || origType === 'transfer_in' || status === 'makeup' || origType === 'single') ? typeLabel :
                                             <div className="w-1.5 h-1.5 rounded-full bg-white/10" />}
                         </span>
 
-                        {/* Sub-label for marked cells (Additional students only) */}
+                        {/* Sub-label for marked cells (Additional students only) - show for present/absent states */}
                         {typeLabel && (status === 'present' || status === 'absent') && (
-                            <span className={cn("text-[8px] font-black leading-none", getLabelColor())}>
+                            <span className={cn("text-[8px] font-black leading-tight text-center", getLabelColor())}>
                                 {typeLabel}
                             </span>
                         )}
@@ -653,28 +646,50 @@ export function CourseDetailClient({
             </div>
 
             {/* Block 2: My Attendance Progress (Leave/Transfer) */}
-            {userEnrollment.enrollmentStatus.isFullEnrolled && (
+            {userEnrollment.enrollmentStatus.isEnrolled && (
                 <div className="pt-5 pb-3 bg-muted/20 border border-muted/50 rounded-2xl space-y-4">
                     <div className="px-5 flex items-center justify-between">
                         <div className="flex flex-col gap-1">
                             <h3 className="text-sm font-bold flex items-center gap-2 text-foreground/90">
                                 <CalendarIcon className="h-4 w-4 text-primary" />
-                                請假/轉讓
+                                我的出席
                             </h3>
-                            {(course.type === 'normal' || course.type === 'special') && (() => {
-                                const myAttendanceRecord = roster.find(s => s.id === userEnrollment.userId)?.attendance || {};
-                                const usedTransfers = Object.values(myAttendanceRecord).filter(v => v === 'transfer_out').length;
+                            {(() => {
+                                const myRecord = roster.find(s => s.id === userEnrollment.userId);
+                                const myAttendanceRecord = myRecord?.attendance || {};
                                 const usedMakeups = Object.values(myAttendanceRecord).filter(v => v === 'makeup').length;
+                                const usedTransfers = Object.values(myAttendanceRecord).filter(v => v === 'transfer_out').length;
                                 const totalUsed = usedTransfers + usedMakeups;
                                 const quota = Math.ceil(sessions.length / 4);
-                                return (
-                                    <p className="text-[11px] text-muted-foreground font-medium pl-6">
-                                        剩餘額度: <span className={cn("font-bold", totalUsed >= quota ? "text-rose-500" : "text-primary")}>{totalUsed}</span>/{quota} 次 (補課+轉讓)
-                                    </p>
-                                );
-                            })()}
+                                
+                                // Show quota ONLY for normal/special courses as workshop (專攻班) has no makeup/quota rules
+                                if (course.type === 'normal' || course.type === 'special') {
+                                    return (
+                                        <p className="text-[11px] text-muted-foreground font-medium pl-6">
+                                            剩餘額度: <span className={cn("font-bold", totalUsed >= quota ? "text-rose-500" : "text-primary")}>{totalUsed}</span>/{quota} 次 (補課+轉讓)
+                                        </p>
+                                    );
+                                }
+                                return null;
+                            })() }
                         </div>
-                        <span className="text-[11px] text-muted-foreground font-medium">共 {sessions.length} 堂課</span>
+                        {(() => {
+                            const myAttendanceRecord = roster.find(s => s.id === userEnrollment.userId)?.attendance || {};
+                            const sessionsWithAttendanceRecord = Object.keys(myAttendanceRecord);
+                            
+                            const enrolledSessions = sessions.filter(s => {
+                                if (userEnrollment.enrollmentStatus.isFullEnrolled) return true;
+                                const isSingleEnrolled = userEnrollment.enrollmentStatus.enrolledSessionIds?.includes(s.id);
+                                const hasAttendance = sessionsWithAttendanceRecord.includes(s.id);
+                                return isSingleEnrolled || hasAttendance;
+                            });
+                            
+                            return (
+                                <span className="text-[11px] text-muted-foreground font-medium">
+                                    報名 {enrolledSessions.length} 堂課
+                                </span>
+                            );
+                        })()}
                     </div>
 
                     {/* Horizontal Scrollable Slider - Outer wrapper provides the left/right margin */}
@@ -682,10 +697,14 @@ export function CourseDetailClient({
                         <div className="flex gap-4 overflow-x-auto pb-3 snap-x custom-scrollbar">
                             {sessions
                                 .filter(s => {
-                                    // If full enrolled, show all
                                     if (userEnrollment.enrollmentStatus.isFullEnrolled) return true;
-                                    // If single-session enrolled, only show those specific sessions
-                                    return userEnrollment.enrollmentStatus.enrolledSessionIds?.includes(s.id);
+                                    
+                                    const isSingleEnrolled = userEnrollment.enrollmentStatus.enrolledSessionIds?.includes(s.id);
+                                    
+                                    const myAttendanceRecord = roster.find(r => r.id === userEnrollment.userId)?.attendance || {};
+                                    const hasAttendance = Object.keys(myAttendanceRecord).includes(s.id);
+                                    
+                                    return isSingleEnrolled || hasAttendance;
                                 })
                                 .map((session) => {
                                 const myAttendance = roster.find(s => s.id === userEnrollment.userId)?.attendance?.[session.id] || 'unmarked';
@@ -694,17 +713,24 @@ export function CourseDetailClient({
                                 const sessionDate = parseISO(session.date);
 
                                 // Quota calculation for disabling buttons
-                                const myAttendanceRecord = roster.find(s => s.id === userEnrollment.userId)?.attendance || {};
+                                const myRecord = roster.find(s => s.id === userEnrollment.userId);
+                                const myType = myRecord?.type || 'additional';
+                                const isOfficial = myType === 'official';
+                                
+                                const myAttendanceRecord = myRecord?.attendance || {};
                                 const usedTransfers = Object.values(myAttendanceRecord).filter(v => v === 'transfer_out').length;
                                 const usedMakeups = Object.values(myAttendanceRecord).filter(v => v === 'makeup').length;
                                 const totalUsed = usedTransfers + usedMakeups;
                                 const quota = Math.ceil(sessions.length / 4);
 
-                                // Freeze logic: session in the past, or already has any status in DB (including present/absent)
-                                const isFrozen = isPast || myAttendance !== 'unmarked';
+                                // Freeze logic: session in the past, or already has any FINAL status in DB
+                                const isDetermined = ['present', 'absent', 'leave', 'transfer_out'].includes(myAttendance);
+                                const isFrozen = isPast || isDetermined;
 
-                                // User reached quota for 'normal' courses
-                                const quotaReached = course.type === 'normal' && totalUsed >= quota;
+                                // Transferable courses: normal, special, workshop
+                                const isTransferableCourse = course.type === 'normal' || course.type === 'special' || course.type === 'workshop';
+                                // Quota only applies to normal/special with official students; workshop has NO quota
+                                const quotaReached = (course.type === 'normal' || course.type === 'special') && isOfficial && totalUsed >= quota;
 
                                 return (
                                     <div key={session.id} className={cn(
@@ -744,14 +770,18 @@ export function CourseDetailClient({
                                             </div>
                                         </div>
 
-                                        {/* Actions at bottom - Consistently show buttons but disable if frozen or quota reached */}
-                                        <div className="mt-auto grid grid-cols-2 border-t border-white/[0.08] bg-white/[0.02] transition-colors group-hover:bg-white/[0.07]">
+                                        {/* Actions at bottom - Leave available for everyone; Transfer available for official in normal, AND everyone in special/workshop */}
+                                        <div className={cn(
+                                            "mt-auto grid border-t border-white/[0.08] bg-white/[0.02] transition-colors group-hover:bg-white/[0.07]",
+                                            ((isTransferableCourse && isOfficial) || course.type === 'special' || course.type === 'workshop') ? "grid-cols-2" : "grid-cols-1"
+                                        )}>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
                                                 disabled={isFrozen || quotaReached || isPending}
                                                 className={cn(
-                                                    "h-10 rounded-none text-[11px] font-bold border-r border-white/[0.08] transition-all",
+                                                    "h-10 rounded-none text-[11px] font-bold transition-all",
+                                                    ((isTransferableCourse && isOfficial) || course.type === 'special' || course.type === 'workshop') && "border-r border-white/[0.08]",
                                                     (isFrozen || quotaReached) ? "text-muted-foreground/20" : "text-blue-400 hover:bg-blue-500/20 hover:text-blue-300"
                                                 )}
                                                 onClick={() => {
@@ -761,18 +791,20 @@ export function CourseDetailClient({
                                             >
                                                 請假
                                             </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                disabled={isFrozen || quotaReached || isPending}
-                                                className={cn(
-                                                    "h-10 rounded-none text-[11px] font-bold transition-all",
-                                                    (isFrozen || quotaReached) ? "text-muted-foreground/20" : "text-purple-400 hover:bg-purple-500/20 hover:text-purple-300"
-                                                )}
-                                                onClick={() => openTransferDialog(session)}
-                                            >
-                                                轉讓
-                                            </Button>
+                                            {((isTransferableCourse && isOfficial) || course.type === 'special' || course.type === 'workshop') && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    disabled={isFrozen || quotaReached || isPending}
+                                                    className={cn(
+                                                        "h-10 rounded-none text-[11px] font-bold transition-all",
+                                                        (isFrozen || quotaReached) ? "text-muted-foreground/20" : "text-purple-400 hover:bg-purple-500/20 hover:text-purple-300"
+                                                    )}
+                                                    onClick={() => openTransferDialog(session)}
+                                                >
+                                                    轉讓
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -943,19 +975,15 @@ export function CourseDetailClient({
                                 </tr>
                                 {(() => {
                                     const filteredAdditionalList = additionalStudents.filter(student => {
-                                        // If a session is focused, strictly show those relevant to THIS session
+                                        // Case 1: Session is focused - show only students relevant to THIS session
                                         if (focusedSessionId) {
-                                            const current = attendanceState[student.id]?.[focusedSessionId];
+                                            const status = attendanceState[student.id]?.[focusedSessionId];
                                             const isEnrolledInSession = student.enrolledSessionIds?.includes(focusedSessionId);
-                                            return (current && current !== 'unmarked') || isEnrolledInSession;
+                                            return (status && status !== 'unmarked') || isEnrolledInSession;
                                         }
 
-                                        // Fallback: stay visible if they have a status in ANY session (should not happen in focused mode)
-                                        return sessions.some(session => {
-                                            const current = attendanceState[student.id]?.[session.id];
-                                            const isEnrolledInSession = student.enrolledSessionIds?.includes(session.id);
-                                            return (current && current !== 'unmarked') || isEnrolledInSession;
-                                        });
+                                        // Case 2: No session focused - show ALL additional students who belong to this course
+                                        return true;
                                     });
 
                                     if (filteredAdditionalList.length === 0) {
@@ -1005,9 +1033,29 @@ export function CourseDetailClient({
                                     確定要申請 {selectedSession && format(parseISO(selectedSession.date), "MM/dd")} 的課程請假嗎？
                                     請假名額將釋出給補課或轉入的同學。
                                 </p>
-                                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 leading-relaxed">
-                                    <p className="font-bold mb-1">⚠️ 注意：</p>
+                                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 leading-relaxed space-y-2">
+                                    <p className="font-bold">⚠️ 注意：</p>
                                     <p>請假手續一旦完成即無法撤回或修改，請確認後再提交。</p>
+                                    {(() => {
+                                        const isRegular = (course.type === 'normal' || course.type === 'special');
+                                        const isFull = userEnrollment.enrollmentStatus.isFullEnrolled;
+                                        const myRecord = roster.find(r => r.id === userEnrollment.userId);
+                                        const hasAttendanceNoEnrollment = !userEnrollment.enrollmentStatus.isEnrolled && !!myRecord?.attendance;
+
+                                        if (!isRegular || !isFull) {
+                                            let context = "";
+                                            if (!isRegular) context = "非常態課程";
+                                            else if (hasAttendanceNoEnrollment) context = "補課/轉入名額";
+                                            else context = "單堂報名";
+
+                                            return (
+                                                <p className="font-black underline decoration-red-500/30 underline-offset-4">
+                                                    ※ 您的報名身分為「{context}」，請假後「不給予」補課額度。
+                                                </p>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
                             </div>
                         </AlertDialogDescription>

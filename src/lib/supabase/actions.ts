@@ -761,10 +761,9 @@ export async function submitLeaveRequest(
         .eq('user_id', user.id)
         .eq('status', 'enrolled');
 
-    const enrollment = enrollments?.find(e => e.type === 'full') || enrollments?.[0];
+    const enrollment = enrollments?.[0];
 
     if (!enrollment) throw new Error('您未報名此課程，無法申請請假');
-    if (enrollment.type !== 'full') throw new Error('單堂報名不支援請假申請');
 
     // --- Dual Status Guard ---
     // Guard: Prevent duplicate leave intents. If one exists, we will update it.
@@ -1189,12 +1188,14 @@ export async function getTransferCandidates(
         .eq('status', 'waitlist')
         .order('waitlist_position');
 
-    const waitlist = (waitlistData ?? []).map((w: any) => ({
-        id: w.profiles?.id ?? '',
-        name: w.profiles?.name ?? '未知',
-        role: w.profiles?.role ?? 'guest',
-        position: w.waitlist_position ?? 0,
-    })).filter((w: any) => w.id && w.id !== user.id);
+    const waitlist = (waitlistData ?? [])
+        .map((w: any) => ({
+            id: w.profiles?.id ?? '',
+            name: w.profiles?.name ?? '未知',
+            role: w.profiles?.role ?? 'guest',
+            position: w.waitlist_position ?? 0,
+        }))
+        .filter((w: any) => w.id && w.id !== user.id && w.role !== 'guest');
 
     // 2. Get all profiles (exclude self and ALREADY ENROLLED students)
     const { data: enrolledData } = await supabase
@@ -1212,7 +1213,7 @@ export async function getTransferCandidates(
         .order('name');
 
     const allMembers = (membersData ?? [])
-        .filter(m => !enrolledIds.has(m.id))
+        .filter(m => !enrolledIds.has(m.id) && m.role !== 'guest')
         .map((m: any) => ({
             id: m.id,
             name: m.name ?? '未知',
@@ -1245,7 +1246,13 @@ export async function submitTransferRequest(
     const enrollment = enrollments?.find(e => e.type === 'full') || enrollments?.[0];
 
     if (!enrollment) throw new Error('您未報名此課程');
-    if (enrollment.type !== 'full') throw new Error('單堂報名不支援轉讓申請');
+    // Workshop courses allow ALL enrollment types to transfer; others require full enrollment
+    if (enrollment.type !== 'full') {
+        const { data: courseForTypeCheck } = await supabase.from('courses').select('type').eq('id', courseId).maybeSingle();
+        if (courseForTypeCheck?.type !== 'workshop') {
+            throw new Error('單堂報名不支援轉讓申請');
+        }
+    }
 
     // Check time limit: must be before class starts
     const { data: session } = await supabase
@@ -1260,9 +1267,14 @@ export async function submitTransferRequest(
     if (!isBeforeClass(session.session_date, courseData?.start_time ?? '00:00')) {
         throw new Error('課程已開始，無法進行轉讓');
     }
-    // --- Quota Calculation (Only for 'normal' courses) ---
+    // --- Course type check: normal/special/workshop support transfer ---
     const { data: courseMeta } = await supabase.from('courses').select('type').eq('id', courseId).maybeSingle();
 
+    if (courseMeta?.type !== 'normal' && courseMeta?.type !== 'special' && courseMeta?.type !== 'workshop') {
+        return { success: false, message: '此課程類型不支援轉讓，請改用請假功能（將釋出報名名額）' };
+    }
+
+    // Quota check: only normal/special courses have quota limits; workshop has NO quota
     if (courseMeta?.type === 'normal' || courseMeta?.type === 'special') {
         const { count: sessionsCount } = await supabase
             .from('course_sessions')
@@ -1279,11 +1291,10 @@ export async function submitTransferRequest(
     }
 
     if (toUserId) {
-        if (courseMeta?.type === 'normal' || courseMeta?.type === 'special') {
-            const { data: toProfile } = await supabase.from('profiles').select('role').eq('id', toUserId).maybeSingle();
-            if (toProfile?.role === 'guest') {
-                return { success: false, message: '常態課程僅限社員之間互相轉讓' };
-            }
+        // ALL course types: recipient must be a member
+        const { data: toProfile } = await supabase.from('profiles').select('role').eq('id', toUserId).maybeSingle();
+        if (toProfile?.role === 'guest') {
+            return { success: false, message: '轉讓對象必須為具備社員身分之成員' };
         }
 
         // Guard: Prevent transfer to a user who is already fully enrolled, or already enrolled in this session
@@ -1352,31 +1363,8 @@ export async function submitTransferRequest(
         throw new Error('此堂課已有補課申請，無法重複申請轉讓');
     }
 
-    // Compute extra cards if non-member receives member spot
+
     let extraCardsRequired = 0;
-    if (toUserId) {
-        const { data: toProfile } = await supabase
-            .from('profiles')
-            .select('role, member_valid_until')
-            .eq('id', toUserId)
-            .maybeSingle();
-
-        const fromProfile = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        const fromIsMember = fromProfile.data?.role !== 'guest';
-        const toIsMember = toProfile?.role !== 'guest' &&
-            (!toProfile?.member_valid_until || new Date(toProfile.member_valid_until) >= new Date());
-
-        if (fromIsMember && !toIsMember) {
-            const config = await getSystemConfig();
-            const diff = parseInt(config['card_price_non_member'] ?? '370') - parseInt(config['card_price_member'] ?? '270');
-            extraCardsRequired = Math.ceil(diff / parseInt(config['card_price_non_member'] ?? '370'));
-        }
-    }
 
     const payload = {
         course_id: courseId,
