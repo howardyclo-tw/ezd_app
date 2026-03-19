@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getServerProfile } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,26 +40,14 @@ const roleLabels: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const { user, profile } = await getServerProfile();
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle();
+  const supabase = await createClient();
 
-  const displayName = profile?.name || user.email?.split('@')[0] || '使用者';
-  const userRole = profile?.role || 'guest';
-  const isAdmin = userRole === 'admin';
-  const isLeader = userRole === 'leader';
-  const isLeaderOrAdmin = isAdmin || isLeader;
-
-  // All independent queries run in parallel after we have user + role
+  // Start all queries in parallel (1 serial trip saved)
   const today = format(new Date(), 'yyyy-MM-dd');
-
+  
   const [
     { data: myEnrollments },
     { data: allMissed },
@@ -98,11 +86,18 @@ export default async function DashboardPage() {
       .select(`id, courses!inner ( course_leaders!inner ( user_id ) )`)
       .eq('session_date', today),
 
-    // 6. Pending finance count (admin only)
-    isAdmin
-      ? supabase.from('card_orders').select('id', { count: 'exact', head: true }).in('status', ['pending', 'remitted'])
-      : Promise.resolve({ count: 0 }),
+    // 6. Pending finance count 
+    supabase
+      .from('card_orders')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['pending', 'remitted'])
   ]);
+
+  const userRole = profile?.role || 'guest';
+  const isAdmin = userRole === 'admin';
+  const isLeader = userRole === 'leader';
+  const isLeaderOrAdmin = isAdmin || isLeader;
+  const displayName = profile?.name || user.email?.split('@')[0] || '使用者';
 
   const upcomingSessionsCount = (myEnrollments ?? []).flatMap((enrollment: any) =>
     (enrollment.courses?.course_sessions ?? []).filter((s: any) => s.session_date >= today)

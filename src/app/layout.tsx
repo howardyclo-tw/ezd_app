@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
-import "./globals.css";
-import { Header } from "@/components/layout/header";
-import { MobileNav } from "@/components/layout/mobile-nav";
-import { Toaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/components/providers/theme-provider";
+import { createClient, getServerProfile } from "@/lib/supabase/server";
 import { RoleProvider } from "@/components/providers/role-provider";
-import { createClient } from "@/lib/supabase/server";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
+import { MobileNav } from "@/components/layout/mobile-nav";
+import { Header } from "@/components/layout/header";
+import "./globals.css";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "EZDANCE - 熱舞社管理系統",
@@ -17,22 +17,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Fetch initial role for context
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Fetch initial role for context (cached across request)
+  const { user, profile } = await getServerProfile();
 
-  let initialRole = 'guest';
-  let initialName = '';
-
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, name')
-      .eq('id', user.id)
-      .maybeSingle();
-    initialRole = profile?.role || 'guest';
-    initialName = profile?.name || '';
-  }
+  const initialRole = profile?.role || 'guest';
+  const initialName = profile?.name || '';
 
   return (
     <html lang="zh-TW" suppressHydrationWarning>

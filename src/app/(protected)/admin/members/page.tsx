@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getServerProfile } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, UserSquare } from "lucide-react";
@@ -8,21 +8,13 @@ import { MembersClient } from '@/components/admin/members-client';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminMembersPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user, profile: currentProfile } = await getServerProfile();
     if (!user) redirect('/login');
+    if (currentProfile?.role !== 'admin') redirect('/dashboard');
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
+    const supabase = await createClient();
 
-    if (profile?.role !== 'admin') {
-        redirect('/dashboard');
-    }
-
-    // Fetch profiles and leader data in parallel
+    // Fetch full profiles and leader data in parallel
     const [
         { data: profiles },
         { data: leaderData },

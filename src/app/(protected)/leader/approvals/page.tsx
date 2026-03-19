@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getServerProfile } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ShieldCheck } from "lucide-react";
@@ -10,19 +10,12 @@ export const fetchCache = 'force-no-store';
 export const revalidate = 0;
 
 export default async function LeaderApprovalsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user, profile } = await getServerProfile();
+
     if (!user) redirect('/login');
+    if (profile?.role !== 'admin') redirect('/dashboard');
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
-
-    if (profile?.role !== 'admin') {
-        redirect('/dashboard');
-    }
+    const supabase = await createClient();
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -72,6 +65,7 @@ export default async function LeaderApprovalsPage() {
         .gte('created_at', thirtyDaysAgoIso)
         .order('created_at', { ascending: false });
 
+    // Start all queries in parallel (1 serial trip saved)
     const [
         { data: cardOrders },
         { data: leaves },

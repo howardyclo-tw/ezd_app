@@ -1,25 +1,16 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getServerProfile } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { SystemConfigClient } from '@/components/admin/system-config-client';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminSettingsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user, profile } = await getServerProfile();
+
     if (!user) redirect('/login');
+    if (profile?.role !== 'admin') redirect('/dashboard');
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
-
-    if (profile?.role !== 'admin') {
-        redirect('/dashboard');
-    }
-
-    // Fetch all system config entries
+    const supabase = await createClient();
     const { data: configRows } = await supabase
         .from('system_config')
         .select('key, value')

@@ -367,42 +367,45 @@ export async function getCardPriceForUser(profile: Pick<Profile, 'role' | 'membe
 export async function getAvailableMakeupQuotaSessions(userId: string) {
     const supabase = await createClient();
 
-    // 1. Get attendance records that are 'absent' or 'leave'
-    const { data: attendance, error: attError } = await supabase
-        .from('attendance_records')
-        .select(`
-            session_id,
-            status,
-            course_sessions!inner (
-                id,
-                session_date,
-                session_number,
-                courses (
+    // Start both queries in parallel
+    const [
+        { data: attendance, error: attError },
+        { data: requested, error: reqError }
+    ] = await Promise.all([
+        supabase
+            .from('attendance_records')
+            .select(`
+                session_id,
+                status,
+                course_sessions!inner (
                     id,
-                    slug,
-                    name,
-                    teacher,
-                    group_id,
-                    course_groups (
+                    session_date,
+                    session_number,
+                    courses (
                         id,
                         slug,
-                        title
+                        name,
+                        teacher,
+                        group_id,
+                        course_groups (
+                            id,
+                            slug,
+                            title
+                        )
                     )
                 )
-            )
-        `)
-        .eq('user_id', userId)
-        .in('status', ['absent', 'leave']);
+            `)
+            .eq('user_id', userId)
+            .in('status', ['absent', 'leave']),
+
+        supabase
+            .from('makeup_requests')
+            .select('original_session_id')
+            .eq('user_id', userId)
+            .in('status', ['pending', 'approved'])
+    ]);
 
     if (attError) throw new Error(`getAvailableMakeupQuotaSessions (att): ${attError.message}`);
-
-    // 2. Get makeup requests to check usage
-    const { data: requested, error: reqError } = await supabase
-        .from('makeup_requests')
-        .select('original_session_id')
-        .eq('user_id', userId)
-        .in('status', ['pending', 'approved']);
-
     if (reqError) throw new Error(`getAvailableMakeupQuotaSessions (req): ${reqError.message}`);
 
     const usedSessionIds = new Set(requested.map(r => r.original_session_id));
