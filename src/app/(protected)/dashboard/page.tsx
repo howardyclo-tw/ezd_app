@@ -46,7 +46,8 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   // Start all queries in parallel (1 serial trip saved)
-  const today = format(new Date(), 'yyyy-MM-dd');
+  // Use Asia/Taipei timezone to match user's local date
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
   
   const [
     { data: myEnrollments },
@@ -56,19 +57,18 @@ export default async function DashboardPage() {
     { data: todaySessions },
     { count: pendingFinanceCount },
   ] = await Promise.all([
-    // 1. Upcoming enrolled sessions
+    // 1. Upcoming enrolled sessions — query course_sessions directly for accuracy
     supabase
       .from('enrollments')
-      .select(`courses ( course_sessions ( session_date ) )`)
+      .select(`type, session_id, course_id, courses ( course_sessions ( id, session_date ) )`)
       .eq('user_id', user.id)
       .in('status', ['enrolled', 'waitlist']),
 
-    // 2. Missed attendance for makeup quota
+    // 2. All attendance records for history, makeups, and upcoming count accuracy
     supabase
       .from('attendance_records')
-      .select('session_id')
-      .eq('user_id', user.id)
-      .in('status', ['absent', 'leave']),
+      .select('status, session_id, course_sessions ( session_date )')
+      .eq('user_id', user.id),
 
     // 3. Available makeup sessions (custom query helper)
     getAvailableMakeupQuotaSessions(user.id),
@@ -99,11 +99,52 @@ export default async function DashboardPage() {
   const isLeaderOrAdmin = isAdmin || isLeader;
   const displayName = profile?.name || user.email?.split('@')[0] || '使用者';
 
-  const upcomingSessionsCount = (myEnrollments ?? []).flatMap((enrollment: any) =>
-    (enrollment.courses?.course_sessions ?? []).filter((s: any) => s.session_date >= today)
-  ).length;
+  // Process attendance records
+  const leaveOrTransferOutIds = new Set<string>();
+  const extraUpcomingCount = new Set<string>();
+  const missedSessionsList: any[] = [];
 
-  const totalMissedCount = allMissed?.length || 0;
+  (allMissed ?? []).forEach((r: any) => {
+    // Handle potential array structure from joined query
+    const session = r.course_sessions;
+    if (!session) return;
+    
+    if (r.status === 'absent' || r.status === 'leave') {
+      missedSessionsList.push(r);
+    }
+    
+    if (r.status === 'leave' || r.status === 'transfer_out') {
+      leaveOrTransferOutIds.add(r.session_id);
+    } else if ((r.status === 'makeup' || r.status === 'transfer_in') && session.session_date >= today) {
+      extraUpcomingCount.add(r.session_id);
+    }
+  });
+
+  // Process sessions count across enrollments
+  let upcomingSessionsCount = 0;
+
+  (myEnrollments ?? []).forEach((enrollment: any) => {
+    // Handle potential array response
+    const course = enrollment.courses;
+    if (!course) return;
+
+    const sessions = course.course_sessions ?? [];
+    
+    for (const s of sessions) {
+      if (enrollment.type === 'single' && s.id !== enrollment.session_id) continue;
+      if (s.session_date >= today) {
+        // Exclude if user took leave or transferred out of this session
+        if (!leaveOrTransferOutIds.has(s.id)) {
+          upcomingSessionsCount++;
+        }
+      }
+    }
+  });
+
+  // Also include extra sessions (makeups/transfers-in) that were processed in the attendanceRecords loop
+  upcomingSessionsCount += extraUpcomingCount.size;
+
+  const totalMissedCount = missedSessionsList.length;
   const availableMakeupQuotaCount = (availableMissedSessions as any[]).length;
 
   const myTodaySessionsCount = (todaySessions ?? []).filter((s: any) => {
@@ -148,7 +189,7 @@ export default async function DashboardPage() {
             },
             {
               label: "可用補課",
-              value: <>{availableMakeupQuotaCount} <span className="text-xs opacity-40">/ {totalMissedCount} 堂</span></>
+              value: <>{availableMakeupQuotaCount} <span className="text-xs opacity-40">堂</span></>
             }
           ]}
         />
