@@ -8,7 +8,7 @@
 
 ### 1. 效能與體驗優化 (Performance & UX)
 - **非同步查詢並行化**：優化所有主要頁面（Admin、課程詳情）的資料讀取，將原本串行的資料庫請求改為並行執行，大幅縮短頁面加載延遲。
-- **全域快取優化**：在 Server 端實作 Auth 與 Profile 快取機制，並將 Vercel 部署區域調整至 `nrt1` (Tokyo) 以鄰近 Supabase 資料中心，極大化連線速度。
+- **全域快取優化**：在 Server 端實作 Auth 與 Profile 快取機制，並將 Vercel 部署區域調整至 `hnd1` (Haneda, Tokyo) 以鄰近 Supabase 資料中心，極大化連線速度。
 - **「等待感」改善**：為所有主要路由段落新增 Skeleton 骨架屏載入動畫，消除過往切換頁面時的 UI 凍結感。
 
 ### 2. 點名系統與單堂報名完善 (Attendance & Single-Session Fixes)
