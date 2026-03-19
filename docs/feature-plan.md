@@ -739,8 +739,8 @@ flowchart LR
 - 審核後自動更新名單
 
 **驗收檢查清單：**
-- [x] 補課申請 Action（`submitMakeupRequest` 含滿班檢查，僅於 'normal' 課程套用 1/4 上限）
-- [x] 額度自動計算（`computeMakeupQuota` = ceil(堂數/4)，僅限常態課）
+- [x] 補課申請 Action（`submitMakeupRequest` 含滿班檢查，僅於一般與特殊常態課程套用 1/4 上限，且單堂學員不產生額度）
+- [x] 額度自動計算（`computeMakeupQuota` = ceil(堂數/4)，僅限一般與特殊常態課）
 - [x] 空位檢查（Action 內判斷名額）
 - [x] 審核流程 Action（`reviewMakeupRequest`）
 - [x] 額度查詢（`getUserMakeupQuotaUsed`）
@@ -785,7 +785,7 @@ flowchart LR
 - 如需補繳，通知財務
 
 **驗收檢查清單：**
-- [x] 轉讓申請 Action（`submitTransferRequest` 含時間/額度檢查，僅於 'normal' 課程套用 1/4 上限）
+- [x] 轉讓申請 Action（`submitTransferRequest` 含時間/額度檢查，僅於一般與特殊常態課程套用 1/4 上限）
 - [x] 時間限制（`isBeforeClass` 當天上課前判斷）
 - [x] 額度檢查（與補課合計 `getUserTransferCount`）
 - [x] 雙狀態防護（已請假者無法再轉讓，已轉讓者無法再請假）
