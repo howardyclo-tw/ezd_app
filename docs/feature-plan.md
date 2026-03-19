@@ -4,6 +4,22 @@
 
 ---
 
+## 🚀 最新進度 (2026-03-19 Update)
+
+### 1. 效能與體驗優化 (Performance & UX)
+- **非同步查詢並行化**：優化所有主要頁面（Admin、課程詳情）的資料讀取，將原本串行的資料庫請求改為並行執行，大幅縮短頁面加載延遲。
+- **全域快取優化**：在 Server 端實作 Auth 與 Profile 快取機制，並將 Vercel 部署區域調整至 `nrt1` (Tokyo) 以鄰近 Supabase 資料中心，極大化連線速度。
+- **「等待感」改善**：為所有主要路由段落新增 Skeleton 骨架屏載入動畫，消除過往切換頁面時的 UI 凍結感。
+
+### 2. 點名系統完善 (Attendance Fixes)
+- **跨堂點名支援**：修復點名系統僅能儲存「目前選取堂數」的 Bug。現在支援在點名介面一次勾選/修改多堂課後，按一下「儲存」即可完成批次寫入。
+- **加資學員可視性改善**：優化「加報學員」過濾邏輯，確保只要該學員在課程中的「任何一堂」有出席紀錄，就會在名單中持續顯示，方便跨堂管理。
+
+### 3. 操作介面行動化 (Mobile UI)
+- **社員名單優化**：針對 Admin 後台的「社員名單」進行行動端優化。將過去難以在手機點擊的編輯圖示改為「整張卡片可點擊」互動，提升行動裝置上的管理效率。
+
+---
+
 ## 一、MVP vs Post-MVP 功能總覽
 
 **MVP 目標：讓管理員只做判斷，不再做計算與整理；讓班長/副社長的日常操作有系統可依**
@@ -952,7 +968,7 @@ flowchart LR
 - [x] 註冊/登入功能（login/register 頁面）
 - [x] 個人中心頁面（dashboard/page.tsx）
 - [x] 身份類型管理（非社員/社員/班長/管理員 + DevRoleToggle）
-- [ ] 社員有效期限管理 UI
+- [x] 社員有效期限管理 UI
 - [x] 班長指派功能（`assignCourseLeader` / `removeCourseLeader` Actions）
 - [x] admin 後台：使用者列表與編輯（admin/members/page.tsx）
 - [ ] 批次匯入社員（CSV）--> 可延後實作
@@ -976,16 +992,16 @@ flowchart LR
 
 #### Phase 5: ⚡ 點名系統（Feature 5）
 - [x] 當日上課名單顯示（Roster 表格 + Sticky 凍結行列）
-- [x] 手動勾選出席/缺席/請假（UI 圓形按鈕 + 顏色標記）
+- [x] 手動勾選出席/缺席/請假（支援跨堂批次儲存）
 - [x] 出席紀錄自動儲存（`saveAttendance` Action + upsert）
 - [x] 歷史出席查詢（getCourseAttendance + 詳情頁 Roster）
-- [ ] 班長只能點自己的班（權限隔離待細化）
+- [x] 班長只能點自己的班（已透過 RLS + Action 進行權限保護）
 - [x] 管理員可點任何班
 
 #### Phase 6: ⚡ 請假/補課/轉讓（Feature 6 & 7 & 8）
 - [x] 請假申請表單與流程（課程詳情頁 Dialog + `submitLeaveRequest` Action）
 - [x] 滿班檢查邏輯（Action 內判斷）
-- [ ] 請假後自動更新點名單
+- [x] 請假後自動更新點名單
 - [x] 補課申請 Action（`submitMakeupRequest` 含額度/空位檢查）
 - [x] 額度自動計算（`computeMakeupQuota` = ceil(堂數/4)）
 - [ ] 跨區補課換算
