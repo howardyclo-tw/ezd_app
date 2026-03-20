@@ -68,13 +68,15 @@ export default async function MyCoursesPage() {
         const gId = group?.slug || group?.id;
         const cId = course?.slug || course?.id;
 
-        // Simplify status for history
-        let simpleStatus: 'present' | 'absent' | 'leave' | 'enrolled' = 'present';
+        // Determine status for display
+        let simpleStatus: any = 'present';
         if (r.status === 'absent') simpleStatus = 'absent';
         else if (r.status === 'leave') simpleStatus = 'leave';
-        else if (r.status === 'present' || r.status === 'makeup' || r.status === 'transfer_in') simpleStatus = 'present';
-        else if (r.status === 'transfer_out') simpleStatus = 'absent';
+        else if (r.status === 'makeup') simpleStatus = 'makeup';
+        else if (r.status === 'transfer_in') simpleStatus = 'transfer_in';
+        else if (r.status === 'transfer_out') simpleStatus = 'transfer_out';
         else if (r.status === 'unmarked') simpleStatus = 'enrolled';
+        else simpleStatus = 'present';
 
         const recordItem = {
             groupTitle: group?.title ?? '未知檔期',
@@ -82,18 +84,25 @@ export default async function MyCoursesPage() {
             teacher: course.teacher,
             date: session.session_date,
             sessionNumber: session.session_number ?? 0,
-            status: simpleStatus as any,
+            status: simpleStatus,
             href: (gId && cId) ? `/courses/groups/${gId}/${cId}` : undefined,
         };
 
-        if (session.session_date) {
+        const isPast = session.session_date < today;
+        const isSettledAction = r.status === 'leave' || r.status === 'transfer_out';
+
+        // 歷史紀錄顯示邏輯：已經過去的課堂 OR 雖然在未來但已經處理完畢的動作 (請假、轉讓出去)
+        if (session.session_date && (isPast || isSettledAction)) {
             historyRecords.push(recordItem);
         }
 
-        // For UPCOMING logic:
+        // ── Upcoming 顯示邏輯：
+        // 1. 已處理的排除 (請假、轉讓出去)
         if (r.status === 'leave' || r.status === 'transfer_out') {
             excludeCountMap.set(session.id, (excludeCountMap.get(session.id) || 0) + 1);
-        } else if ((r.status === 'makeup' || r.status === 'transfer_in') && session.session_date >= today) {
+        } 
+        // 2. 新增的補課/轉入 (僅限未來)
+        else if ((r.status === 'makeup' || r.status === 'transfer_in') && session.session_date >= today) {
             extraUpcomingSessions.push({
                 groupTitle: group?.title ?? '未知檔期',
                 courseName: course.name,
