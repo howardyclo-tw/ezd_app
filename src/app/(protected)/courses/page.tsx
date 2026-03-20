@@ -79,6 +79,7 @@ export default async function CourseGroupsPage() {
             id: g.slug || g.id,
             title: g.title,
             period: periodDisplay,
+            maxDate: maxDate, // Store for sorting
             status: getGroupStatus(minDate, maxDate),
             courseCount: courses.length,
             courses: courses.map(course => {
@@ -101,6 +102,13 @@ export default async function CourseGroupsPage() {
                 };
             }),
         };
+    });
+
+    // Sort by actual end date (latest first)
+    groupData.sort((a, b) => {
+        if (!a.maxDate) return 1;
+        if (!b.maxDate) return -1;
+        return b.maxDate.localeCompare(a.maxDate);
     });
 
     return (
