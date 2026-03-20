@@ -52,6 +52,8 @@ import { toast } from 'sonner';
 interface CourseGroup {
     id: string;
     title: string;
+    registration_phase1_start?: string | null;
+    registration_phase1_end?: string | null;
 }
 
 interface Profile {
@@ -160,6 +162,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [editingGroup, setEditingGroup] = useState<CourseGroup | null>(null);
     const [groupTitle, setGroupTitle] = useState('');
+    const [groupRegStart, setGroupRegStart] = useState<Date | null>(null);
+    const [groupRegEnd, setGroupRegEnd] = useState<Date | null>(null);
     const [isGroupSubmitting, setIsGroupSubmitting] = useState(false);
 
     const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
@@ -196,13 +200,18 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
         setIsGroupSubmitting(true);
         try {
             if (editingGroup) {
-                await updateCourseGroup(editingGroup.id, groupTitle);
-                setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, title: groupTitle } : g));
-                toast.success('已修正檔期標題');
+                await updateCourseGroup(editingGroup.id, groupTitle, groupRegStart, groupRegEnd);
+                setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, title: groupTitle, registration_phase1_start: groupRegStart?.toISOString(), registration_phase1_end: groupRegEnd?.toISOString() } : g));
+                toast.success('已修正檔期資訊');
             } else {
-                const res = await createCourseGroup(groupTitle);
+                const res = await createCourseGroup(groupTitle, groupRegStart, groupRegEnd);
                 if (res.id) {
-                    const newGroup = { id: res.id, title: groupTitle };
+                    const newGroup = { 
+                        id: res.id, 
+                        title: groupTitle,
+                        registration_phase1_start: groupRegStart?.toISOString(),
+                        registration_phase1_end: groupRegEnd?.toISOString()
+                    };
                     setGroups(prev => [...prev, newGroup]);
                     form.setValue('groupId', res.id);
                     toast.success('已建立新檔期');
@@ -211,6 +220,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             setIsGroupModalOpen(false);
             setEditingGroup(null);
             setGroupTitle('');
+            setGroupRegStart(null);
+            setGroupRegEnd(null);
         } catch (err: any) {
             toast.error(err.message || '操作失敗');
         } finally {
@@ -449,6 +460,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                 e.stopPropagation();
                                                                 setEditingGroup(g);
                                                                 setGroupTitle(g.title);
+                                                                setGroupRegStart(g.registration_phase1_start ? new Date(g.registration_phase1_start) : null);
+                                                                setGroupRegEnd(g.registration_phase1_end ? new Date(g.registration_phase1_end) : null);
                                                                 setIsGroupModalOpen(true);
                                                             }}
                                                         >
@@ -734,6 +747,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                 />
                             </div>
 
+
                             {/* Sessions Schedule Section */}
                             {firstDate && (
                                 <div className="mt-8 space-y-4 pt-6 border-t">
@@ -751,7 +765,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                 const current = form.getValues('sessions');
                                                 const lastDate = current[current.length - 1]?.date || firstDate;
                                                 append({
-                                                    date: addDays(lastDate, 7)
+                                                    date: addDays(new Date(lastDate), 7)
                                                 });
                                                 setValue('sessions_count', current.length + 1);
                                             }}
@@ -780,7 +794,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                 name={`sessions.${index}.date`}
                                                                 render={({ field: sessionField }) => {
                                                                     // Sync local fieldArray value with form state if they drift
-                                                                    const dateValue = sessionField.value;
+                                                                    const dateValue = sessionField.value ? new Date(sessionField.value) : undefined;
 
                                                                     return (
                                                                         <FormItem className="flex-1 space-y-0 text-left">
@@ -871,6 +885,58 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                 onChange={(e) => setGroupTitle(e.target.value)}
                                 placeholder="請輸入標題"
                             />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <FormLabel>報名開始日期</FormLabel>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className={cn(
+                                                "w-full pl-3 text-left font-normal h-10",
+                                                !groupRegStart && "text-muted-foreground"
+                                            )}
+                                        >
+                                            {groupRegStart ? format(groupRegStart as Date, "PP", { locale: zhTW }) : "未設定"}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                            mode="single"
+                                            selected={groupRegStart || undefined}
+                                            onSelect={(date) => setGroupRegStart(date || null)}
+                                            initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            <div className="grid gap-2">
+                                <FormLabel>報名截止日期</FormLabel>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className={cn(
+                                                "w-full pl-3 text-left font-normal h-10",
+                                                !groupRegEnd && "text-muted-foreground"
+                                            )}
+                                        >
+                                            {groupRegEnd ? format(groupRegEnd as Date, "PP", { locale: zhTW }) : "未設定"}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                            mode="single"
+                                            selected={groupRegEnd || undefined}
+                                            onSelect={(date) => setGroupRegEnd(date || null)}
+                                            initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
                         </div>
                     </div>
                     <DialogFooter>

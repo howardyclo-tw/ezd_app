@@ -56,48 +56,50 @@ export default async function CourseGroupsPage() {
                 course_leaders ( user_id, profiles!course_leaders_user_id_fkey ( id, name ) )
             )
         `)
-        .order('period_start', { ascending: false });
+        .order('period_end', { ascending: false });
 
     const groupData = (groups ?? []).map(g => {
         const courses = (g.courses as any[]) ?? [];
-        const firstCourse = courses[0];
 
-        let periodDisplay = g.period_start && g.period_end
-            ? `${g.period_start.replace(/-/g, '/')}~${g.period_end.replace(/-/g, '/')}`
+        // Compute actual dates from all sessions in all courses
+        const allSessionDates = courses
+            .flatMap(c => (c.course_sessions as any[]) ?? [])
+            .map(s => s.session_date)
+            .filter(Boolean)
+            .sort((a: string, b: string) => a.localeCompare(b));
+        
+        const minDate = allSessionDates.length > 0 ? allSessionDates[0] : g.period_start;
+        const maxDate = allSessionDates.length > 0 ? allSessionDates[allSessionDates.length - 1] : g.period_end;
+
+        const periodDisplay = minDate && maxDate
+            ? `${minDate.replace(/-/g, '/')}~${maxDate.replace(/-/g, '/')}`
             : '日期未定';
-
-        if (!g.period_start || !g.period_end) {
-            const allSessionDates = courses
-                .flatMap(c => (c.course_sessions as any[]) ?? [])
-                .map(s => s.session_date)
-                .filter(Boolean)
-                .sort();
-            
-            if (allSessionDates.length > 0) {
-                const start = allSessionDates[0].replace(/-/g, '/');
-                const end = allSessionDates[allSessionDates.length - 1].replace(/-/g, '/');
-                periodDisplay = `${start}~${end}`;
-            }
-        }
 
         return {
             id: g.slug || g.id,
             title: g.title,
             period: periodDisplay,
-            status: getGroupStatus(g.period_start, g.period_end),
+            status: getGroupStatus(minDate, maxDate),
             courseCount: courses.length,
-            courses: courses.map(course => ({
-                id: course.id,
-                name: course.name,
-                teacher: course.teacher,
-                time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
-                location: course.room,
-                type: course.type,
-                status: getCourseDisplayStatus(course),
-                capacity: course.capacity,
-                startDate: course.course_sessions?.[0]?.session_date ?? '',
-                endDate: course.course_sessions?.[course.course_sessions?.length - 1]?.session_date ?? '',
-            })),
+            courses: courses.map(course => {
+                const sessions = (course.course_sessions as any[]) ?? [];
+                sessions.sort((a: any, b: any) => a.session_date.localeCompare(b.session_date));
+                const firstSession = sessions[0];
+                const lastSession = sessions[sessions.length - 1];
+
+                return {
+                    id: course.id,
+                    name: course.name,
+                    teacher: course.teacher,
+                    time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
+                    location: course.room,
+                    type: course.type,
+                    status: getCourseDisplayStatus(course),
+                    capacity: course.capacity,
+                    startDate: firstSession?.session_date ?? '',
+                    endDate: lastSession?.session_date ?? '',
+                };
+            }),
         };
     });
 

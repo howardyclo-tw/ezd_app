@@ -29,7 +29,7 @@ export async function getCourseGroups() {
         .from('course_groups')
         .select('*')
         .or(`period_end.is.null,period_end.gte.${nowStr}`)
-        .order('created_at', { ascending: false });
+        .order('period_end', { ascending: false });
 
     if (error) throw new Error(`getCourseGroups: ${error.message}`);
     return data as CourseGroup[];
@@ -377,7 +377,8 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
     const [
         { data: attendance, error: attError },
         { data: requested, error: reqError },
-        { data: enrollments, error: enrError }
+        { data: enrollments, error: enrError },
+        { data: transferReqs, error: transError }
     ] = await Promise.all([
         supabase
             .from('attendance_records')
@@ -395,6 +396,7 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
                         teacher,
                         group_id,
                         type,
+                        course_sessions (count),
                         course_groups (
                             id,
                             slug,
@@ -408,7 +410,7 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
 
         supabase
             .from('makeup_requests')
-            .select('original_session_id')
+            .select('original_session_id, original_course_id, quota_used')
             .eq('user_id', userId)
             .in('status', ['pending', 'approved']),
 
@@ -417,7 +419,13 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
             .select('course_id')
             .eq('user_id', userId)
             .eq('type', 'full')
-            .in('status', ['enrolled', 'waitlist'])
+            .in('status', ['enrolled', 'waitlist']),
+
+        supabase
+            .from('transfer_requests')
+            .select('course_id')
+            .eq('from_user_id', userId)
+            .eq('status', 'approved')
     ]);
 
     if (attError) throw new Error(`getAvailableMakeupQuotaSessions (att): ${attError.message}`);
@@ -427,23 +435,48 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
     const usedSessionIds = new Set(requested.map(r => r.original_session_id));
     const fullEnrollmentCourseIds = new Set(enrollments.map(e => e.course_id));
 
-    return (attendance ?? [])
-        .filter(a => {
-            const course = (a.course_sessions as any).courses;
-            // Remove if already used
-            if (usedSessionIds.has(a.session_id)) return false;
-            // Only 'normal' and 'special' courses offer makeup quotas
-            if (course.type !== 'normal' && course.type !== 'special') return false;
-            // Only 'full' enrolled students get makeup quotas
-            if (!fullEnrollmentCourseIds.has(course.id)) return false;
-            
-            return true;
-        })
-        .map(a => ({
+    const validAttendance = (attendance ?? []).filter(a => {
+        const course = (a.course_sessions as any).courses;
+        // Remove if already used
+        if (usedSessionIds.has(a.session_id)) return false;
+        // Only 'normal' and 'special' courses offer makeup quotas
+        if (course.type !== 'normal' && course.type !== 'special') return false;
+        // Only 'full' enrolled students get makeup quotas
+        if (!fullEnrollmentCourseIds.has(course.id)) return false;
+        
+        return true;
+    });
+
+    if (validAttendance.length === 0) return [];
+
+    // Construct lookup maps locally in memory from the initial Promise.all results
+    const usedMakeupByCourse: Record<string, number> = {};
+    (requested ?? []).forEach((mr: any) => { 
+        if (mr.original_course_id) {
+            usedMakeupByCourse[mr.original_course_id] = (usedMakeupByCourse[mr.original_course_id] ?? 0) + Number(mr.quota_used); 
+        }
+    });
+
+    const usedTransferByCourse: Record<string, number> = {};
+    ((transferReqs as any) ?? []).forEach((tr: any) => { 
+        usedTransferByCourse[tr.course_id] = (usedTransferByCourse[tr.course_id] ?? 0) + 1; 
+    });
+
+    return validAttendance.map(a => {
+        const cId = (a.course_sessions as any).courses.id;
+        
+        const sessionsCountArray = (a.course_sessions as any).courses.course_sessions;
+        const totalSessions = Array.isArray(sessionsCountArray) && sessionsCountArray.length > 0 ? sessionsCountArray[0].count : 0;
+
+        const totalQuota = Math.ceil(totalSessions / 4);
+        const usedQuota = (usedMakeupByCourse[cId] ?? 0) + (usedTransferByCourse[cId] ?? 0);
+        const isQuotaFull = usedQuota >= totalQuota;
+
+        return {
             sessionId: (a.course_sessions as any).id,
             date: (a.course_sessions as any).session_date,
             number: (a.course_sessions as any).session_number,
-            courseId: (a.course_sessions as any).courses.id,
+            courseId: cId,
             courseSlug: (a.course_sessions as any).courses.slug,
             courseName: (a.course_sessions as any).courses.name,
             teacher: (a.course_sessions as any).courses.teacher,
@@ -451,8 +484,105 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
             groupSlug: (a.course_sessions as any).courses.course_groups?.slug,
             groupTitle: (a.course_sessions as any).courses.course_groups?.title ?? '未知群組',
             status: a.status,
-        }));
+            isQuotaFull,
+            usedQuota,
+            totalQuota
+        };
+    });
 }
+/**
+ * Compute remaining makeup quota for a user across all 'full' enrolled
+ * normal/special courses in a given group_id (UUID).
+ * Returns: sum of (computeMakeupQuota(sessionsCount) - usedMakeup - usedTransfer)
+ * capped at 0 from below.
+ */
+export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: string): Promise<{ total: number, used: number, remaining: number }> {
+    const supabase = await createClient();
+
+    const [
+        { data: enrollments },
+        { data: makeupRequests },
+        { data: transferRequests }
+    ] = await Promise.all([
+        // 1. Find all full-enrolled, normal/special courses for this user in this group, and their session counts
+        supabase
+            .from('enrollments')
+            .select(`
+                course_id, 
+                courses!inner ( 
+                    id, 
+                    type, 
+                    group_id,
+                    course_sessions(count)
+                )
+            `)
+            .eq('user_id', userId)
+            .eq('type', 'full')
+            .in('status', ['enrolled', 'waitlist'])
+            .eq('courses.group_id', groupId)
+            .in('courses.type', ['normal', 'special']),
+
+        // 2. Get used makeup quota globally for the user
+        supabase
+            .from('makeup_requests')
+            .select('original_course_id, quota_used')
+            .eq('user_id', userId)
+            .in('status', ['pending', 'approved']),
+
+        // 3. Get used transfer quota globally for the user
+        supabase
+            .from('transfer_requests')
+            .select('course_id')
+            .eq('from_user_id', userId)
+            .eq('status', 'approved')
+    ]);
+
+    if (!enrollments || enrollments.length === 0) return { total: 0, used: 0, remaining: 0 };
+
+    const courseIds = new Set(enrollments.map((e: any) => e.course_id));
+
+    const usedMakeupByCourse: Record<string, number> = {};
+    (makeupRequests ?? []).forEach((mr: any) => {
+        if (courseIds.has(mr.original_course_id)) {
+            usedMakeupByCourse[mr.original_course_id] = (usedMakeupByCourse[mr.original_course_id] ?? 0) + Number(mr.quota_used);
+        }
+    });
+
+    const usedTransferByCourse: Record<string, number> = {};
+    ((transferRequests as any) ?? []).forEach((tr: any) => {
+        if (courseIds.has(tr.course_id)) {
+            usedTransferByCourse[tr.course_id] = (usedTransferByCourse[tr.course_id] ?? 0) + 1;
+        }
+    });
+
+    let totalQuotaSum = 0;
+    let totalUsedSum = 0;
+
+    for (const enr of enrollments) {
+        const course = (enr as any).courses;
+        if (!course) continue;
+
+        const cId = enr.course_id;
+        const sessionsCountArray = course.course_sessions;
+        const sessionsCount = Array.isArray(sessionsCountArray) && sessionsCountArray.length > 0 ? sessionsCountArray[0].count : 0;
+        
+        const totalQuota = Math.ceil(sessionsCount / 4);
+        const usedMakeup = usedMakeupByCourse[cId] ?? 0;
+        const usedTransfer = usedTransferByCourse[cId] ?? 0;
+        
+        totalQuotaSum += totalQuota;
+        totalUsedSum += (usedMakeup + usedTransfer);
+    }
+
+    const totalRemaining = Math.max(0, totalQuotaSum - totalUsedSum);
+
+    return {
+        total: totalQuotaSum,
+        used: totalUsedSum,
+        remaining: totalRemaining
+    };
+}
+
 /** Get attendance history for a specific user */
 export async function getUserAttendanceHistory(userId: string, limit = 10) {
     const supabase = await createClient();

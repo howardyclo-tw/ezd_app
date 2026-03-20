@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import { CourseDetailClient } from '@/components/courses/course-detail-client';
-import { getAvailableMakeupQuotaSessions } from '@/lib/supabase/queries';
+import { getAvailableMakeupQuotaSessions, getMakeupRemainingQuotaForGroup } from '@/lib/supabase/queries';
 import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
@@ -62,11 +62,13 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         { data: enrollment },
         { data: userProfileWithCardBalance },
         missedSessions,
+        makeupQuota,
         { data: roster },
         { data: makeupsArriving },
         { data: transfersApproved },
         { data: leaveRequests },
         { data: attendanceRecords },
+        { data: makeupsDeparting },
     ] = await Promise.all([
         // 2. Enrolled count
         supabase
@@ -91,6 +93,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
 
         // 5. Available makeup sessions
         getAvailableMakeupQuotaSessions(user.id),
+
+        // 5b. Detailed makeup quota for this group
+        getMakeupRemainingQuotaForGroup(user.id, course.group_id),
 
         // 6. Roster (enrolled + waitlisted)
         supabase
@@ -126,6 +131,14 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             .from('attendance_records')
             .select('*')
             .in('session_id', sessionIds),
+
+        // 11. Makeups departing from this course (to calculate used quota)
+        supabase
+            .from('makeup_requests')
+            .select('quota_used')
+            .eq('original_course_id', course.id)
+            .eq('user_id', user.id)
+            .in('status', ['pending', 'approved']),
     ]);
 
     // Build attendance map: { [userId]: { [sessionId]: status } }
@@ -278,6 +291,17 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         sessionOccupancy[s.id] = count;
     });
 
+    // --- Calculate specific quota for THIS course ---
+    const isFullEnrolled = (enrollment as any[] || []).some(e => e.status === 'enrolled' && e.type === 'full');
+    let courseQuota = { total: 0, used: 0, remaining: 0 };
+    if (isFullEnrolled && (course.type === 'normal' || course.type === 'special')) {
+        const total = Math.ceil(sortedSessions.length / 4);
+        const usedMakeup = (makeupsDeparting ?? []).reduce((sum, m) => sum + Number(m.quota_used), 0);
+        const usedTransfer = (transfersApproved ?? []).filter(t => t.from_user_id === user.id).length;
+        const used = usedMakeup + usedTransfer;
+        courseQuota = { total, used, remaining: Math.max(0, total - used) };
+    }
+
     return (
         <CourseDetailClient
             course={{
@@ -317,6 +341,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             }}
             cardBalance={userProfileWithCardBalance?.card_balance ?? 0}
             missedSessions={missedSessions}
+            makeupQuota={makeupQuota}
+            courseQuota={courseQuota}
             canManageAttendance={canManageAttendance}
             currentUserRole={profile?.role ?? 'guest'}
             sessionOccupancy={sessionOccupancy}

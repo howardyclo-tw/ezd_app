@@ -117,6 +117,8 @@ interface CourseDetailClientProps {
     };
     cardBalance: number;
     missedSessions: any[];
+    makeupQuota?: { total: number, used: number, remaining: number };
+    courseQuota?: { total: number, used: number, remaining: number };
     canManageAttendance: boolean;
     currentUserRole: string;
     transferMetadata?: Record<string, Record<string, { type: 'transfer_out' | 'transfer_in'; fromName: string; toName: string }>>;
@@ -142,6 +144,8 @@ export function CourseDetailClient({
     userEnrollment,
     cardBalance,
     missedSessions,
+    makeupQuota = { total: 0, used: 0, remaining: 0 },
+    courseQuota = { total: 0, used: 0, remaining: 0 },
     canManageAttendance,
     currentUserRole,
     transferMetadata = {},
@@ -618,6 +622,7 @@ export function CourseDetailClient({
                                         session_number: s.number
                                     }))}
                                     missedSessions={missedSessions}
+                                    makeupQuota={makeupQuota}
                                     isFull={enrolledCount >= course.capacity}
                                     enrolledCount={enrolledCount}
                                     capacity={course.capacity}
@@ -651,24 +656,14 @@ export function CourseDetailClient({
                                 <CalendarIcon className="h-4 w-4 text-primary" />
                                 我的出席
                             </h3>
-                            {(() => {
-                                const myRecord = roster.find(s => s.id === userEnrollment.userId);
-                                const myAttendanceRecord = myRecord?.attendance || {};
-                                const usedMakeups = Object.values(myAttendanceRecord).filter(v => v === 'makeup').length;
-                                const usedTransfers = Object.values(myAttendanceRecord).filter(v => v === 'transfer_out').length;
-                                const totalUsed = usedTransfers + usedMakeups;
-                                const quota = Math.ceil(sessions.length / 4);
-
-                                // Show quota ONLY for normal/special courses as workshop (專攻班) has no makeup/quota rules
-                                if (course.type === 'normal' || course.type === 'special') {
-                                    return (
-                                        <p className="text-[11px] text-muted-foreground font-medium pl-6">
-                                            剩餘額度: <span className={cn("font-bold", totalUsed >= quota ? "text-rose-500" : "text-primary")}>{totalUsed}</span>/{quota} 次 (補課+轉讓)
-                                        </p>
-                                    );
-                                }
-                                return null;
-                            })()}
+                            {((course.type === 'normal' || course.type === 'special') && courseQuota && courseQuota.total > 0) && (
+                                <p className="text-[11px] text-muted-foreground font-medium pl-6">
+                                    本課額度: <span className={cn("font-bold", courseQuota.used >= courseQuota.total ? "text-rose-500" : "text-primary")}>{courseQuota.used}</span> / {courseQuota.total} 次 (已用/總額)
+                                    <span className="text-[10px] opacity-60 font-normal ml-1">
+                                        (規則: 該課 {sessions.length} 堂的 1/4)
+                                    </span>
+                                </p>
+                            )}
                         </div>
                         {(() => {
                             const myAttendanceRecord = roster.find(s => s.id === userEnrollment.userId)?.attendance || {};

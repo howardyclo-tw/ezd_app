@@ -94,8 +94,8 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
 
 
     // Map courses to CourseCard format
-    let minDate: string | null = groupData.period_start || null;
-    let maxDate: string | null = groupData.period_end || null;
+    let minDate: string | null = null;
+    let maxDate: string | null = null;
 
     const courseCards = (courses ?? []).map(course => {
         const sessions = (course.course_sessions as any[]) ?? [];
@@ -104,11 +104,11 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
         const firstSession = sessions[0];
         const lastSession = sessions[sessions.length - 1];
 
-        // Track overall min/max dates if group ones are missing
-        if (!groupData.period_start && firstSession?.session_date) {
+        // Track overall min/max dates from courses
+        if (firstSession?.session_date) {
             if (!minDate || firstSession.session_date < minDate) minDate = firstSession.session_date;
         }
-        if (!groupData.period_end && lastSession?.session_date) {
+        if (lastSession?.session_date) {
             if (!maxDate || lastSession.session_date > maxDate) maxDate = lastSession.session_date;
         }
 
@@ -136,9 +136,12 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
         };
     });
 
-    // Final Period string calculation
-    const formattedMin = minDate ? minDate.replace(/-/g, '/') : null;
-    const formattedMax = maxDate ? maxDate.replace(/-/g, '/') : null;
+    // Final Period string calculation: fallback to groupData if courses are missing or don't have dates
+    const finalMin = minDate || groupData.period_start;
+    const finalMax = maxDate || groupData.period_end;
+
+    const formattedMin = finalMin ? (finalMin as string).replace(/-/g, '/') : null;
+    const formattedMax = finalMax ? (finalMax as string).replace(/-/g, '/') : null;
     const inferredPeriod = formattedMin && formattedMax
         ? `${formattedMin}~${formattedMax}`
         : (formattedMin || formattedMax || '檔期時間未定');

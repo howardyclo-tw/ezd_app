@@ -25,6 +25,7 @@ export interface SessionCardProps {
     sessionNumber: number;
     status: 'enrolled' | 'waitlist' | 'present' | 'absent' | 'leave' | 'available' | 'makeup_pending';
     waitlistPosition?: number;
+    isQuotaFull?: boolean;
     href?: string;           // Optional link to course detail
 }
 
@@ -49,10 +50,13 @@ function formatDate(dateStr: string) {
 
 export function SessionCard({
     groupTitle, courseName, teacher, date, time, room,
-    sessionNumber, status, waitlistPosition, href
+    sessionNumber, status, waitlistPosition, isQuotaFull, href
 }: SessionCardProps) {
     const avatarColor = stringToColor(teacher);
-    const config = statusConfig[status] || statusConfig['enrolled'];
+    const isExhausted = status === 'available' && isQuotaFull;
+    const config = isExhausted 
+        ? { label: '該課額度已滿', color: 'bg-muted/50 text-muted-foreground ring-0' } 
+        : statusConfig[status] || statusConfig['enrolled'];
     const label = status === 'waitlist' && waitlistPosition
         ? `候補 ${waitlistPosition}`
         : config.label;
@@ -60,7 +64,8 @@ export function SessionCard({
     const content = (
         <Card className={cn(
             "border-border/40 shadow-sm transition-all duration-200 overflow-hidden w-full bg-card/50 backdrop-blur-sm relative transform-gpu backface-hidden",
-            href ? "hover:shadow-lg hover:shadow-primary/5 hover:border-primary/30 active:scale-[0.98] group cursor-pointer" : ""
+            href && !isExhausted ? "hover:shadow-lg hover:shadow-primary/5 hover:border-primary/30 active:scale-[0.98] group cursor-pointer" : "",
+            isExhausted ? "opacity-60 grayscale cursor-not-allowed" : ""
         )}>
             {/* Tag at top left */}
             {groupTitle && (
@@ -116,7 +121,7 @@ export function SessionCard({
                     <div className="h-8 w-[1px] bg-muted/40" />
 
                     <div className="flex items-center justify-center min-w-[70px]">
-                        {status === 'available' ? (
+                        {status === 'available' && !isExhausted ? (
                             <div className={cn(
                                 "flex items-center gap-0.5 px-2.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-tight transition-all",
                                 config.color
@@ -128,7 +133,7 @@ export function SessionCard({
                             <Badge
                                 variant="outline"
                                 className={cn(
-                                    "rounded-md px-2.5 py-1 text-[11px] font-black uppercase tracking-wider min-w-[62px] justify-center shadow-none border-transparent",
+                                    "rounded-md px-2.5 py-1 text-[11px] font-black tracking-wider min-w-[62px] justify-center shadow-none border-transparent",
                                     config.color
                                 )}
                             >
@@ -141,7 +146,7 @@ export function SessionCard({
         </Card>
     );
 
-    if (href) {
+    if (href && !isExhausted) {
         return (
             <Link href={href} className="block w-full no-underline">
                 {content}

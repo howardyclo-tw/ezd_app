@@ -12,9 +12,10 @@ interface MyCoursesClientProps {
     upcomingSessions: SessionCardProps[];
     historyRecords: SessionCardProps[];
     makeupSessions: SessionCardProps[];
+    availableMakeupQuotaCount: number;
 }
 
-export function MyCoursesClient({ upcomingSessions, historyRecords, makeupSessions }: MyCoursesClientProps) {
+export function MyCoursesClient({ upcomingSessions, historyRecords, makeupSessions, availableMakeupQuotaCount }: MyCoursesClientProps) {
     const [tab, setTab] = useState('upcoming');
 
     const currentList = tab === 'upcoming'
@@ -39,7 +40,7 @@ export function MyCoursesClient({ upcomingSessions, historyRecords, makeupSessio
                             即將到來 ({upcomingSessions.length})
                         </TabsTrigger>
                         <TabsTrigger value="makeup" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">
-                            可用補課 ({makeupSessions.length})
+                            可用補課 ({availableMakeupQuotaCount})
                         </TabsTrigger>
                         <TabsTrigger value="history" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">
                             歷史紀錄

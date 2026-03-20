@@ -80,8 +80,12 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
         end_time: course.end_time?.slice(0, 5) || '20:30',
         sessions_count: sessions.length,
         capacity: course.capacity,
-        first_session_at: sessions[0]?.date,
-        sessions: sessions,
+        first_session_at: course.first_session_at ? new Date(course.first_session_at) : undefined,
+        sessions: sessions.map(s => ({
+            id: s.id,
+            date: s.date,
+            hasData: s.hasData
+        })),
     };
 
     return (

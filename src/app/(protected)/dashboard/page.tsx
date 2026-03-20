@@ -145,8 +145,20 @@ export default async function DashboardPage() {
   upcomingSessionsCount += extraUpcomingCount.size;
 
   const totalMissedCount = missedSessionsList.length;
-  const availableMakeupQuotaCount = (availableMissedSessions as any[]).length;
 
+  // Calculate true available makeup quota by applying course-level max capacity
+  const courseCounts = new Map<string, { absences: number, totalQuota: number, usedQuota: number }>();
+  (availableMissedSessions as any[]).forEach(s => {
+    const existing = courseCounts.get(s.courseId) || { absences: 0, totalQuota: s.totalQuota, usedQuota: s.usedQuota };
+    existing.absences += 1;
+    courseCounts.set(s.courseId, existing);
+  });
+
+  let availableMakeupQuotaCount = 0;
+  courseCounts.forEach(val => {
+    const remainingQuota = Math.max(0, val.totalQuota - val.usedQuota);
+    availableMakeupQuotaCount += Math.min(val.absences, remainingQuota);
+  });
   const myTodaySessionsCount = (todaySessions ?? []).filter((s: any) => {
     if (isAdmin) return true;
     return s.courses.course_leaders.some((l: any) => l.user_id === user.id);

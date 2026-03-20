@@ -201,8 +201,19 @@ export async function batchEnrollInCourses(
         .eq('type', 'full')
         .eq('status', 'enrolled');
 
+    const now = new Date();
     const enrolledIds = new Set((existing ?? []).map(e => e.course_id));
-    const toEnroll = courses.filter(c => !enrolledIds.has(c.id) && c.status === 'published');
+    const toEnroll = courses.filter(c => {
+        if (enrolledIds.has(c.id)) return false;
+        
+        const enrollStart = c.enrollment_start_at ? new Date(c.enrollment_start_at) : null;
+        const enrollEnd = c.enrollment_end_at ? new Date(c.enrollment_end_at) : null;
+        
+        if (enrollStart && enrollStart > now) return false;
+        if (enrollEnd && enrollEnd < now) return false;
+        
+        return true;
+    });
 
     if (toEnroll.length === 0) return { success: false, message: '所選課程皆已報名或不開放報名' };
 
@@ -500,7 +511,7 @@ export async function removeCourseLeader(courseId: string, targetUserId: string)
 // Course Admin Actions (Groups & Courses)
 // ------------------------------------------------------------------
 
-export async function createCourseGroup(title: string): Promise<{ success: boolean; message: string; id?: string }> {
+export async function createCourseGroup(title: string, registration_start?: Date | null, registration_end?: Date | null): Promise<{ success: boolean; message: string; id?: string }> {
     const { supabase, user } = await getCurrentUser();
 
     // Verify current user is admin
@@ -509,7 +520,12 @@ export async function createCourseGroup(title: string): Promise<{ success: boole
 
     const { data, error } = await supabase
         .from('course_groups')
-        .insert({ title, created_by: user.id })
+        .insert({ 
+            title, 
+            created_by: user.id,
+            registration_phase1_start: registration_start ? registration_start.toISOString() : null,
+            registration_phase1_end: registration_end ? registration_end.toISOString() : null
+        })
         .select()
         .single();
 
@@ -519,7 +535,7 @@ export async function createCourseGroup(title: string): Promise<{ success: boole
     return { success: true, message: '成功建立課程檔期', id: data.id };
 }
 
-export async function updateCourseGroup(id: string, title: string): Promise<{ success: boolean; message: string }> {
+export async function updateCourseGroup(id: string, title: string, registration_start?: Date | null, registration_end?: Date | null): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
     // Verify current user is admin
@@ -528,13 +544,17 @@ export async function updateCourseGroup(id: string, title: string): Promise<{ su
 
     const { error } = await supabase
         .from('course_groups')
-        .update({ title })
+        .update({ 
+            title,
+            registration_phase1_start: registration_start ? registration_start.toISOString() : null,
+            registration_phase1_end: registration_end ? registration_end.toISOString() : null
+        })
         .eq('id', id);
 
     if (error) throw new Error(`修正檔期失敗: ${error.message}`);
 
     revalidatePath('/', 'layout');
-    return { success: true, message: '成功修正課程檔期標題' };
+    return { success: true, message: '成功修正課程檔期資訊' };
 }
 
 export async function createCourse(data: any): Promise<{ success: boolean; message: string; id?: string }> {
@@ -557,6 +577,8 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
             start_time: data.start_time,
             end_time: data.end_time,
             capacity: data.capacity,
+            enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
+            enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
             created_by: user.id
         })
         .select()
@@ -613,6 +635,8 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
             start_time: data.start_time,
             end_time: data.end_time,
             capacity: data.capacity,
+            enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
+            enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
         })
         .eq('id', id);
 
@@ -963,7 +987,7 @@ export async function reviewLeaveRequest(
 
 export async function submitMakeupRequest(
     originalCourseId: string,
-    originalSessionId: string,
+    originalSessionId: string | null,
     targetCourseId: string,
     targetSessionId: string
 ): Promise<{ success: boolean; message: string }> {
@@ -976,12 +1000,71 @@ export async function submitMakeupRequest(
         supabase.from('enrollments').select('type').eq('course_id', originalCourseId).eq('user_id', user.id).eq('status', 'enrolled'),
     ]);
 
-    const originalCourse = originalCourseRes.data;
+    let originalCourse = originalCourseRes.data;
     const target = targetRes.data;
-    const enrollments = enrollmentsRes.data || [];
-    const userEnrollment = enrollments.find(e => e.type === 'full') || enrollments[0];
+    let enrollments = enrollmentsRes.data || [];
+    let userEnrollment = enrollments.find(e => e.type === 'full') || enrollments[0];
+    let effectiveOriginalCourseId = originalCourseId;
 
     if (!target) throw new Error('目標堂次不存在');
+
+    // Quota-only mode: no specific original session, originalCourseId may be wrong (defaulted to target)
+    // Find the user's actual full-enrolled normal/special course in the same group that has remaining quota
+    const isQuotaOnlyMode = !originalSessionId && !userEnrollment;
+    if (isQuotaOnlyMode) {
+        const tGroup = (target.courses as any)?.group_id;
+        const { data: groupEnrollments } = await supabase
+            .from('enrollments')
+            .select('course_id, courses!inner ( id, type, group_id )')
+            .eq('user_id', user.id)
+            .eq('type', 'full')
+            .eq('status', 'enrolled')
+            .eq('courses.group_id', tGroup)
+            .in('courses.type', ['normal', 'special']);
+
+        if (!groupEnrollments || groupEnrollments.length === 0) {
+            throw new Error('您未報名此期課程，無法申請補課');
+        }
+
+        // Find a course with remaining quota
+        const courseIds = groupEnrollments.map(e => e.course_id);
+        const [sessionsRes, makeupReqRes, transferReqRes] = await Promise.all([
+            supabase.from('course_sessions').select('course_id').in('course_id', courseIds),
+            supabase.from('makeup_requests').select('original_course_id, quota_used').eq('user_id', user.id).in('original_course_id', courseIds).in('status', ['pending', 'approved']),
+            supabase.from('transfer_requests').select('course_id').eq('from_user_id', user.id).in('course_id', courseIds).eq('status', 'approved'),
+        ]);
+
+        const sessionCounts: Record<string, number> = {};
+        (sessionsRes.data ?? []).forEach(s => { sessionCounts[s.course_id] = (sessionCounts[s.course_id] ?? 0) + 1; });
+        const makeupUsed: Record<string, number> = {};
+        (makeupReqRes.data ?? []).forEach(m => { makeupUsed[m.original_course_id] = (makeupUsed[m.original_course_id] ?? 0) + Number(m.quota_used); });
+        const transferUsed: Record<string, number> = {};
+        (transferReqRes.data ?? []).forEach(t => { transferUsed[t.course_id] = (transferUsed[t.course_id] ?? 0) + 1; });
+
+        let foundCourseId: string | null = null;
+        for (const cid of courseIds) {
+            const total = computeMakeupQuota(sessionCounts[cid] ?? 0);
+            const used = (makeupUsed[cid] ?? 0) + (transferUsed[cid] ?? 0);
+            if (used < total) { foundCourseId = cid; break; }
+        }
+
+        if (!foundCourseId) {
+            const totalAll = courseIds.reduce((s, cid) => s + computeMakeupQuota(sessionCounts[cid] ?? 0), 0);
+            const usedAll = courseIds.reduce((s, cid) => s + (makeupUsed[cid] ?? 0) + (transferUsed[cid] ?? 0), 0);
+            return { success: false, message: `補課/轉讓額度已用完（${usedAll}/${totalAll}）` };
+        }
+
+        effectiveOriginalCourseId = foundCourseId;
+        const { data: foundCourse } = await supabase
+            .from('courses')
+            .select('group_id, type')
+            .eq('id', effectiveOriginalCourseId)
+            .maybeSingle();
+        originalCourse = foundCourse;
+        enrollments = [{ type: 'full' }];
+        userEnrollment = { type: 'full' };
+    }
+
     if (!originalCourse) throw new Error('原始課程不存在');
     if (!userEnrollment) throw new Error('您未報名原始課程');
 
@@ -1009,17 +1092,18 @@ export async function submitMakeupRequest(
     }
 
     // --- Quota Calculation (For 'normal' and 'special' courses) ---
-    if (originalCourse.type === 'normal' || originalCourse.type === 'special') {
+    // Skip per-course quota check in quota-only mode (already validated above across the group)
+    if (!isQuotaOnlyMode && (originalCourse.type === 'normal' || originalCourse.type === 'special')) {
         const { count: sessionsCount } = await supabase
             .from('course_sessions')
             .select('*', { count: 'exact', head: true })
-            .eq('course_id', originalCourseId);
+            .eq('course_id', effectiveOriginalCourseId);
 
         const totalQuota = computeMakeupQuota(sessionsCount ?? 8);
 
         // Check used quota (makeup + transfers combined)
-        const usedMakeup = await getUserMakeupQuotaUsed(user.id, originalCourseId);
-        const usedTransfer = await getUserTransferCount(user.id, originalCourseId);
+        const usedMakeup = await getUserMakeupQuotaUsed(user.id, effectiveOriginalCourseId);
+        const usedTransfer = await getUserTransferCount(user.id, effectiveOriginalCourseId);
         const totalUsed = usedMakeup + usedTransfer;
 
         if (totalUsed >= totalQuota) {
@@ -1064,23 +1148,25 @@ export async function submitMakeupRequest(
     }
 
     // Guard: Prevent makeup if a transfer already exists for the ORIGINAL session
-    const { data: existingTransferForOriginal } = await supabase
-        .from('transfer_requests')
-        .select('id')
-        .eq('session_id', originalSessionId)
-        .eq('from_user_id', user.id)
-        .neq('status', 'rejected')
-        .maybeSingle();
+    if (originalSessionId) {
+        const { data: existingTransferForOriginal } = await supabase
+            .from('transfer_requests')
+            .select('id')
+            .eq('session_id', originalSessionId)
+            .eq('from_user_id', user.id)
+            .neq('status', 'rejected')
+            .maybeSingle();
 
-    if (existingTransferForOriginal) {
-        throw new Error('此堂課已有轉讓申請，無法重複申請補課');
+        if (existingTransferForOriginal) {
+            throw new Error('此堂課已有轉讓申請，無法重複申請補課');
+        }
     }
 
     // Determine cross-zone quota cost
     let quotaUsed = 1;
 
     const payload = {
-        original_course_id: originalCourseId,
+        original_course_id: effectiveOriginalCourseId,
         original_session_id: originalSessionId,
         target_course_id: targetCourseId,
         target_session_id: targetSessionId,
@@ -1104,10 +1190,12 @@ export async function submitMakeupRequest(
 
     // --- NEW: Cross-Intent Cleanup ---
     // Student is now using this slot for Makeup, remove any existing Leave or Transfer intents for the ORIGINAL session
-    await Promise.all([
-        supabase.from('leave_requests').delete().eq('session_id', originalSessionId).eq('user_id', user.id),
-        supabase.from('transfer_requests').delete().eq('session_id', originalSessionId).eq('from_user_id', user.id)
-    ]);
+    if (originalSessionId) {
+        await Promise.all([
+            supabase.from('leave_requests').delete().eq('session_id', originalSessionId).eq('user_id', user.id),
+            supabase.from('transfer_requests').delete().eq('session_id', originalSessionId).eq('from_user_id', user.id)
+        ]);
+    }
 
     // Update attendance record immediately
     await supabase.from('attendance_records').upsert({

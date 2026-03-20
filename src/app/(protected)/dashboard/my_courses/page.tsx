@@ -163,6 +163,19 @@ export default async function MyCoursesPage() {
     // ── 3. Makeup: available missed sessions ──
     const availableSessions = await getAvailableMakeupQuotaSessions(user.id);
 
+    const courseCounts = new Map<string, { absences: number, totalQuota: number, usedQuota: number }>();
+    availableSessions.forEach((s: any) => {
+        const existing = courseCounts.get(s.courseId) || { absences: 0, totalQuota: s.totalQuota, usedQuota: s.usedQuota };
+        existing.absences += 1;
+        courseCounts.set(s.courseId, existing);
+    });
+
+    let availableMakeupQuotaCount = 0;
+    courseCounts.forEach(val => {
+        const remainingQuota = Math.max(0, val.totalQuota - val.usedQuota);
+        availableMakeupQuotaCount += Math.min(val.absences, remainingQuota);
+    });
+
     const makeupSessions = availableSessions.map((s: any) => {
         const gId = s.groupSlug || s.groupId;
         const cId = s.courseSlug || s.courseId;
@@ -174,6 +187,7 @@ export default async function MyCoursesPage() {
             date: s.date,
             sessionNumber: s.number,
             status: 'available' as const,
+            isQuotaFull: s.isQuotaFull,
             href: gId ? `/courses/groups/${gId}` : undefined,
         };
     });
@@ -206,6 +220,7 @@ export default async function MyCoursesPage() {
                 upcomingSessions={upcomingSessions}
                 historyRecords={historyRecords}
                 makeupSessions={makeupSessions}
+                availableMakeupQuotaCount={availableMakeupQuotaCount}
             />
         </div>
     );
