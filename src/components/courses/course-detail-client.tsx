@@ -120,6 +120,7 @@ interface CourseDetailClientProps {
     canManageAttendance: boolean;
     currentUserRole: string;
     transferMetadata?: Record<string, Record<string, { type: 'transfer_out' | 'transfer_in'; fromName: string; toName: string }>>;
+    sessionOccupancy?: Record<string, number>;
 }
 
 // Status display map
@@ -144,6 +145,7 @@ export function CourseDetailClient({
     canManageAttendance,
     currentUserRole,
     transferMetadata = {},
+    sessionOccupancy = {},
 }: CourseDetailClientProps) {
     const router = useRouter();
     const isAdminOrLeader = currentUserRole === 'admin' || currentUserRole === 'leader';
@@ -578,7 +580,7 @@ export function CourseDetailClient({
                             </div>
                             <div className="flex items-center gap-3">
                                 <Users className="h-5 w-5 text-muted-foreground/80 shrink-0" />
-                                <span className="text-sm font-medium">名額: <span className="font-bold ml-1">{enrolledCount}/{course.capacity} 人</span></span>
+                                <span className="text-sm font-medium">名額: <span className="font-bold ml-1">{course.capacity} 人</span></span>
                             </div>
                         </div>
                     </div>
@@ -604,23 +606,25 @@ export function CourseDetailClient({
                                 </Button>
                             </div>
                         ) : (
-                            <SessionEnrollmentDialog
-                                courseId={course.id}
-                                courseName={course.name}
-                                teacher={course.teacher}
-                                groupId={course.groupUuid}
-                                cardBalance={cardBalance}
-                                sessions={sessions.map(s => ({
-                                    id: s.id,
-                                    session_date: s.date,
-                                    session_number: s.number
-                                }))}
-                                missedSessions={missedSessions}
-                                isFull={enrolledCount >= course.capacity}
-                                enrolledCount={enrolledCount}
-                                capacity={course.capacity}
-                                courseType={course.type}
-                            />
+                                <SessionEnrollmentDialog
+                                    courseId={course.id}
+                                    courseName={course.name}
+                                    teacher={course.teacher}
+                                    groupId={course.groupUuid}
+                                    cardBalance={cardBalance}
+                                    sessions={sessions.map(s => ({
+                                        id: s.id,
+                                        session_date: s.date,
+                                        session_number: s.number
+                                    }))}
+                                    missedSessions={missedSessions}
+                                    isFull={enrolledCount >= course.capacity}
+                                    enrolledCount={enrolledCount}
+                                    capacity={course.capacity}
+                                    courseType={course.type}
+                                    sessionOccupancy={sessionOccupancy}
+                                    excludeSessionIds={userEnrollment.enrollmentStatus.enrolledSessionIds}
+                                />
                         )}
                     </div>
                 </div>
@@ -897,11 +901,11 @@ export function CourseDetailClient({
                                                     </span>
 
                                                     <div className={cn(
-                                                        "flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full transition-all",
+                                                        "flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full transition-all whitespace-nowrap",
                                                         isFocused ? "bg-white/10 text-white" : "text-muted-foreground/40"
                                                     )}>
                                                         <Users className="h-2.5 w-2.5" />
-                                                        {totalPresent}
+                                                        {(sessionOccupancy[s.id] ?? 0)}/{course.capacity}
                                                     </div>
                                                 </div>
                                             </th>

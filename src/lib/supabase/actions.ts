@@ -307,7 +307,36 @@ export async function batchEnrollInSessions(
         return { success: false, message: `堂卡餘額不足 (餘額: ${profile.card_balance}, 需扣除: ${totalCost})` };
     }
 
-    // 4. Perform enrollments
+    // 4. Capacity guard: check each session's real-time occupancy
+    // We need to fetch all factors affecting occupancy for these specific sessions
+    const [baseEnrollRes, makeupRes, leaveRes, transferRes] = await Promise.all([
+        supabase.from('enrollments').select('type, session_id').eq('course_id', courseId).eq('status', 'enrolled').or(`type.eq.full,session_id.in.(${toEnrollSessionIds.join(',')})`),
+        supabase.from('makeup_requests').select('target_session_id').eq('target_course_id', courseId).eq('status', 'approved').in('target_session_id', toEnrollSessionIds),
+        supabase.from('leave_requests').select('session_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
+        supabase.from('transfer_requests').select('session_id, from_user_id, to_user_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
+    ]);
+
+    const baseEnrollments = baseEnrollRes.data || [];
+    const makeups = makeupRes.data || [];
+    const leaves = leaveRes.data || [];
+    const transfers = transferRes.data || [];
+
+    for (const sid of toEnrollSessionIds) {
+        // formula: n = (Official/Single) + (Makeup) + (Transfer In) - (Leave) - (Transfer Out)
+        const fullEnrolledCount = baseEnrollments.filter(e => e.type === 'full').length;
+        const singleEnrolledCount = baseEnrollments.filter(e => e.type === 'single' && e.session_id === sid).length;
+        const makeupCount = makeups.filter(m => m.target_session_id === sid).length;
+        const leaveCount = leaves.filter(l => l.session_id === sid).length;
+        const transferInCount = transfers.filter(t => t.session_id === sid && !!t.to_user_id).length;
+        const transferOutCount = transfers.filter(t => t.session_id === sid).length;
+
+        const occupancy = fullEnrolledCount + singleEnrolledCount + makeupCount + transferInCount - leaveCount - transferOutCount;
+        if (occupancy >= course.capacity) {
+            throw new Error(`第 ${toEnrollSessionIds.indexOf(sid) + 1} 個選擇的堂次已額滿，請重新整理頁面。`);
+        }
+    }
+
+    // 5. Perform enrollments
     const newBalance = profile.card_balance - totalCost;
 
     // Update balance
@@ -1001,34 +1030,24 @@ export async function submitMakeupRequest(
         }
     }
 
-    // Base capacity taken by enrollments (Full term + Single session for this target session)
-    const { count: baseEnrolled } = await supabase
-        .from('enrollments')
-        .select('*', { count: 'exact', head: true })
-        .eq('course_id', targetCourseId)
-        .eq('status', 'enrolled')
-        .or(`type.eq.full,session_id.eq.${targetSessionId}`);
+    // --- Capacity Guard ---
+    // Formula: n = (Base Enrolled) + (Makeup Approved) + (Transfer In) - (Leave Approved) - (Transfer Out)
+    const [baseEnrollRes, makeupRes, leaveRes, transferRes] = await Promise.all([
+        supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('course_id', targetCourseId).eq('status', 'enrolled').or(`type.eq.full,session_id.eq.${targetSessionId}`),
+        supabase.from('makeup_requests').select('*', { count: 'exact', head: true }).eq('target_session_id', targetSessionId).eq('status', 'approved'),
+        supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('session_id', targetSessionId).eq('status', 'approved'),
+        supabase.from('transfer_requests').select('to_user_id').eq('course_id', targetCourseId).eq('session_id', targetSessionId).eq('status', 'approved'),
+    ]);
 
-    if ((baseEnrolled ?? 0) >= (target.courses as any).capacity) {
-        // Calculate freed spots (Leave Requests)
-        const { count: leaveApproved } = await supabase
-            .from('leave_requests')
-            .select('*', { count: 'exact', head: true })
-            .eq('session_id', targetSessionId)
-            .eq('status', 'approved');
+    const baseCount = baseEnrollRes.count ?? 0;
+    const makeupCount = makeupRes.count ?? 0;
+    const leaveCount = leaveRes.count ?? 0;
+    const transferInCount = (transferRes.data ?? []).filter(t => !!t.to_user_id).length;
+    const transferOutCount = (transferRes.data ?? []).length;
 
-        // Calculate incoming spots (Makeup Requests)
-        // Note: Transfer requests net out to 0 (1 outgoing = 1 incoming), so they don't affect capacity
-        const { count: makeupApproved } = await supabase
-            .from('makeup_requests')
-            .select('*', { count: 'exact', head: true })
-            .eq('target_session_id', targetSessionId)
-            .eq('status', 'approved');
-
-        const effectiveOccupied = (baseEnrolled ?? 0) - (leaveApproved ?? 0) + (makeupApproved ?? 0);
-        if (effectiveOccupied >= (target.courses as any).capacity) {
-            throw new Error('目標堂次已滿人，無法補課');
-        }
+    const effectiveOccupied = baseCount + makeupCount + transferInCount - leaveCount - transferOutCount;
+    if (effectiveOccupied >= (target.courses as any).capacity) {
+        throw new Error('目標堂次已滿人，無法提交補課申請');
     }
 
     // --- Duplicate Guard ---

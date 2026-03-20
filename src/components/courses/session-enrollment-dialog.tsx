@@ -24,6 +24,7 @@ import {
     Search,
     Info,
     X,
+    Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { batchEnrollInSessions, submitMakeupRequest } from '@/lib/supabase/actions';
@@ -57,6 +58,8 @@ interface SessionEnrollmentDialogProps {
     enrolledCount: number;
     capacity: number;
     courseType?: string;
+    sessionOccupancy?: Record<string, number>;
+    excludeSessionIds?: string[];
 }
 
 export function SessionEnrollmentDialog({
@@ -71,6 +74,8 @@ export function SessionEnrollmentDialog({
     enrolledCount,
     capacity,
     courseType,
+    sessionOccupancy = {},
+    excludeSessionIds = [],
 }: SessionEnrollmentDialogProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [mode, setMode] = useState<'selection' | 'enroll' | 'makeup'>('selection');
@@ -161,7 +166,9 @@ export function SessionEnrollmentDialog({
                     )}
                 >
                     <UserPlus className="h-4 w-4 mr-2" />
-                    <span>{isFull ? '加入候補' : '單堂報名 / 補課'}</span>
+                    <span>
+                        單堂報名 {(courseType === 'normal' || courseType === 'special') && '/ 補課'}
+                    </span>
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border border-muted-foreground/10 shadow-2xl bg-background">
@@ -229,27 +236,43 @@ export function SessionEnrollmentDialog({
                                     {sessions.map(s => (
                                         <div
                                             key={s.id}
-                                            onClick={() => toggleTargetSession(s.id)}
                                             className={cn(
                                                 "w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer group text-left",
-                                                selectedTargetSessionIds.has(s.id)
-                                                    ? "bg-primary/[0.03] border-primary shadow-[0_0_20px_rgba(var(--primary),0.05)]"
-                                                    : "bg-muted/5 border-transparent hover:border-primary/20 hover:bg-muted/10"
+                                                ((sessionOccupancy[s.id] ?? 0) >= capacity && !selectedTargetSessionIds.has(s.id)) || excludeSessionIds.includes(s.id)
+                                                    ? "opacity-50 grayscale cursor-not-allowed bg-muted/10 border-muted"
+                                                    : selectedTargetSessionIds.has(s.id)
+                                                        ? "bg-primary/[0.03] border-primary shadow-[0_0_20px_rgba(var(--primary),0.05)]"
+                                                        : "bg-muted/5 border-transparent hover:border-primary/20 hover:bg-muted/10"
                                             )}
+                                            onClick={() => (sessionOccupancy[s.id] ?? 0) < capacity && !excludeSessionIds.includes(s.id) && toggleTargetSession(s.id)}
                                         >
                                             <div className="flex items-center gap-5 flex-1 min-w-0">
                                                 <div className="flex items-center justify-center shrink-0">
                                                     <Checkbox
-                                                        checked={selectedTargetSessionIds.has(s.id)}
-                                                        onCheckedChange={() => toggleTargetSession(s.id)}
-                                                        className="h-6 w-6 rounded-lg border-2 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                                        checked={selectedTargetSessionIds.has(s.id) || excludeSessionIds.includes(s.id)}
+                                                        onCheckedChange={() => !excludeSessionIds.includes(s.id) && toggleTargetSession(s.id)}
+                                                        disabled={excludeSessionIds.includes(s.id)}
+                                                        className="h-6 w-6 rounded-lg border-2 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary disabled:opacity-100 disabled:bg-primary/50"
                                                         onClick={(e) => e.stopPropagation()}
                                                     />
                                                 </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="font-black text-base truncate transition-colors pr-2">
-                                                        第 {s.session_number} 堂
-                                                    </p>
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="font-black text-base truncate transition-colors pr-2">
+                                                            第 {s.session_number} 堂
+                                                        </p>
+                                                        <span className={cn(
+                                                            "text-xs font-bold px-2 py-0.5 rounded-md flex items-center gap-1",
+                                                            excludeSessionIds.includes(s.id)
+                                                                ? "bg-muted text-muted-foreground"
+                                                                : (sessionOccupancy[s.id] ?? 0) >= capacity 
+                                                                    ? "bg-red-500/10 text-red-500" 
+                                                                    : "bg-primary/10 text-primary"
+                                                        )}>
+                                                            <Users className="h-3 w-3" />
+                                                            {excludeSessionIds.includes(s.id) ? "已在名單中" : `${(sessionOccupancy[s.id] ?? 0)}/${capacity}`}
+                                                        </span>
+                                                    </div>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <span className="text-[12px] font-bold text-muted-foreground/80">
                                                             {s.session_date}
@@ -273,27 +296,43 @@ export function SessionEnrollmentDialog({
                                     {sessions.map(s => (
                                         <div
                                             key={s.id}
-                                            onClick={() => toggleTargetSession(s.id)}
                                             className={cn(
                                                 "w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer group text-left",
-                                                selectedTargetSessionIds.has(s.id)
-                                                    ? "bg-orange-500/[0.03] border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.05)]"
-                                                    : "bg-muted/5 border-transparent hover:border-orange-500/20 hover:bg-muted/10"
+                                                ((sessionOccupancy[s.id] ?? 0) >= capacity && !selectedTargetSessionIds.has(s.id)) || excludeSessionIds.includes(s.id)
+                                                    ? "opacity-50 grayscale cursor-not-allowed bg-muted/10 border-muted"
+                                                    : selectedTargetSessionIds.has(s.id)
+                                                        ? "bg-orange-500/[0.03] border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.05)]"
+                                                        : "bg-muted/5 border-transparent hover:border-orange-500/20 hover:bg-muted/10"
                                             )}
+                                            onClick={() => (sessionOccupancy[s.id] ?? 0) < capacity && !excludeSessionIds.includes(s.id) && toggleTargetSession(s.id)}
                                         >
                                             <div className="flex items-center gap-5 flex-1 min-w-0">
                                                 <div className="flex items-center justify-center shrink-0">
                                                     <Checkbox
-                                                        checked={selectedTargetSessionIds.has(s.id)}
-                                                        onCheckedChange={() => toggleTargetSession(s.id)}
-                                                        className="h-6 w-6 rounded-lg border-2 border-muted-foreground/30 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500 data-[state=checked]:text-white"
+                                                        checked={selectedTargetSessionIds.has(s.id) || excludeSessionIds.includes(s.id)}
+                                                        onCheckedChange={() => !excludeSessionIds.includes(s.id) && toggleTargetSession(s.id)}
+                                                        disabled={excludeSessionIds.includes(s.id)}
+                                                        className="h-6 w-6 rounded-lg border-2 border-muted-foreground/30 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500 data-[state=checked]:text-white disabled:opacity-100 disabled:bg-orange-500/50"
                                                         onClick={(e) => e.stopPropagation()}
                                                     />
                                                 </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="font-black text-base truncate transition-colors pr-2">
-                                                        第 {s.session_number} 堂 <span className="text-muted-foreground text-sm font-bold ml-1">(目標)</span>
-                                                    </p>
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="font-black text-base truncate transition-colors pr-2">
+                                                            第 {s.session_number} 堂 <span className="text-muted-foreground text-sm font-bold ml-1">(目標)</span>
+                                                        </p>
+                                                        <span className={cn(
+                                                            "text-xs font-bold px-2 py-0.5 rounded-md flex items-center gap-1",
+                                                            excludeSessionIds.includes(s.id)
+                                                                ? "bg-muted text-muted-foreground"
+                                                                : (sessionOccupancy[s.id] ?? 0) >= capacity 
+                                                                    ? "bg-red-500/10 text-red-500" 
+                                                                    : "bg-orange-500/10 text-orange-500"
+                                                        )}>
+                                                            <Users className="h-3 w-3" />
+                                                            {excludeSessionIds.includes(s.id) ? "已在名單中" : `${(sessionOccupancy[s.id] ?? 0)}/${capacity}`}
+                                                        </span>
+                                                    </div>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <span className="text-[12px] font-bold text-muted-foreground/80">
                                                             {s.session_date}

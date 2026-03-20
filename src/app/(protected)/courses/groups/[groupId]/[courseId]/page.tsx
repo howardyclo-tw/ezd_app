@@ -14,14 +14,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    // Get current user profile
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-    // Fetch course with all related data (supporting ID or slug)
+    // 1. Fetch profile and course in parallel
     const isIdUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(courseId);
     const courseQuery = supabase.from('courses').select(`
             *,
@@ -36,7 +29,13 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         courseQuery.eq('slug', courseId);
     }
 
-    const { data: course, error: courseError } = await courseQuery.maybeSingle();
+    const [
+        { data: profile },
+        { data: course, error: courseError }
+    ] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+        courseQuery.maybeSingle()
+    ]);
 
     if (courseError || !course) notFound();
 
@@ -57,6 +56,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     }
 
     // Fetch all independent data in parallel using the resolved course.id
+    const sessionIds = (course.course_sessions as any[]).map((s: any) => s.id);
     const [
         { count: enrolledCount },
         { data: enrollment },
@@ -64,33 +64,35 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         missedSessions,
         { data: roster },
         { data: makeupsArriving },
-        { data: transfersArriving },
+        { data: transfersApproved },
+        { data: leaveRequests },
+        { data: attendanceRecords },
     ] = await Promise.all([
-        // 1. Enrolled count
+        // 2. Enrolled count
         supabase
             .from('enrollments')
             .select('*', { count: 'exact', head: true })
             .eq('course_id', course.id)
             .eq('status', 'enrolled'),
 
-        // 2. Current user enrollment status (may have multiple for single-sessions)
+        // 3. Current user enrollment status
         supabase
             .from('enrollments')
             .select('*')
             .eq('course_id', course.id)
             .eq('user_id', user.id),
 
-        // 3. Current user card balance
+        // 4. Current user card balance
         supabase
             .from('profiles')
             .select('card_balance')
             .eq('id', user.id)
             .maybeSingle(),
 
-        // 4. Available makeup sessions
+        // 5. Available makeup sessions
         getAvailableMakeupQuotaSessions(user.id),
 
-        // 5. Roster (enrolled + waitlisted)
+        // 6. Roster (enrolled + waitlisted)
         supabase
             .from('enrollments')
             .select('*, profiles ( id, name, role )')
@@ -98,39 +100,40 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             .in('status', ['enrolled', 'waitlist'])
             .order('enrolled_at'),
 
-        // 6. Makeup students arriving in this course
+        // 7. Makeup students arriving in this course
         supabase
             .from('makeup_requests')
             .select('*, profiles:user_id ( id, name, role )')
             .eq('target_course_id', course.id)
             .eq('status', 'approved'),
         
-        // 7. Transfer students arriving in this course
+        // 8. ALL approved transfer requests for this course (both Out and In)
         supabase
             .from('transfer_requests')
-            .select('*, profiles:to_user_id ( id, name, role )')
+            .select('*, from_profile:profiles!transfer_requests_from_user_id_fkey(id, name, role), to_profile:profiles!transfer_requests_to_user_id_fkey(id, name, role)')
             .eq('course_id', course.id)
-            .eq('status', 'approved')
-            .not('to_user_id', 'is', null),
-    ]);
+            .eq('status', 'approved'),
 
-    // Attendance records — depends on course.course_sessions being resolved
-    const sessionIds = (course.course_sessions as any[]).map((s: any) => s.id);
-    let attendanceRecords: any[] = [];
-    if (sessionIds.length > 0) {
-        const { data: attendance } = await supabase
+        // 9. Leave requests for this course
+        supabase
+            .from('leave_requests')
+            .select('*')
+            .eq('course_id', course.id)
+            .eq('status', 'approved'),
+
+        // 10. Attendance records
+        supabase
             .from('attendance_records')
             .select('*')
-            .in('session_id', sessionIds);
-        attendanceRecords = attendance ?? [];
-    }
+            .in('session_id', sessionIds),
+    ]);
 
     // Build attendance map: { [userId]: { [sessionId]: status } }
     const attendanceMap: Record<string, Record<string, string>> = {};
-    for (const record of attendanceRecords) {
+    (attendanceRecords ?? []).forEach(record => {
         if (!attendanceMap[record.user_id]) attendanceMap[record.user_id] = {};
         attendanceMap[record.user_id][record.session_id] = record.status;
-    }
+    });
 
     // Track which sessions and users are involved from Makeup/Transfer
     const externalParticipantsMap: Record<string, { profile: any; sessions: string[] }> = {};
@@ -142,9 +145,11 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         }
         externalParticipantsMap[p.id].sessions.push(m.target_session_id);
     });
-    (transfersArriving ?? []).forEach(t => {
-        if (!t.profiles) return;
-        const p = t.profiles as any;
+    
+    // Only count transfers that actually Arrive in this course (have a to_user_id)
+    (transfersApproved ?? []).forEach(t => {
+        if (!t.to_profile || !t.to_user_id) return;
+        const p = t.to_profile as any;
         if (!externalParticipantsMap[p.id]) {
             externalParticipantsMap[p.id] = { profile: p, sessions: [] };
         }
@@ -195,7 +200,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
                 isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === p.id),
                 type: hasFull ? 'official' : 'additional',
                 attendance: attendanceMap[p.id] ?? {},
-                enrolledSessionIds: userEnrollments.filter(e => e.status === 'enrolled').map(e => e.session_id).filter(Boolean),
+                enrolledSessionIds: hasFull 
+                    ? sortedSessions.map((s: any) => s.id)
+                    : userEnrollments.filter(e => e.status === 'enrolled').map(e => e.session_id).filter(Boolean),
             });
         }
     });
@@ -234,15 +241,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     // Combined Roster
     const rosterWithAttendance = [...enrollmentRoster, ...additionalOnlyRoster];
 
-    // Fetch transfer metadata for detailed labels (names)
-    const { data: transfers } = await supabase
-        .from('transfer_requests')
-        .select('session_id, from_user_id, to_user_id, from_profile:profiles!transfer_requests_from_user_id_fkey(name), to_profile:profiles!transfer_requests_to_user_id_fkey(name)')
-        .eq('course_id', course.id)
-        .eq('status', 'approved');
-
+    // Reuse transfersApproved for detailed labels (names)
     const transferMetadata: Record<string, Record<string, { type: 'transfer_out' | 'transfer_in'; fromName: string; toName: string }>> = {};
-    (transfers ?? []).forEach(t => {
+    (transfersApproved ?? []).forEach(t => {
         if (!transferMetadata[t.session_id]) transferMetadata[t.session_id] = {};
         const fromName = (t.from_profile as any)?.name ?? '未知';
         const toName = (t.to_profile as any)?.name ?? (t as any).to_user_name ?? '外部人士';
@@ -253,6 +254,28 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         if (t.to_user_id) {
             transferMetadata[t.session_id][t.to_user_id] = { type: 'transfer_in', fromName, toName };
         }
+    });
+
+    // --- Calculate Session Occupancy ---
+    // Formula: n = (Official/Single Enrollments) + (Approved Makeup) + (Arriving Transfers) - (Approved Leave) - (Outgoing Transfers)
+    // Note: Arriving Transfers and Outgoing Transfers here are matching pairs on the SAME session.
+    // If a full-term student transfers out to a non-student, BaseCount includes sender, Arriving +1, Outgoing -1 => net 0 change to seats. 
+    // If we want total occupied seats, we just need to ensure each unique occupied seat is counted once.
+    
+    // We can use the roster itself to count, as it consolidates all participants.
+    const sessionOccupancy: Record<string, number> = {};
+    sortedSessions.forEach((s: any) => {
+        let count = 0;
+        rosterWithAttendance.forEach(student => {
+            const origType = getOriginalTypeForOccupancy(student, s.id, transferMetadata);
+            // Count if: 
+            // - Student is Official (full) and NOT on leave/transfer_out
+            // - Student is Additional (single/makeup/transfer_in) and assigned to this session
+            if (origType === 'normal' || origType === 'single' || origType === 'makeup' || origType === 'transfer_in') {
+                count++;
+            }
+        });
+        sessionOccupancy[s.id] = count;
     });
 
     return (
@@ -289,13 +312,31 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
                     isFullEnrolled: (enrollment as any[] || []).some(e => e.status === 'enrolled' && e.type === 'full'),
                     isWaitlisted: (enrollment as any[] || []).some(e => e.status === 'waitlist'),
                     waitlistPosition: (enrollment as any[] || []).find(e => e.status === 'waitlist')?.waitlist_position ?? undefined,
-                    enrolledSessionIds: (enrollment as any[] || []).filter(e => e.status === 'enrolled').map(e => e.session_id).filter(Boolean),
+                    enrolledSessionIds: (rosterWithAttendance.find(r => r.id === user.id)?.enrolledSessionIds ?? []),
                 }
             }}
             cardBalance={userProfileWithCardBalance?.card_balance ?? 0}
             missedSessions={missedSessions}
             canManageAttendance={canManageAttendance}
             currentUserRole={profile?.role ?? 'guest'}
+            sessionOccupancy={sessionOccupancy}
         />
     );
+}
+
+// Helper duplicated from client or moved to common lib if needed
+function getOriginalTypeForOccupancy(student: any, sessionId: string, transferMetadata: any): string {
+    const meta = transferMetadata[sessionId]?.[student.id];
+    const dbStatus = student.attendance[sessionId] ?? 'unmarked';
+    const isOfficial = student.type === 'official';
+
+    if (meta) return meta.type;
+    if (dbStatus === 'transfer_out') return 'transfer_out';
+    if (dbStatus === 'transfer_in') return 'transfer_in';
+    if (dbStatus === 'leave') return 'leave';
+
+    if (dbStatus === 'makeup') return 'makeup';
+    if (!isOfficial && student.enrolledSessionIds?.includes(sessionId)) return 'single';
+    if (!isOfficial) return 'none';
+    return 'normal';
 }

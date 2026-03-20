@@ -126,23 +126,17 @@ export function CourseCard({ course }: { course: CourseProps }) {
                                     {(course.userStatus === 'waitlist' && course.waitingNo) ? `候補${course.waitingNo}` : (userStatus?.label || status.label)}
                                 </Badge>
                             ) : (
-                                <div className="flex flex-col items-center gap-1 text-center">
-                                    <span className="text-[12px] font-bold text-muted-foreground/60 tracking-tight">
-                                        課程名額
-                                    </span>
-                                    <div className="flex items-baseline gap-1.5 leading-none pl-1">
-                                        <span className="text-[20px] font-black text-foreground tracking-tighter">
-                                            {course.enrolledCount ?? 0}
+                                    <div className="flex flex-col items-center gap-1 text-center min-w-[62px]">
+                                        <span className="text-[12px] font-bold text-muted-foreground/60 tracking-tight">
+                                            課程名額
                                         </span>
-                                        <span className="text-[14px] font-medium text-muted-foreground/30 italic">/</span>
-                                        <div className="flex items-baseline gap-0.5">
-                                            <span className="text-[14px] font-bold text-muted-foreground/80 tracking-tighter">
+                                        <div className="flex items-baseline gap-1.5 leading-none">
+                                            <span className="text-[20px] font-black text-foreground tracking-tighter">
                                                 {course.capacity ?? 0}
                                             </span>
-                                            <span className="text-[10px] font-bold text-muted-foreground/40 ml-0.5">位</span>
+                                            <span className="text-[10px] font-bold text-muted-foreground/40 ml-0.5 mt-auto">位</span>
                                         </div>
                                     </div>
-                                </div>
                             )}
                         </div>
                     </div>
