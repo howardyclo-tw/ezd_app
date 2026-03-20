@@ -478,7 +478,7 @@ export function CourseDetailClient({
                 {/* Main Content */}
                 {status === 'unmarked' ? (
                     typeLabel ? (
-                        <span className="text-[10px] font-bold text-white/40 text-center leading-tight">{typeLabel}</span>
+                        <span className="text-[11px] font-bold text-white/40 text-center leading-tight">{typeLabel}</span>
                     ) : (
                         origType === 'none' ? null : <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
                     )
@@ -488,8 +488,8 @@ export function CourseDetailClient({
                             "text-xs font-bold px-1 text-center leading-none",
                             status === 'present' ? "text-emerald-500 font-black" :
                                 status === 'absent' ? "text-rose-500 font-black" :
-                                    status === 'leave' ? "text-blue-500 font-black" :
-                                        status === 'transfer_out' ? "text-purple-400" : "text-white/40"
+                                    status === 'leave' ? "text-blue-500 font-black text-[11px]" :
+                                        (status === 'transfer_out' || origType === 'transfer_in' || status === 'makeup' || origType === 'single') ? "text-white/40 text-[11px]" : "text-white/40"
                         )}>
                             {status === 'present' ? <Check className="h-4 w-4 stroke-[4px]" /> :
                                 status === 'absent' ? <X className="h-4 w-4 stroke-[4px]" /> :

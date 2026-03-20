@@ -160,37 +160,51 @@ export default async function MyCoursesPage() {
 
     upcomingSessions.sort((a: any, b: any) => a.date.localeCompare(b.date));
 
-    // ── 3. Makeup: available missed sessions ──
+    // ── 3. Makeup: Group available missed sessions by course group ──
     const availableSessions = await getAvailableMakeupQuotaSessions(user.id);
 
-    const courseCounts = new Map<string, { absences: number, totalQuota: number, usedQuota: number }>();
+    // Grouping logic: calculate actual available count per group
+    const groupMakeupMap = new Map<string, { title: string, count: number, slug: string }>();
+    
+    // First, we need to track counts per course to respect per-course quota
+    const perCourseStats = new Map<string, { absences: number, totalQuota: number, usedQuota: number }>();
     availableSessions.forEach((s: any) => {
-        const existing = courseCounts.get(s.courseId) || { absences: 0, totalQuota: s.totalQuota, usedQuota: s.usedQuota };
-        existing.absences += 1;
-        courseCounts.set(s.courseId, existing);
+        const stats = perCourseStats.get(s.courseId) || { absences: 0, totalQuota: s.totalQuota, usedQuota: s.usedQuota };
+        stats.absences += 1;
+        perCourseStats.set(s.courseId, stats);
     });
 
-    let availableMakeupQuotaCount = 0;
-    courseCounts.forEach(val => {
-        const remainingQuota = Math.max(0, val.totalQuota - val.usedQuota);
-        availableMakeupQuotaCount += Math.min(val.absences, remainingQuota);
+    // Now, calculate the spendable makeup sessions for each course and aggregate by group
+    availableSessions.forEach((s: any) => {
+        const groupKey = s.groupId;
+        if (!groupMakeupMap.has(groupKey)) {
+            groupMakeupMap.set(groupKey, { title: s.groupTitle, count: 0, slug: s.groupSlug || s.groupId });
+        }
     });
 
-    const makeupSessions = availableSessions.map((s: any) => {
-        const gId = s.groupSlug || s.groupId;
-        const cId = s.courseSlug || s.courseId;
-
-        return {
-            groupTitle: s.groupTitle,
-            courseName: s.courseName,
-            teacher: s.teacher,
-            date: s.date,
-            sessionNumber: s.number,
-            status: 'available' as const,
-            isQuotaFull: s.isQuotaFull,
-            href: gId ? `/courses/groups/${gId}` : undefined,
-        };
+    // For each course, add its spendable count to its group
+    perCourseStats.forEach((stats, courseId) => {
+        const spendable = Math.min(stats.absences, Math.max(0, stats.totalQuota - stats.usedQuota));
+        if (spendable > 0) {
+            // Find which group this course belongs to
+            const sampleSession = availableSessions.find((s: any) => s.courseId === courseId);
+            if (sampleSession) {
+                const groupData = groupMakeupMap.get(sampleSession.groupId);
+                if (groupData) groupData.count += spendable;
+            }
+        }
     });
+
+    const makeupGroups = Array.from(groupMakeupMap.values())
+        .filter(g => g.count > 0)
+        .map(g => ({
+            id: g.slug,
+            title: g.title,
+            count: g.count,
+            href: `/courses/groups/${g.slug}`
+        }));
+
+    let availableMakeupQuotaCount = makeupGroups.reduce((sum, g) => sum + g.count, 0);
 
     return (
         <div className="container max-w-5xl py-6 space-y-4">
@@ -219,7 +233,7 @@ export default async function MyCoursesPage() {
             <MyCoursesClient
                 upcomingSessions={upcomingSessions}
                 historyRecords={historyRecords}
-                makeupSessions={makeupSessions}
+                makeupGroups={makeupGroups}
                 availableMakeupQuotaCount={availableMakeupQuotaCount}
             />
         </div>

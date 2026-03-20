@@ -27,7 +27,7 @@ import {
     Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { batchEnrollInSessions, submitMakeupRequest } from '@/lib/supabase/actions';
+import { batchEnrollInSessions, batchSubmitMakeupRequests } from '@/lib/supabase/actions';
 import { toast } from 'sonner';
 
 interface Session {
@@ -103,12 +103,13 @@ export function SessionEnrollmentDialog({
 
     const toggleTargetSession = (id: string) => {
         const next = new Set(selectedTargetSessionIds);
-        if (mode === 'enroll') {
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-        } else {
-            // Makeup mode is 1-to-1
-            next.clear();
+        if (next.has(id)) next.delete(id);
+        else {
+            // In makeup mode, don't allow selecting more than available quota
+            if (mode === 'makeup' && next.size >= trueAvailableCount) {
+                toast.error(`超過可用補課額度 (${trueAvailableCount} 堂)`);
+                return;
+            }
             next.add(id);
         }
         setSelectedTargetSessionIds(next);
@@ -136,20 +137,12 @@ export function SessionEnrollmentDialog({
     };
 
     const handleMakeupSubmit = () => {
-        const targetId = Array.from(selectedTargetSessionIds)[0];
-        if (!targetId) return;
-        // If we have a specific original session, use it. Otherwise, submit without one (quota-only mode).
-        const origCourseId = originalSession?.courseId ?? courseId;
-        const origSessionId = selectedOriginalSessionId;
+        const targetIds = Array.from(selectedTargetSessionIds);
+        if (targetIds.length === 0) return;
 
         startTransition(async () => {
             try {
-                const res = await submitMakeupRequest(
-                    origCourseId,
-                    origSessionId,
-                    courseId,
-                    targetId
-                );
+                const res = await batchSubmitMakeupRequests(courseId, targetIds);
                 if (res.success) {
                     toast.success(res.message);
                     setIsOpen(false);
@@ -376,64 +369,7 @@ export function SessionEnrollmentDialog({
                                 </div>
                             </div>
 
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.1em] px-1">使用額度 (原始欠課)</label>
-                                <div className="flex flex-col gap-3">
-                                    {availableQuota.length > 0 ? (
-                                        availableQuota.map((s: any) => {
-                                            // Since we already filtered out isQuotaFull=true above, all items here are spendable.
-                                            const isDisabled = false;
-                                            return (
-                                                <div
-                                                    key={s.sessionId}
-                                                    onClick={() => setSelectedOriginalSessionId(s.sessionId)}
-                                                    className={cn(
-                                                        "w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer group text-left",
-                                                        selectedOriginalSessionId === s.sessionId
-                                                            ? "bg-blue-500/[0.03] border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.05)]"
-                                                            : "bg-muted/5 border-transparent hover:border-blue-500/20 hover:bg-muted/10"
-                                                    )}
-                                                >
-                                                    <div className="flex items-center gap-5 flex-1 min-w-0">
-                                                        <div className="flex items-center justify-center shrink-0">
-                                                            <Checkbox
-                                                                checked={selectedOriginalSessionId === s.sessionId}
-                                                                onCheckedChange={() => setSelectedOriginalSessionId(s.sessionId)}
-                                                                className={cn(
-                                                                    "h-6 w-6 rounded-lg border-2 border-muted-foreground/30 [&_svg]:!size-4",
-                                                                    "data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500 data-[state=checked]:!text-white"
-                                                                )}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                            />
-                                                        </div>
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="font-black text-base truncate transition-colors">
-                                                                {s.courseName}
-                                                            </p>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <Badge variant="secondary" className="h-5 px-2 text-[10px] font-black uppercase tracking-widest bg-muted/50 border-none">
-                                                                    第 {s.number} 堂
-                                                                </Badge>
-                                                                <span className="text-[12px] font-bold text-muted-foreground/80">
-                                                                    {s.date}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed border-muted bg-muted/5 text-center">
-                                            <AlertCircle className="h-8 w-8 text-muted-foreground/30 mb-3" />
-                                            <p className="text-sm font-bold text-muted-foreground/60 leading-relaxed">
-                                                目前沒有可用於補課的缺席紀錄<br/>
-                                                <span className="text-[10px] font-medium opacity-70">(超過該課額度上限的紀錄已自動隱藏)</span>
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                            {/* Missed session list removed per user request to simplify UI and use auto-selection */}
                         </div>
                     )}
                 </div>
@@ -514,7 +450,7 @@ export function SessionEnrollmentDialog({
                                 <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.1em]">預計扣抵</span>
                                 <span className={cn(
                                     "text-2xl font-black leading-none",
-                                    (!selectedOriginalSessionId || selectedTargetSessionIds.size === 0) ? "text-muted-foreground/50" : "text-blue-500"
+                                    selectedTargetSessionIds.size === 0 ? "text-muted-foreground/50" : "text-blue-500"
                                 )}>
                                     {selectedTargetSessionIds.size} <span className="text-xs opacity-40 font-bold ml-0.5">堂</span>
                                 </span>
@@ -532,7 +468,7 @@ export function SessionEnrollmentDialog({
                             <Button variant="ghost" onClick={reset} className="font-black text-sm px-6 h-14 rounded-2xl shrink-0">返回</Button>
                             <Button
                                 onClick={handleMakeupSubmit}
-                                disabled={selectedTargetSessionIds.size === 0 || (hasSourceSessions && !selectedOriginalSessionId) || isPending}
+                                disabled={selectedTargetSessionIds.size === 0 || isPending}
                                 className="flex-1 h-14 font-black text-base bg-blue-500 hover:bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-500/20 transition-all active:scale-[0.98] border-none"
                             >
                                 {isPending ? (
@@ -540,7 +476,7 @@ export function SessionEnrollmentDialog({
                                 ) : (
                                     <Check className="h-5 w-5 mr-3" />
                                 )}
-                                提交申請
+                                確認報名 ({selectedTargetSessionIds.size})
                             </Button>
                         </div>
                     </div>

@@ -44,7 +44,8 @@ import {
     createCourse,
     updateCourse,
     createCourseGroup,
-    updateCourseGroup
+    updateCourseGroup,
+    deleteCourseGroup
 } from '@/lib/supabase/actions';
 import { getCourseGroups, getProfiles } from '@/lib/supabase/queries';
 import { toast } from 'sonner';
@@ -168,6 +169,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
 
     const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
     const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
+    const [isGroupDeleteConfirmOpen, setIsGroupDeleteConfirmOpen] = useState(false);
+    const [groupToDelete, setGroupToDelete] = useState<CourseGroup | null>(null);
 
     // Leader Search State
     const [isLeaderSearchOpen, setIsLeaderSearchOpen] = useState(false);
@@ -197,6 +200,10 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             toast.error('請輸入檔期名稱');
             return;
         }
+        if (!groupRegStart || !groupRegEnd) {
+            toast.error('請選擇報名開始與截止日期');
+            return;
+        }
         setIsGroupSubmitting(true);
         try {
             if (editingGroup) {
@@ -224,6 +231,27 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             setGroupRegEnd(null);
         } catch (err: any) {
             toast.error(err.message || '操作失敗');
+        } finally {
+            setIsGroupSubmitting(false);
+        }
+    };
+
+    const handleDeleteGroup = async () => {
+        if (!groupToDelete) return;
+        setIsGroupSubmitting(true);
+        try {
+            const res = await deleteCourseGroup(groupToDelete.id);
+            if (res.success) {
+                setGroups(prev => prev.filter(g => g.id !== groupToDelete.id));
+                toast.success('已刪除課程檔期');
+                setIsGroupDeleteConfirmOpen(false);
+                setGroupToDelete(null);
+                if (form.getValues('groupId') === groupToDelete.id) {
+                    form.setValue('groupId', '');
+                }
+            }
+        } catch (err: any) {
+            toast.error(err.message || '刪除失敗');
         } finally {
             setIsGroupSubmitting(false);
         }
@@ -450,23 +478,39 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                         <SelectItem value={g.id} className="flex-1">
                                                             {g.title}
                                                         </SelectItem>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                setEditingGroup(g);
-                                                                setGroupTitle(g.title);
-                                                                setGroupRegStart(g.registration_phase1_start ? new Date(g.registration_phase1_start) : null);
-                                                                setGroupRegEnd(g.registration_phase1_end ? new Date(g.registration_phase1_end) : null);
-                                                                setIsGroupModalOpen(true);
-                                                            }}
-                                                        >
-                                                            <Pencil className="h-3 w-3" />
-                                                        </Button>
+                                                        <div className="flex items-center gap-0.5 group px-1">
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    setGroupToDelete(g);
+                                                                    setIsGroupDeleteConfirmOpen(true);
+                                                                }}
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    setEditingGroup(g);
+                                                                    setGroupTitle(g.title);
+                                                                    setGroupRegStart(g.registration_phase1_start ? new Date(g.registration_phase1_start) : null);
+                                                                    setGroupRegEnd(g.registration_phase1_end ? new Date(g.registration_phase1_end) : null);
+                                                                    setIsGroupModalOpen(true);
+                                                                }}
+                                                            >
+                                                                <Pencil className="h-3 w-3" />
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </SelectContent>
@@ -941,7 +985,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsGroupModalOpen(false)}>取消</Button>
-                        <Button onClick={handleSaveGroup} disabled={isGroupSubmitting}>
+                        <Button onClick={handleSaveGroup} disabled={isGroupSubmitting || !groupTitle.trim() || !groupRegStart || !groupRegEnd}>
                             {isGroupSubmitting && <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
                             儲存
                         </Button>
@@ -965,6 +1009,29 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsDeleteWarningOpen(false)} className="w-full sm:w-auto">
                             我知道了
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={isGroupDeleteConfirmOpen} onOpenChange={setIsGroupDeleteConfirmOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2 text-rose-600 mb-2">
+                            <Trash2 className="h-5 w-5" />
+                            <DialogTitle>刪除課程檔期</DialogTitle>
+                        </div>
+                        <DialogDescription className="text-sm leading-relaxed">
+                            確定要刪除檔期「{groupToDelete?.title}」嗎？
+                            <br /><br />
+                            注意：只能刪除無任何課程關連的檔期。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button variant="outline" onClick={() => setIsGroupDeleteConfirmOpen(false)} disabled={isGroupSubmitting} className="flex-1 sm:flex-none">
+                            取消
+                        </Button>
+                        <Button variant="destructive" onClick={handleDeleteGroup} disabled={isGroupSubmitting} className="flex-1 sm:flex-none">
+                            {isGroupSubmitting ? '處理中...' : '確認刪除'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
