@@ -25,7 +25,7 @@ export default async function RootLayout({
 
   return (
     <html lang="zh-TW" suppressHydrationWarning>
-      <body className="min-h-screen bg-background font-sans antialiased">
+      <body suppressHydrationWarning className="min-h-screen bg-background font-sans antialiased">
         <RoleProvider initialRole={initialRole} initialName={initialName}>
           <ThemeProvider
             attribute="class"
