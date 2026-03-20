@@ -21,10 +21,10 @@ export default async function LeaderApprovalsPage() {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
 
-    // Fetch Card Orders (Pending / Remitted)
+    // Fetch Recent Card Orders
     const cardOrderQuery = supabase.from('card_orders')
         .select('*, profiles!card_orders_user_id_fkey(name)')
-        .in('status', ['pending', 'remitted'])
+        .gte('created_at', thirtyDaysAgoIso)
         .order('created_at', { ascending: false });
 
     // Fetch Recent Leaves

@@ -63,6 +63,7 @@ export default async function MyCardsPage() {
                     unit_price: o.unit_price,
                     total_amount: o.total_amount,
                     status: o.status,
+                    remittance_bank_code: o.remittance_bank_code,
                     remittance_account_last5: o.remittance_account_last5,
                     remittance_date: o.remittance_date,
                     remittance_note: o.remittance_note,

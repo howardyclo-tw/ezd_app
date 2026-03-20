@@ -14,8 +14,8 @@ import {
     DialogFooter,
     DialogDescription
 } from '@/components/ui/dialog';
-import { CreditCard, CalendarDays, Plus, Minus, Clock, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-react';
-import { createCardOrder, submitRemittanceInfo } from '@/lib/supabase/actions';
+import { CreditCard, CalendarDays, Plus, Minus, Clock, AlertCircle, CheckCircle2, ChevronLeft, Check, XCircle } from 'lucide-react';
+import { cancelCardOrder, createCardOrderWithRemittance } from '@/lib/supabase/actions';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,7 @@ interface CardOrder {
     unit_price: number;
     total_amount: number;
     status: string;
+    remittance_bank_code: string | null;
     remittance_account_last5: string | null;
     remittance_date: string | null;
     remittance_note: string | null;
@@ -68,29 +69,74 @@ export function MyCardsClient({
 
     // Purchase Dialog
     const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
-    const [purchaseQty, setPurchaseQty] = useState(minPurchase);
+    const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
+    const [purchaseQty, setPurchaseQty] = useState(5);
+    const [includeMembership, setIncludeMembership] = useState(false);
+    const [purchaseStep, setPurchaseStep] = useState<1 | 2>(1);
 
-    // Remittance Dialog
-    const [remittanceOrderId, setRemittanceOrderId] = useState<string | null>(null);
+    // Remittance Info (shared across purchase flow)
+    const [bankCode, setBankCode] = useState('');
     const [last5, setLast5] = useState('');
-    const [remittanceDate, setRemittanceDate] = useState('');
+    const [remittanceDate, setRemittanceDate] = useState(() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    });
     const [remittanceNote, setRemittanceNote] = useState('');
 
-    const unitPrice = isMember ? priceMember : priceNonMember;
-    const totalPrice = purchaseQty * unitPrice;
+    const unitPrice = (isMember || includeMembership) ? priceMember : priceNonMember;
+    const membershipPrice = includeMembership ? 1800 : 0;
+    const totalPrice = (purchaseQty * unitPrice) + membershipPrice;
 
     const activeOrders = orders.filter(o => o.status === 'confirmed');
     const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'remitted');
     const historyOrders = orders.filter(o => o.status === 'cancelled');
 
     const handlePurchase = () => {
+        if (!bankCode || bankCode.length < 3) {
+            toast.error('請輸入銀行代碼');
+            return;
+        }
+        if (!last5 || last5.length !== 5) {
+            toast.error('請輸入帳號末五碼');
+            return;
+        }
+        if (!remittanceDate) {
+            toast.error('請選擇匯款時間');
+            return;
+        }
+
         startTransition(async () => {
             try {
-                const res = await createCardOrder(purchaseQty);
+                const res = await createCardOrderWithRemittance(
+                    purchaseQty, 
+                    includeMembership,
+                    bankCode,
+                    last5,
+                    remittanceDate,
+                    remittanceNote || undefined
+                );
                 if (res.success) {
-                    toast.success(res.message);
                     setIsPurchaseDialogOpen(false);
-                    setPurchaseQty(minPurchase);
+                    setIsSuccessDialogOpen(true);
+                    setPurchaseQty(5);
+                    setIncludeMembership(false);
+                    setPurchaseStep(1);
+                    setBankCode('');
+                    setLast5('');
+                    // Reset to current time after purchase
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const hours = String(now.getHours()).padStart(2, '0');
+                    const minutes = String(now.getMinutes()).padStart(2, '0');
+                    setRemittanceDate(`${year}-${month}-${day}T${hours}:${minutes}`);
+                    setRemittanceNote('');
                     router.refresh();
                 }
             } catch (err: any) {
@@ -99,34 +145,17 @@ export function MyCardsClient({
         });
     };
 
-    const handleRemittance = () => {
-        if (!remittanceOrderId) return;
-        if (!last5 || last5.length !== 5) {
-            toast.error('請輸入帳號末五碼');
-            return;
-        }
-        if (!remittanceDate) {
-            toast.error('請選擇匯款日期');
-            return;
-        }
+    const handleCancelOrder = (orderId: string) => {
+        if (!confirm('確定要取消此訂單嗎？')) return;
         startTransition(async () => {
             try {
-                const res = await submitRemittanceInfo(
-                    remittanceOrderId,
-                    last5,
-                    remittanceDate,
-                    remittanceNote || undefined
-                );
+                const res = await cancelCardOrder(orderId);
                 if (res.success) {
                     toast.success(res.message);
-                    setRemittanceOrderId(null);
-                    setLast5('');
-                    setRemittanceDate('');
-                    setRemittanceNote('');
                     router.refresh();
                 }
             } catch (err: any) {
-                toast.error(err.message || '送出失敗');
+                toast.error(err.message || '取消失敗');
             }
         });
     };
@@ -134,20 +163,20 @@ export function MyCardsClient({
     return (
         <>
             {/* Header Row: Title on left, Purchase Button on right */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-2">
+            <div className="flex flex-row items-center justify-between gap-2 sm:gap-6 mb-4 px-4 sm:px-0 w-full max-w-lg mx-auto">
                 <div className="flex items-center gap-1 -ml-2">
                     <Button variant="ghost" size="icon" asChild className="rounded-full h-10 w-10 shrink-0">
                         <Link href="/dashboard">
                             <ChevronLeft className="h-6 w-6" />
                         </Link>
                     </Button>
-                    <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-black shrink-0 shadow-sm border border-muted/20">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-black shrink-0 shadow-sm border border-muted/20 hidden sm:flex">
                             <CreditCard className="h-5 w-5" />
                         </div>
                         <div className="space-y-0.5 select-none">
-                            <h1 className="text-2xl font-bold tracking-tight leading-none text-foreground">我的堂卡</h1>
-                            <p className="text-[13px] text-muted-foreground font-medium">
+                            <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-none text-foreground">我的堂卡</h1>
+                            <p className="text-[11px] sm:text-[13px] text-muted-foreground font-medium hidden sm:block">
                                 管理餘額、購卡與紀錄
                             </p>
                         </div>
@@ -156,33 +185,37 @@ export function MyCardsClient({
 
                 <Button
                     size="sm"
-                    className="h-10 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl shadow-md transition-all active:scale-95 px-6 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={() => setIsPurchaseDialogOpen(true)}
+                    className="h-9 sm:h-10 text-xs sm:text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl shadow-md transition-all active:scale-95 px-4 sm:px-6 w-auto shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => {
+                        setPurchaseStep(1);
+                        setIsPurchaseDialogOpen(true);
+                    }}
                     disabled={!isPurchaseOpen}
                 >
-                    <Plus className="h-4 w-4 mr-2" />
-                    {isPurchaseOpen ? '立即購卡' : '購買時段未開放'}
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    {isPurchaseOpen ? '立即購卡' : '購買未開放'}
                 </Button>
             </div>
 
             {/* Tabs */}
-            <div className="flex justify-center px-4 sm:px-0">
-                <Tabs defaultValue="active" className="w-full sm:w-auto">
-                    <TabsList className="bg-muted/50 p-1 h-9 border border-muted-foreground/10 w-full grid grid-cols-3 sm:flex sm:grid-cols-none sm:w-auto">
-                        <TabsTrigger value="pending" className="text-[12px] sm:text-sm font-bold data-[state=active]:shadow-sm transition-all gap-2 px-4">
-                            未開通
-                            {pendingOrders.length > 0 && (
-                                <span className="bg-muted-foreground/10 px-1.5 py-0.5 text-[10px] rounded-full">
-                                    {pendingOrders.length}
-                                </span>
-                            )}
-                        </TabsTrigger>
-                        <TabsTrigger value="active" className="text-[12px] sm:text-sm font-bold data-[state=active]:shadow-sm transition-all px-4">使用中</TabsTrigger>
-                        <TabsTrigger value="history" className="text-[12px] sm:text-sm font-bold data-[state=active]:shadow-sm transition-all px-4">歷史/已取消</TabsTrigger>
-                    </TabsList>
+            <div className="w-full max-w-lg mx-auto mt-6 sm:mt-8">
+                <Tabs defaultValue="active" className="w-full">
+                    <div className="flex justify-center mb-8 px-4 sm:px-0">
+                        <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-3 sm:flex sm:grid-cols-none sm:w-auto">
+                            <TabsTrigger value="pending" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm flex items-center gap-1.5 focus:outline-none">
+                                未開通
+                                {pendingOrders.length > 0 && (
+                                    <span className="bg-muted-foreground/20 px-1.5 py-0.5 text-[9px] rounded-full leading-none">
+                                        {pendingOrders.length}
+                                    </span>
+                                )}
+                            </TabsTrigger>
+                            <TabsTrigger value="active" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm focus:outline-none">使用中</TabsTrigger>
+                            <TabsTrigger value="history" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm focus:outline-none">歷史/已取消</TabsTrigger>
+                        </TabsList>
+                    </div>
 
-                    <div className="mt-8 space-y-6">
-                        {/* Active Tab */}
+                    <div className="space-y-6 px-4 sm:px-0">
                         <TabsContent value="active" className="space-y-6 m-0 border-none p-0 outline-none">
                             {activeOrders.length === 0 && balance === 0 ? (
                                 <div className="text-center py-24 bg-muted/10 rounded-3xl border border-dashed border-muted">
@@ -191,53 +224,45 @@ export function MyCardsClient({
                                     <Button
                                         variant="outline"
                                         className="mt-4 font-bold text-orange-600 border-orange-500/30"
-                                        onClick={() => {
-                                            if (!isPurchaseOpen) {
-                                                toast.error('堂卡購買時段尚未開放，請聯繫管理員');
-                                                return;
-                                            }
-                                            setIsPurchaseDialogOpen(true);
-                                        }}
+                                        onClick={() => setIsPurchaseDialogOpen(true)}
                                     >
                                         購買堂卡
                                     </Button>
                                 </div>
                             ) : (
                                 <div className="space-y-6">
-                                    {/* Balance Summary */}
-                                    <Card className="bg-card border border-muted/60 shadow-sm rounded-3xl p-8 space-y-8 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-8 opacity-5">
-                                            <CreditCard className="h-32 w-32 -rotate-12 translate-x-8 translate-y-8 text-foreground" />
+                                    <Card className="bg-card border border-muted/60 shadow-sm rounded-3xl p-6 sm:p-8 space-y-6 sm:space-y-8 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-6 sm:p-8 opacity-5">
+                                            <CreditCard className="h-24 w-24 sm:h-32 sm:w-32 -rotate-12 translate-x-4 translate-y-4 sm:translate-x-8 sm:translate-y-8 text-foreground" />
                                         </div>
                                         <div className="space-y-1 relative">
                                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Total Running Balance</p>
-                                            <h2 className="text-2xl font-black">目前的總剩餘堂數</h2>
+                                            <h2 className="text-xl sm:text-2xl font-black">目前的總剩餘堂數</h2>
                                         </div>
                                         <div className="flex items-end justify-between relative">
-                                            <p className="text-7xl font-black tracking-tighter">
-                                                {balance} <span className="text-xl opacity-40 font-bold ml-1">堂卡</span>
+                                            <p className="text-6xl sm:text-7xl font-black tracking-tighter">
+                                                {balance} <span className="text-lg sm:text-xl opacity-40 font-bold ml-1">堂卡</span>
                                             </p>
                                         </div>
-                                        <div className="flex items-center gap-4 text-[11px] font-bold uppercase tracking-widest text-muted-foreground relative">
+                                        <div className="flex items-center gap-4 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-muted-foreground relative">
                                             <span className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> 系統即時更新</span>
                                         </div>
                                     </Card>
 
-                                    {/* Confirmed Orders */}
                                     {activeOrders.map((order) => (
-                                        <Card key={order.id} className="border-muted/60 bg-muted/5 shadow-sm overflow-hidden relative group hover:border-orange-600/30 transition-all rounded-3xl p-6 flex flex-row items-center justify-between gap-4">
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600/60">Purchase ID: {order.id.slice(0, 8)}</p>
-                                                <h3 className="text-base font-bold">已開通: {order.quantity} 堂課卡</h3>
-                                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                                        <Card key={order.id} className="border-muted/60 bg-muted/5 shadow-sm overflow-hidden relative group hover:border-orange-600/30 transition-all rounded-xl p-5 sm:p-6 flex flex-row items-center justify-between gap-4">
+                                            <div className="space-y-1 min-w-0 flex-1">
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600/60 truncate">Purchase ID: {order.id.slice(0, 8)}</p>
+                                                <h3 className="text-sm sm:text-base font-bold truncate">已開通: {order.quantity} 堂課卡</h3>
+                                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium uppercase tracking-wider truncate">
                                                     購於 {order.confirmed_at?.slice(0, 10) || order.created_at.slice(0, 10)}
                                                 </p>
                                             </div>
-                                            <div className="text-right">
-                                                <Badge variant="outline" className="border-green-500/30 text-green-600 bg-green-500/5 font-bold mb-1">
+                                            <div className="text-right shrink-0">
+                                                <Badge variant="outline" className="border-green-500/30 text-green-600 bg-green-500/5 font-bold mb-1 border-none px-1.5 h-5 text-[10px] uppercase tracking-widest">
                                                     <CheckCircle2 className="h-3 w-3 mr-1" /> 已生效
                                                 </Badge>
-                                                <p className="text-xs text-muted-foreground font-bold">NT$ {order.total_amount}</p>
+                                                <p className="text-xs sm:text-sm text-foreground font-black mt-1">NT$ {order.total_amount}</p>
                                             </div>
                                         </Card>
                                     ))}
@@ -245,7 +270,6 @@ export function MyCardsClient({
                             )}
                         </TabsContent>
 
-                        {/* Pending Tab */}
                         <TabsContent value="pending" className="space-y-6 m-0 border-none p-0 outline-none">
                             {pendingOrders.length === 0 ? (
                                 <div className="text-center py-20 bg-muted/5 rounded-3xl border border-dashed border-muted text-muted-foreground font-bold">
@@ -255,53 +279,53 @@ export function MyCardsClient({
                                 pendingOrders.map((order) => {
                                     const statusInfo = STATUS_MAP[order.status] || STATUS_MAP.pending;
                                     return (
-                                        <Card key={order.id} className="border-muted/60 bg-muted/5 rounded-3xl overflow-hidden p-6 sm:p-8 space-y-5">
-                                            <div className="flex justify-between items-start gap-4">
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600/40">
-                                                        Order {order.id.slice(0, 8)}
-                                                    </p>
-                                                    <h2 className="text-xl font-bold tracking-tight">
-                                                        {order.quantity} 堂卡
-                                                    </h2>
-                                                </div>
-                                                <Badge variant="outline" className={cn("font-bold shrink-0 gap-1", statusInfo.color)}>
-                                                    {order.status === 'pending' && <Clock className="h-3 w-3" />}
-                                                    {order.status === 'remitted' && <AlertCircle className="h-3 w-3" />}
-                                                    {statusInfo.label}
-                                                </Badge>
-                                            </div>
-
-                                            <div className="flex items-center justify-between border-t border-muted/40 pt-5">
-                                                <div className="space-y-0.5">
-                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">應付總額</p>
-                                                    <p className="text-2xl font-bold">NT$ {order.total_amount}</p>
-                                                    <p className="text-[11px] text-muted-foreground">
-                                                        {order.quantity} 堂 × NT$ {order.unit_price}
+                                        <Card key={order.id} className="border-muted/60 bg-muted/5 rounded-xl overflow-hidden flex flex-col">
+                                            <div className="p-5 sm:p-6 space-y-4 sm:space-y-5">
+                                                <div className="space-y-1.5 w-full">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Badge variant="outline" className={cn("font-bold text-[10px] h-5 px-1.5 border-none", statusInfo.color)}>
+                                                            {statusInfo.label}
+                                                        </Badge>
+                                                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">
+                                                            Order {order.id.slice(0, 8)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-3">
+                                                        <h2 className="text-xl sm:text-2xl font-black">{order.quantity} 堂卡</h2>
+                                                        <span className="text-lg sm:text-xl font-bold tracking-tight text-foreground/80 mt-1 sm:mt-0">NT$ {order.total_amount}</span>
+                                                    </div>
+                                                    <p className="text-[11px] sm:text-xs text-muted-foreground font-medium pt-1">
+                                                        包含 {order.quantity} 堂 × NT$ {order.unit_price}
+                                                        {order.total_amount > (order.quantity * order.unit_price) && " + 社員年費"}
                                                     </p>
                                                 </div>
 
-                                                {order.status === 'pending' && (
-                                                    <Button
-                                                        variant="default"
-                                                        className="font-bold rounded-xl bg-orange-600 hover:bg-orange-700 text-white"
-                                                        onClick={() => {
-                                                            setRemittanceOrderId(order.id);
-                                                            setLast5('');
-                                                            setRemittanceDate('');
-                                                            setRemittanceNote('');
-                                                        }}
-                                                    >
-                                                        填寫匯款資訊
-                                                    </Button>
-                                                )}
                                                 {order.status === 'remitted' && (
-                                                    <div className="text-right text-xs text-muted-foreground space-y-0.5">
-                                                        <p className="font-bold">已回報匯款</p>
-                                                        <p>末五碼: {order.remittance_account_last5}</p>
-                                                        <p>匯款日: {order.remittance_date}</p>
+                                                    <div className="bg-background rounded-xl p-3 sm:p-4 border border-muted/50 text-[11px] sm:text-xs flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2">
+                                                        <div className="flex items-center gap-1.5 font-bold text-foreground shrink-0">
+                                                            <CheckCircle2 className="h-4 w-4 text-orange-600" />
+                                                            已匯款資訊
+                                                        </div>
+                                                        <div className="text-muted-foreground font-medium leading-relaxed sm:border-l sm:pl-4 sm:border-muted/60 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                                                            <span className="flex items-center gap-1.5"><span className="text-foreground text-[10px] uppercase font-bold tracking-wider opacity-60">銀行</span> {order.remittance_bank_code}</span>
+                                                            <span className="flex items-center gap-1.5"><span className="text-foreground text-[10px] uppercase font-bold tracking-wider opacity-60">末五碼</span> {order.remittance_account_last5}</span>
+                                                            <span className="flex items-center gap-1.5 w-full sm:w-auto"><span className="text-foreground text-[10px] uppercase font-bold tracking-wider opacity-60">時間</span> {order.remittance_date ? new Date(order.remittance_date).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : ''}</span>
+                                                        </div>
                                                     </div>
                                                 )}
+                                            </div>
+
+                                            <div className="bg-muted/10 border-t border-muted/30 p-3 sm:p-4 flex justify-end">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive h-9 px-4 text-xs font-bold transition-all"
+                                                    onClick={() => handleCancelOrder(order.id)}
+                                                    disabled={isPending}
+                                                >
+                                                    <XCircle className="h-4 w-4 mr-1.5" />
+                                                    取消訂單
+                                                </Button>
                                             </div>
                                         </Card>
                                     );
@@ -309,7 +333,6 @@ export function MyCardsClient({
                             )}
                         </TabsContent>
 
-                        {/* History Tab */}
                         <TabsContent value="history" className="space-y-4 m-0 border-none p-0 outline-none">
                             {historyOrders.length === 0 ? (
                                 <div className="text-center py-20 bg-muted/5 rounded-3xl border border-dashed border-muted text-muted-foreground font-bold">
@@ -317,15 +340,15 @@ export function MyCardsClient({
                                 </div>
                             ) : (
                                 historyOrders.map((order) => (
-                                    <div key={order.id} className="p-6 rounded-2xl border border-muted bg-muted/5 flex items-center justify-between opacity-50 grayscale">
+                                    <div key={order.id} className="p-5 sm:p-6 rounded-xl border border-muted bg-muted/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 opacity-50 grayscale transition-all">
                                         <div className="space-y-1">
-                                            <h3 className="font-bold line-through">{order.quantity} 堂卡</h3>
-                                            <div className="flex gap-4 text-[10px] font-bold text-muted-foreground uppercase">
+                                            <h3 className="font-bold line-through text-sm sm:text-base">{order.quantity} 堂卡</h3>
+                                            <div className="flex gap-3 text-[10px] font-bold text-muted-foreground uppercase">
                                                 <span>{order.created_at.slice(0, 10)} 購</span>
                                                 {order.expires_at && <span>{order.expires_at} 止</span>}
                                             </div>
                                         </div>
-                                        <Badge variant="secondary" className="font-bold">已取消</Badge>
+                                        <Badge variant="secondary" className="font-bold border-none px-2 h-6 text-[11px]">{STATUS_MAP[order.status]?.label || '已取消'}</Badge>
                                     </div>
                                 ))
                             )}
@@ -338,126 +361,220 @@ export function MyCardsClient({
             <Dialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen}>
                 <DialogContent className="sm:max-w-[400px]">
                     <DialogHeader>
-                        <DialogTitle>購買堂卡</DialogTitle>
+                        <DialogTitle>{purchaseStep === 1 ? '購買堂卡' : '填寫匯款資訊'}</DialogTitle>
                         <DialogDescription>
-                            選擇購買數量，最低 {minPurchase} 堂起購
+                            {purchaseStep === 1 
+                                ? '選擇購買數量，以 5 堂為單位，最低 5 堂，最高 20 堂'
+                                : '匯款完成後填寫以下資訊，財務將進行對帳'
+                            }
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-6 py-4">
-                        {/* Identity & Price */}
-                        <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border">
-                            <div className="space-y-0.5">
-                                <p className="text-xs text-muted-foreground font-bold">你的身份</p>
-                                <p className="font-bold text-sm">{isMember ? '社員' : '非社員'}</p>
+
+                    {purchaseStep === 1 ? (
+                        <div className="space-y-6 py-4">
+                            {/* Identity & Price */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border">
+                                    <div className="space-y-0.5">
+                                        <p className="text-xs text-muted-foreground font-bold">你的身份</p>
+                                        <p className="font-bold text-sm">{isMember ? '社員' : '非社員'}</p>
+                                    </div>
+                                    <div className="text-right space-y-0.5">
+                                        <p className="text-xs text-muted-foreground font-bold">單堂價格</p>
+                                        <p className={cn(
+                                            "font-bold text-sm transition-colors",
+                                            (isMember || includeMembership) ? "text-orange-600" : "text-foreground"
+                                        )}>
+                                            NT$ {(isMember || includeMembership) ? priceMember : priceNonMember}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Join Membership Option */}
+                                {!isMember && (
+                                    <div 
+                                        className={cn(
+                                            "flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer select-none",
+                                            includeMembership ? "bg-orange-500/10 border-orange-600/50 ring-1 ring-orange-600/20" : "bg-muted/10 hover:bg-muted/20 border-muted"
+                                        )}
+                                        onClick={() => setIncludeMembership(!includeMembership)}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold flex items-center gap-2">
+                                                <div className={cn(
+                                                    "h-5 w-5 rounded-full border flex items-center justify-center transition-all",
+                                                    includeMembership ? "bg-orange-600 border-orange-600" : "bg-transparent border-muted-foreground/30"
+                                                )}>
+                                                    {includeMembership && <Check className="h-3 w-3 text-white stroke-[4]" />}
+                                                </div>
+                                                加入社員 (本年度)
+                                            </span>
+                                            <span className={cn(
+                                                "text-[10px] font-medium mt-0.5 ml-7",
+                                                includeMembership ? "text-orange-600/80" : "text-muted-foreground"
+                                            )}>
+                                                {includeMembership ? "已享社員優惠價 NT$ 270/堂" : "加入後購卡即享社員價 NT$ 270/堂"}
+                                            </span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className={cn("text-sm font-black", includeMembership ? "text-orange-600" : "text-foreground")}>
+                                                + NT$ 1,800
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div className="text-right space-y-0.5">
-                                <p className="text-xs text-muted-foreground font-bold">單堂價格</p>
-                                <p className="font-bold text-sm text-orange-600">NT$ {unitPrice}</p>
+
+                            {/* Quantity Selector */}
+                            <div className="flex items-center justify-center gap-6">
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-12 w-12 rounded-full text-lg font-bold"
+                                    onClick={() => setPurchaseQty(Math.max(5, purchaseQty - 5))}
+                                    disabled={purchaseQty <= 5}
+                                >
+                                    <Minus className="h-5 w-5" />
+                                </Button>
+                                <div className="text-center">
+                                    <p className="text-5xl font-black tracking-tighter">{purchaseQty}</p>
+                                    <p className="text-xs text-muted-foreground font-bold mt-1">堂卡</p>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-12 w-12 rounded-full text-lg font-bold"
+                                    onClick={() => setPurchaseQty(Math.min(20, purchaseQty + 5))}
+                                    disabled={purchaseQty >= 20}
+                                >
+                                    <Plus className="h-5 w-5" />
+                                </Button>
+                            </div>
+
+                            {/* Total */}
+                            <div className="text-center p-4 rounded-xl bg-orange-500/5 border border-orange-500/20">
+                                <p className="text-xs text-muted-foreground font-bold mb-1">應付總額</p>
+                                <p className="text-3xl font-black text-orange-600">NT$ {totalPrice.toLocaleString()}</p>
+                            </div>
+
+                            <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+                                堂卡有效期至購買當年度年底。
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6 py-4">
+
+
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-muted-foreground ml-1">匯款銀行代碼 *</label>
+                                    <Input
+                                        placeholder="例如：822, 007"
+                                        maxLength={3}
+                                        value={bankCode}
+                                        onChange={(e) => setBankCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                        className="h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-orange-600/50"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-muted-foreground ml-1">匯款帳號末五碼 *</label>
+                                    <Input
+                                        placeholder="請輸入 5 位數字"
+                                        maxLength={5}
+                                        value={last5}
+                                        onChange={(e) => setLast5(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                                        className="h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-orange-600/50"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-muted-foreground ml-1">匯款時間 *</label>
+                                    <Input
+                                        type="datetime-local"
+                                        value={remittanceDate}
+                                        onChange={(e) => setRemittanceDate(e.target.value)}
+                                        className="h-12 rounded-xl border-muted-foreground/20 focus:border-orange-600/50"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-muted-foreground ml-1">備註 (選填)</label>
+                                    <Input
+                                        placeholder="例如：使用XX銀行轉帳"
+                                        value={remittanceNote}
+                                        onChange={(e) => setRemittanceNote(e.target.value)}
+                                        className="h-12 rounded-xl border-muted-foreground/20 focus:border-orange-600/50"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="text-center p-4 rounded-xl bg-orange-500/5 border border-orange-500/20">
+                                <p className="text-xs text-muted-foreground font-bold mb-1">應付總額</p>
+                                <p className="text-3xl font-black text-orange-600">NT$ {totalPrice.toLocaleString()}</p>
                             </div>
                         </div>
+                    )}
 
-                        {/* Quantity Selector */}
-                        <div className="flex items-center justify-center gap-6">
-                            <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-12 w-12 rounded-full text-lg font-bold"
-                                onClick={() => setPurchaseQty(Math.max(minPurchase, purchaseQty - 1))}
-                                disabled={purchaseQty <= minPurchase}
+                    <DialogFooter className="flex flex-row gap-3 pt-4 border-t border-muted/20">
+                        {purchaseStep === 1 ? (
+                            <Button 
+                                variant="outline" 
+                                className="flex-1 font-bold h-12 rounded-xl border-muted-foreground/20" 
+                                onClick={() => setIsPurchaseDialogOpen(false)}
                             >
-                                <Minus className="h-5 w-5" />
+                                取消
                             </Button>
-                            <div className="text-center">
-                                <p className="text-5xl font-black tracking-tighter">{purchaseQty}</p>
-                                <p className="text-xs text-muted-foreground font-bold mt-1">堂卡</p>
-                            </div>
-                            <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-12 w-12 rounded-full text-lg font-bold"
-                                onClick={() => setPurchaseQty(purchaseQty + 1)}
+                        ) : (
+                            <Button 
+                                variant="outline" 
+                                className="flex-1 font-bold h-12 rounded-xl border-muted-foreground/20" 
+                                onClick={() => setPurchaseStep(1)}
                             >
-                                <Plus className="h-5 w-5" />
+                                上一步
                             </Button>
-                        </div>
-
-                        {/* Total */}
-                        <div className="text-center p-4 rounded-xl bg-orange-500/5 border border-orange-500/20">
-                            <p className="text-xs text-muted-foreground font-bold mb-1">應付總額</p>
-                            <p className="text-3xl font-black text-orange-600">NT$ {totalPrice.toLocaleString()}</p>
-                        </div>
-
-                        <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
-                            送出後請依指示匯款，財務確認後堂卡將自動入帳。
-                            <br />堂卡有效期至購買當年度年底。
-                        </p>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsPurchaseDialogOpen(false)}>取消</Button>
-                        <Button
-                            className="bg-orange-600 hover:bg-orange-700 text-white font-bold"
-                            onClick={handlePurchase}
-                            disabled={isPending}
-                        >
-                            {isPending ? '處理中...' : '確認購買'}
-                        </Button>
+                        )}
+                        
+                        {purchaseStep === 1 ? (
+                            <Button
+                                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold h-12 rounded-xl shadow-md transition-all active:scale-95"
+                                onClick={() => setPurchaseStep(2)}
+                            >
+                                下一步
+                            </Button>
+                        ) : (
+                            <Button
+                                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold h-12 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
+                                onClick={handlePurchase}
+                                disabled={isPending || bankCode.length < 3 || last5.length !== 5 || !remittanceDate}
+                            >
+                                {isPending ? '處理中...' : '確認購買'}
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Remittance Dialog */}
-            <Dialog open={!!remittanceOrderId} onOpenChange={(open) => !open && setRemittanceOrderId(null)}>
+            {/* Success Dialog */}
+            <Dialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
                 <DialogContent className="sm:max-w-[400px]">
-                    <DialogHeader>
-                        <DialogTitle>填寫匯款資訊</DialogTitle>
-                        <DialogDescription>
-                            匯款完成後請填寫以下資訊，財務將進行對帳
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        {bankInfo && (
-                            <div className="p-4 rounded-xl bg-muted/30 border space-y-2">
-                                <p className="text-xs font-bold text-muted-foreground">匯款帳戶資訊</p>
-                                <p className="text-sm font-bold whitespace-pre-line">{bankInfo}</p>
-                            </div>
-                        )}
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold">匯款帳號末五碼 *</label>
-                            <Input
-                                value={last5}
-                                onChange={(e) => setLast5(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                                placeholder="請輸入 5 位數字"
-                                maxLength={5}
-                                className="h-11 text-center text-lg tracking-[0.3em] font-bold"
-                            />
+                    <div className="py-10 text-center space-y-4">
+                        <div className="h-20 w-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto text-green-600">
+                            <CheckCircle2 className="h-12 w-12" />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-bold">匯款日期 *</label>
-                            <Input
-                                type="date"
-                                value={remittanceDate}
-                                onChange={(e) => setRemittanceDate(e.target.value)}
-                                className="h-11"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold">備註（選填）</label>
-                            <Input
-                                value={remittanceNote}
-                                onChange={(e) => setRemittanceNote(e.target.value)}
-                                placeholder="例如：使用XX銀行轉帳"
-                                className="h-11"
-                            />
+                            <DialogTitle className="text-2xl font-black text-center">訂單已建立</DialogTitle>
+                            <DialogDescription className="text-base text-center">
+                                請靜候對帳開通，系統將自動入帳。
+                            </DialogDescription>
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setRemittanceOrderId(null)}>取消</Button>
                         <Button
-                            className="bg-orange-600 hover:bg-orange-700 text-white font-bold"
-                            onClick={handleRemittance}
-                            disabled={isPending || last5.length !== 5 || !remittanceDate}
+                            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold h-12 rounded-xl"
+                            onClick={() => setIsSuccessDialogOpen(false)}
                         >
-                            {isPending ? '送出中...' : '送出匯款資訊'}
+                            我知道了
                         </Button>
                     </DialogFooter>
                 </DialogContent>

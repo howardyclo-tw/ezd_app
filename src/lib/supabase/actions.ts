@@ -1759,7 +1759,7 @@ export async function updateSystemConfig(
 // Card Order Actions
 // ------------------------------------------------------------------
 
-export async function createCardOrder(quantity: number): Promise<{ success: boolean; message: string; orderId?: string }> {
+export async function createCardOrder(quantity: number, includeMembership: boolean = false): Promise<{ success: boolean; message: string; orderId?: string }> {
     const { supabase, user } = await getCurrentUser();
 
     // Check purchase window is open
@@ -1797,7 +1797,7 @@ export async function createCardOrder(quantity: number): Promise<{ success: bool
 
     const isMember = profile?.role !== 'guest' &&
         (!profile?.member_valid_until || new Date(profile.member_valid_until) >= new Date());
-    const unitPrice = isMember
+    const unitPrice = (isMember || includeMembership)
         ? parseInt(config['card_price_member'] ?? '270', 10)
         : parseInt(config['card_price_non_member'] ?? '370', 10);
 
@@ -1805,14 +1805,18 @@ export async function createCardOrder(quantity: number): Promise<{ success: bool
     const expireMonth = parseInt(config['card_expire_month'] ?? '12', 10);
     const expiresAt = new Date(new Date().getFullYear(), expireMonth, 0); // last day of expire month
 
+    const membershipPrice = includeMembership ? 1800 : 0;
+    const totalAmount = (quantity * unitPrice) + membershipPrice;
+
     const { data, error } = await supabase
         .from('card_orders')
         .insert({
             user_id: user.id,
             quantity,
             unit_price: unitPrice,
-            total_amount: quantity * unitPrice,
+            total_amount: totalAmount,
             status: 'pending',
+            include_membership: includeMembership,
             expires_at: expiresAt.toISOString().split('T')[0],
         })
         .select('id')
@@ -1820,11 +1824,27 @@ export async function createCardOrder(quantity: number): Promise<{ success: bool
 
     if (error) throw new Error(`訂單建立失敗: ${error.message}`);
 
-    return { success: true, message: '訂單已建立，請掃描 QR Code 匯款', orderId: data.id };
+    return { success: true, message: '訂單已建立', orderId: data.id };
+}
+
+export async function createCardOrderWithRemittance(
+    quantity: number,
+    includeMembership: boolean,
+    bankCode: string,
+    last5: string,
+    remittanceDate: string,
+    note?: string
+) {
+    const res = await createCardOrder(quantity, includeMembership);
+    if (!res.success || !res.orderId) return res;
+
+    const res2 = await submitRemittanceInfo(res.orderId, bankCode, last5, remittanceDate, note);
+    return res2;
 }
 
 export async function submitRemittanceInfo(
     orderId: string,
+    bankCode: string,
     last5: string,
     remittanceDate: string,
     note?: string
@@ -1835,6 +1855,7 @@ export async function submitRemittanceInfo(
         .from('card_orders')
         .update({
             status: 'remitted',
+            remittance_bank_code: bankCode,
             remittance_account_last5: last5,
             remittance_date: remittanceDate,
             remittance_note: note ?? null,
@@ -1846,6 +1867,30 @@ export async function submitRemittanceInfo(
     if (error) throw new Error(`填寫匯款資訊失敗: ${error.message}`);
 
     return { success: true, message: '匯款資訊已送出，等待財務確認' };
+}
+
+export async function cancelCardOrder(orderId: string): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    const { data: order } = await supabase
+        .from('card_orders')
+        .select('*')
+        .eq('id', orderId)
+        .eq('user_id', user.id)
+        .single();
+
+    if (!order) return { success: false, message: '找不到訂單' };
+    if (order.status !== 'pending' && order.status !== 'remitted') {
+        return { success: false, message: '此收費狀態已無法取消' };
+    }
+
+    const { error } = await supabase
+        .from('card_orders')
+        .update({ status: 'cancelled' })
+        .eq('id', orderId);
+
+    if (error) return { success: false, message: '取消失敗' };
+    return { success: true, message: '訂單已取消' };
 }
 
 /** Admin: confirm card order and issue cards to user */
@@ -1889,6 +1934,28 @@ export async function confirmCardOrder(orderId: string): Promise<{ success: bool
         .update({ card_balance: newBalance })
         .eq('id', order.user_id);
 
+    // If membership included, upgrade user to member or extend validity
+    if (order.include_membership) {
+        // Set expiry to end of current year
+        const validUntil = new Date(new Date().getFullYear(), 11, 31).toISOString().split('T')[0];
+        
+        const { data: upProfile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', order.user_id)
+            .single();
+
+        const updateData: any = { member_valid_until: validUntil };
+        if (upProfile?.role === 'guest') {
+            updateData.role = 'member';
+        }
+
+        await supabase
+            .from('profiles')
+            .update(updateData)
+            .eq('id', order.user_id);
+    }
+
     // Record transaction
     await supabase.from('card_transactions').insert({
         user_id: order.user_id,
@@ -1896,9 +1963,42 @@ export async function confirmCardOrder(orderId: string): Promise<{ success: bool
         amount: order.quantity,
         balance_after: newBalance,
         order_id: orderId,
-        note: `購買 ${order.quantity} 堂卡（訂單 ${orderId.slice(0, 8)}）`,
+        note: `購買 ${order.quantity} 堂卡${order.include_membership ? '（含加入社員）' : ''}（訂單 ${orderId.slice(0, 8)}）`,
         created_by: user.id,
     });
 
     return { success: true, message: `已核發 ${order.quantity} 堂卡給使用者` };
+}
+
+/** Admin: reject card order */
+export async function rejectCardOrder(orderId: string): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    // 1. Get order and current status
+    const { data: order } = await supabase.from('card_orders').select('*').eq('id', orderId).maybeSingle();
+    if (!order) throw new Error('訂單不存在');
+
+    // 2. If it was already confirmed, we need to deduct the cards back and delete the transaction
+    if (order.status === 'confirmed') {
+        const { data: profile } = await supabase.from('profiles').select('card_balance').eq('id', order.user_id).single();
+        if (profile) {
+            const newBalance = Math.max(0, (profile.card_balance || 0) - order.quantity);
+            await supabase.from('profiles').update({ card_balance: newBalance }).eq('id', order.user_id);
+            // Optionally delete/mark the transaction, but deduction is core
+        }
+    }
+
+    // 3. Update status to rejected
+    const { error } = await supabase
+        .from('card_orders')
+        .update({
+            status: 'rejected',
+            confirmed_by: user.id,
+            confirmed_at: new Date().toISOString(),
+        })
+        .eq('id', orderId);
+
+    if (error) return { success: false, message: '駁回失敗' };
+    
+    return { success: true, message: '訂單已駁回' };
 }
