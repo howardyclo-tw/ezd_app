@@ -137,7 +137,7 @@ export default async function MyCoursesPage() {
                 return true;
             })
             .map((s: any) => {
-                const sessionIndex = sessions.findIndex(ps => ps.id === s.id);
+                const sessionIndex = sessions.findIndex((ps: any) => ps.id === s.id);
                 return {
                     groupTitle: group?.title ?? '未知檔期',
                     courseName: course.name,
