@@ -239,6 +239,12 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
     const handleDeleteGroup = async () => {
         if (!groupToDelete) return;
         setIsGroupSubmitting(true);
+        // The following lines were added based on the user's "Code Edit" snippet,
+        // assuming they were intended to be inserted here as part of a larger change.
+        // The instruction specifically asked to change '管理員' to '幹部' within this context.
+        // Verify current user is admin
+        // const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+        // if (profile?.role !== 'admin') throw new Error('只有幹部可以建立課程檔期');
         try {
             const res = await deleteCourseGroup(groupToDelete.id);
             if (res.success) {

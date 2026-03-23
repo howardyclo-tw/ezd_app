@@ -20,7 +20,6 @@ import { updateUserRole } from '@/actions/user-actions';
 
 const roles = [
     { value: 'admin', label: '幹部', icon: ShieldCheck },
-    { value: 'leader', label: '班長', icon: Crown },
     { value: 'member', label: '社員', icon: User },
     { value: 'guest', label: '非社員', icon: Ghost },
 ];

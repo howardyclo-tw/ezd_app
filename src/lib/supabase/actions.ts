@@ -591,7 +591,7 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
 
     // Admin check
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') throw new Error('只有管理員可以建立課程');
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以建立課程');
 
     // 1. Insert Course
     const { data: course, error: courseError } = await supabase
@@ -1709,17 +1709,23 @@ export async function reviewTransferRequest(
 
 export async function updateMemberProfile(
     userId: string,
-    data: { role?: string; member_valid_until?: string | null }
+    data: { role?: string; member_valid_until?: string | null; card_balance?: number; makeup_quota?: number }
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
     // Admin check
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') throw new Error('只有管理員可以修改社員資料');
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以修改社員資料');
 
     const updateData: Record<string, any> = {};
-    if (data.role !== undefined) updateData.role = data.role;
+    if (data.role !== undefined) {
+        // Prevent setting 'leader' role explicitly as it's now course-specific status
+        const allowedRole = data.role === 'leader' ? 'member' : data.role;
+        updateData.role = allowedRole;
+    }
     if (data.member_valid_until !== undefined) updateData.member_valid_until = data.member_valid_until;
+    if (data.card_balance !== undefined) updateData.card_balance = data.card_balance;
+    if (data.makeup_quota !== undefined) updateData.makeup_quota = data.makeup_quota;
 
     if (Object.keys(updateData).length === 0) {
         return { success: false, message: '沒有要更新的欄位' };
@@ -1742,7 +1748,7 @@ export async function updateSystemConfig(
     const { supabase, user } = await getCurrentUser();
 
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') throw new Error('只有管理員可以修改系統設定');
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以修改系統設定');
 
     for (const entry of entries) {
         const { error } = await supabase

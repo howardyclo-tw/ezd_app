@@ -21,8 +21,7 @@ interface UserNavProps {
 }
 
 const roleLabels: Record<string, string> = {
-    admin: '管理員',
-    leader: '班長',
+    admin: '幹部',
     member: '社員',
     guest: '非社員',
 };

@@ -17,13 +17,13 @@ export function LogoutButton() {
 
     return (
         <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={handleSignOut}
-            className="text-red-600 hover:text-white hover:bg-red-600 border-red-200 hover:border-red-600 font-bold px-6 rounded-xl transition-all shadow-sm active:scale-95"
+            className="h-9 px-3 text-white/60 hover:text-rose-400 hover:bg-rose-400/5 transition-all flex items-center gap-2 rounded-xl"
         >
-            <LogOut className="mr-2 h-4 w-4" />
-            登出系統
+            <LogOut className="h-4 w-4 text-rose-500" />
+            <span className="text-sm font-bold tracking-tight">登出系統</span>
         </Button>
     );
 }

@@ -1,10 +1,13 @@
 'use client';
 
+import { createClient } from '@/lib/supabase/server';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { ClipboardList, Calendar, ArrowRight } from 'lucide-react';
+import { ClipboardList, Calendar, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { SessionCard, type SessionCardProps } from '@/components/courses/session-card';
 
@@ -13,9 +16,10 @@ interface MyCoursesClientProps {
     historyRecords: SessionCardProps[];
     makeupGroups: { id: string, title: string, count: number, href: string }[];
     availableMakeupQuotaCount: number;
+    manualQuota: number;
 }
 
-export function MyCoursesClient({ upcomingSessions, historyRecords, makeupGroups, availableMakeupQuotaCount }: MyCoursesClientProps) {
+export function MyCoursesClient({ upcomingSessions, historyRecords, makeupGroups, availableMakeupQuotaCount, manualQuota }: MyCoursesClientProps) {
     const [tab, setTab] = useState('upcoming');
 
     const currentList = tab === 'upcoming'
@@ -35,7 +39,7 @@ export function MyCoursesClient({ upcomingSessions, historyRecords, makeupGroups
             {/* Filter Tabs */}
             <div className="flex justify-center px-4 sm:px-0">
                 <Tabs defaultValue="upcoming" className="w-full sm:w-auto" onValueChange={setTab}>
-                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-3 sm:flex sm:grid-cols-none sm:w-auto">
+                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 flex w-max mx-auto overflow-x-auto no-scrollbar sm:w-auto">
                         <TabsTrigger value="upcoming" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">
                             即將到來 ({upcomingSessions.length})
                         </TabsTrigger>
@@ -65,6 +69,29 @@ export function MyCoursesClient({ upcomingSessions, historyRecords, makeupGroups
                     </Card>
                 ) : (
                     <div className="grid gap-3 grid-cols-1">
+                        {/* Manual Adjustment Card - System Note Style */}
+                        {manualQuota !== 0 && (
+                            <div className="p-4 bg-muted/5 border border-muted-foreground/10 rounded-2xl flex items-center justify-between shadow-sm">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-9 w-9 rounded-xl bg-muted/10 flex items-center justify-center text-muted-foreground/60">
+                                        <ShieldCheck className="h-5 w-5" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <h4 className="text-[13px] font-bold text-muted-foreground/80 tracking-tight">幹部手動調整註記</h4>
+                                        <span className="text-[10px] text-muted-foreground/40 font-black uppercase tracking-widest">System Override Note</span>
+                                    </div>
+                                </div>
+                                <div className={cn(
+                                    "flex items-center justify-center px-4 h-8 rounded-full text-xs font-black shadow-inner border backdrop-blur-md",
+                                    manualQuota > 0 
+                                        ? "bg-blue-500/5 text-blue-400/80 border-blue-500/20" 
+                                        : "bg-rose-500/5 text-rose-400/80 border-rose-500/20"
+                                )}>
+                                    {manualQuota > 0 ? `+${manualQuota}` : manualQuota} 堂
+                                </div>
+                            </div>
+                        )}
+
                         {makeupGroups.map((group) => (
                             <Link href={group.href} key={group.id} className="block w-full no-underline">
                                 <Card className="border-border/40 shadow-sm transition-all duration-200 overflow-hidden w-full bg-card/50 backdrop-blur-sm hover:shadow-lg hover:shadow-primary/5 hover:border-primary/30 active:scale-[0.98] group cursor-pointer relative transform-gpu backface-hidden">

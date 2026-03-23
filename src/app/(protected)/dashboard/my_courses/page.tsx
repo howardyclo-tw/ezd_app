@@ -213,7 +213,8 @@ export default async function MyCoursesPage() {
             href: `/courses/groups/${g.slug}`
         }));
 
-    let availableMakeupQuotaCount = makeupGroups.reduce((sum, g) => sum + g.count, 0);
+    const manualQuota = availableSessions.length > 0 ? (availableSessions[0] as any).manualQuota : 0;
+    let availableMakeupQuotaCount = makeupGroups.reduce((sum, g) => sum + g.count, 0) + manualQuota;
 
     return (
         <div className="container max-w-5xl py-6 space-y-4">
@@ -244,6 +245,7 @@ export default async function MyCoursesPage() {
                 historyRecords={historyRecords}
                 makeupGroups={makeupGroups}
                 availableMakeupQuotaCount={availableMakeupQuotaCount}
+                manualQuota={manualQuota}
             />
         </div>
     );

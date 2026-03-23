@@ -19,10 +19,12 @@ import {
   UserSquare,
   Banknote,
   ClipboardCheck,
-  Settings
+  Settings,
+  Upload
 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/auth/logout-button';
+import { ChangePasswordDialog } from '@/components/auth/change-password-dialog';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { DashboardNavCard } from '@/components/dashboard/dashboard-nav-card';
@@ -168,21 +170,25 @@ export default async function DashboardPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-10 pb-24">
-
-      {/* 1. Compact Info Row (Unified Bar) */}
-      <div className="flex flex-col items-center text-center">
-        <div className="bg-muted/30 backdrop-blur-sm border border-muted-foreground/10 px-4 sm:px-6 py-2.5 rounded-2xl flex flex-row items-center gap-3 sm:gap-4 bg-muted/20 shadow-sm transition-all whitespace-nowrap overflow-hidden max-w-full">
-          <p className="text-sm font-bold flex items-center gap-2 truncate">
-            <span className="text-base shrink-0">👋</span>
-            <span className="text-foreground tracking-tight underline decoration-primary/30 underline-offset-8 decoration-2 truncate max-w-[120px] sm:max-w-none">{displayName}</span>
-          </p>
-
-          <div className="h-3 w-[1px] bg-muted-foreground/20 shrink-0" />
-
-          <div className="flex items-center shrink-0">
-            <Badge variant="secondary" className="bg-foreground text-background border-none font-bold px-1.5 py-0 h-5 text-[10px] rounded-md shadow-sm uppercase tracking-wider whitespace-nowrap">
+      {/* 1. Unified Profile & Control Capsule */}
+      <div className="flex justify-center">
+        <div className="bg-[#1A1A1C]/60 backdrop-blur-xl border border-white/5 rounded-2xl flex flex-col sm:flex-row items-center p-1.5 sm:px-4 sm:py-2 gap-2 sm:gap-4 shadow-2xl">
+          {/* Info Section */}
+          <div className="flex items-center gap-3 px-3 sm:pr-4 sm:border-r border-white/10 h-auto sm:h-7">
+            <p className="text-sm font-bold flex items-center gap-2">
+              <span className="text-base shrink-0">👋</span>
+              <span className="text-foreground tracking-tight">{displayName}</span>
+            </p>
+            <Badge variant="secondary" className="bg-foreground text-background border-none font-black px-1.5 py-0 h-4.5 text-[9px] rounded-md shadow-sm uppercase tracking-wider">
               {roleLabels[userRole]}
             </Badge>
+          </div>
+
+          {/* Actions Section */}
+          <div className="flex items-center">
+            <ChangePasswordDialog />
+            <div className="h-4 w-px bg-white/5 mx-2" />
+            <LogoutButton />
           </div>
         </div>
       </div>
@@ -325,6 +331,18 @@ export default async function DashboardPage() {
                     <div className="flex-1">
                       <p className="text-sm font-bold">社員管理</p>
                       <p className="text-[10px] text-muted-foreground font-bold">管理權限與資歷資訊</p>
+                    </div>
+                  </div>
+                </Link>
+
+                <Link href="/leader/import">
+                  <div className="flex items-center gap-4 p-4 rounded-2xl border border-muted/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-all group">
+                    <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all">
+                      <Upload className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold">資料匯入</p>
+                      <p className="text-[10px] text-muted-foreground font-bold">批次匯入社員、堂卡與課程名單</p>
                     </div>
                   </div>
                 </Link>

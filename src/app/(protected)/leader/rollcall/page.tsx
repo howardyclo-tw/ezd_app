@@ -15,25 +15,9 @@ export default async function LeaderRollcallPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    // Get profile and check role
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
-
-    const isAdmin = profile?.role === 'admin';
-    const isLeader = profile?.role === 'leader';
-
-    if (!isAdmin && !isLeader) {
-        redirect('/dashboard');
-    }
-
-    // Get today's date in YYYY-MM-DD
+    // 1. Fetch sessions for today with leader names and group titles
     const today = format(new Date(), 'yyyy-MM-dd');
-
-    // Fetch sessions for today with leader names and group titles
-    const { data: sessions, error } = await supabase
+    const { data: sessions, error: sessionsError } = await supabase
         .from('course_sessions')
         .select(`
             id,
@@ -53,18 +37,37 @@ export default async function LeaderRollcallPage() {
         `)
         .eq('session_date', today);
 
-    if (error) {
-        console.error('Error fetching today sessions:', error);
+    if (sessionsError) {
+        console.error('Error fetching today sessions:', sessionsError);
     }
 
+    // 2. Identify sessions the user can access
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const isAdmin = profile?.role === 'admin';
+    
     // Filter sessions: 
     // If admin, keep all. 
-    // If leader, keep only those where user is in course_leaders.
+    // If NOT admin, keep only those where user is in course_leaders.
     const mySessionsRaw = (sessions ?? []).filter((s: any) => {
         if (isAdmin) return true;
         const leaders = s.courses?.course_leaders || [];
         return leaders.some((l: any) => l.user_id === user.id);
     });
+
+    // 3. Permission Redirect: 
+    // Allow access if admin OR if user has at least one session today OR if they are marked as a leader in ANY course (for the empty state)
+    let hasAnyLeaderAssignment = false;
+    if (!isAdmin && mySessionsRaw.length === 0) {
+        const { count } = await supabase
+            .from('course_leaders')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
+        hasAnyLeaderAssignment = (count ?? 0) > 0;
+    }
+
+    if (!isAdmin && mySessionsRaw.length === 0 && !hasAnyLeaderAssignment) {
+        redirect('/dashboard');
+    }
 
     // To get the LOGICAL session number (index by date), we need ALL session dates for these courses
     const courseIds = [...new Set(mySessionsRaw.map((s: any) => s.courses?.id).filter(Boolean))];

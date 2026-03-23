@@ -378,7 +378,8 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
         { data: attendance, error: attError },
         { data: requested, error: reqError },
         { data: enrollments, error: enrError },
-        { data: transferReqs, error: transError }
+        { data: transferReqs, error: transError },
+        { data: profile, error: profError }
     ] = await Promise.all([
         supabase
             .from('attendance_records')
@@ -425,15 +426,24 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
             .from('transfer_requests')
             .select('course_id')
             .eq('from_user_id', userId)
-            .eq('status', 'approved')
+            .eq('status', 'approved'),
+        
+        supabase
+            .from('profiles')
+            .select('makeup_quota')
+            .eq('id', userId)
+            .single()
     ]);
 
     if (attError) throw new Error(`getAvailableMakeupQuotaSessions (att): ${attError.message}`);
     if (reqError) throw new Error(`getAvailableMakeupQuotaSessions (req): ${reqError.message}`);
     if (enrError) throw new Error(`getAvailableMakeupQuotaSessions (enr): ${enrError.message}`);
+    if (profError) throw new Error(`getAvailableMakeupQuotaSessions (prof): ${profError.message}`);
 
-    const usedSessionIds = new Set(requested.map(r => r.original_session_id));
-    const fullEnrollmentCourseIds = new Set(enrollments.map(e => e.course_id));
+    const manualQuota = profile?.makeup_quota || 0;
+
+    const usedSessionIds = new Set((requested || []).map(r => r.original_session_id));
+    const fullEnrollmentCourseIds = new Set((enrollments || []).map(e => e.course_id));
 
     const validAttendance = (attendance ?? []).filter(a => {
         const course = (a.course_sessions as any).courses;
@@ -486,7 +496,8 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
             status: a.status,
             isQuotaFull,
             usedQuota,
-            totalQuota
+            totalQuota,
+            manualQuota // Adding manual adjustment from profile
         };
     });
 }
