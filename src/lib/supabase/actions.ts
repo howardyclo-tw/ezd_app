@@ -607,6 +607,7 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
             start_time: data.start_time,
             end_time: data.end_time,
             capacity: data.capacity,
+            cards_per_session: data.cards_per_session ?? 1,
             enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
             enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
             created_by: user.id
@@ -665,6 +666,7 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
             start_time: data.start_time,
             end_time: data.end_time,
             capacity: data.capacity,
+            cards_per_session: data.cards_per_session ?? 1,
             enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
             enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
         })
@@ -1730,6 +1732,31 @@ export async function updateMemberProfile(
 
     if (Object.keys(updateData).length === 0) {
         return { success: false, message: '沒有要更新的欄位' };
+    }
+
+    // If card_balance changed, create an adjustment transaction for audit trail
+    if (data.card_balance !== undefined) {
+        const { data: currentProfile } = await supabase
+            .from('profiles')
+            .select('card_balance')
+            .eq('id', userId)
+            .single();
+
+        const oldBalance = currentProfile?.card_balance ?? 0;
+        const newBalance = data.card_balance;
+        const diff = newBalance - oldBalance;
+
+        if (diff !== 0) {
+            const adminClient = createAdminClient();
+            await adminClient.from('card_transactions').insert({
+                user_id: userId,
+                type: diff > 0 ? 'admin_add' : 'admin_deduct',
+                amount: diff,
+                balance_after: newBalance,
+                note: `幹部手動調整：${oldBalance} → ${newBalance}`,
+                created_by: user.id,
+            });
+        }
     }
 
     const { error } = await supabase

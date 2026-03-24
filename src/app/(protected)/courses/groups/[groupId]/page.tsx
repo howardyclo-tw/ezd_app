@@ -79,8 +79,7 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
                 enrollments ( count ),
                 course_leaders ( user_id, profiles!course_leaders_user_id_fkey ( id, name ) )
             `)
-            .eq('group_id', groupData.id)
-            .order('start_time'),
+            .eq('group_id', groupData.id),
 
         // User's existing enrollments for this group (to disable in dialog)
         supabase
@@ -134,7 +133,7 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
             startDate: firstSession?.session_date ?? '',
             endDate: lastSession?.session_date ?? '',
         };
-    });
+    }).sort((a, b) => a.startDate.localeCompare(b.startDate) || a.name.localeCompare(b.name));
 
     // Final Period string calculation: fallback to groupData if courses are missing or don't have dates
     const finalMin = minDate || groupData.period_start;

@@ -627,6 +627,7 @@ export function CourseDetailClient({
                                     enrolledCount={enrolledCount}
                                     capacity={course.capacity}
                                     courseType={course.type}
+                                    cardsPerSession={course.cardsPerSession}
                                     sessionOccupancy={sessionOccupancy}
                                     excludeSessionIds={userEnrollment.enrollmentStatus.enrolledSessionIds}
                                 />

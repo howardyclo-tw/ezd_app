@@ -46,8 +46,8 @@ const templates = {
     card_orders: {
         title: '堂卡紀錄',
         filename: 'ezd_card_orders_template.csv',
-        content: '工號 (employee_id),堂數 (cards),金額 (amount),購買日期 (purchase_date)\n12345,10,2400,2026-03-21\n67890,5,1350,2026-03-22',
-        headers: ['工號 (employee_id)', '堂數 (cards)', '金額 (amount)', '購買日期 (purchase_date)']
+        content: '工號 (employee_id),堂數 (cards)\n12345,10\n67890,5',
+        headers: ['工號 (employee_id)', '堂數 (cards)']
     },
     rosters: {
         title: '課程名單',
@@ -58,8 +58,8 @@ const templates = {
     course_groups: {
         title: '課程資訊',
         filename: 'ezd_course_info_template.csv',
-        content: '課程名稱 (title),老師姓名 (instructor),內容描述 (description)\n新的風格課程,王小明,這是一個範例課程描述\nHQ 2026 3~4月 風格體驗,李小華,後續月份的預排課程',
-        headers: ['課程名稱 (title)', '老師姓名 (instructor)', '內容描述 (description)']
+        content: '檔期名稱 (group_title),課程名稱 (name),類型 (type),老師 (teacher),教室 (room),日期 (session_date),開始時間 (start_time),結束時間 (end_time),人數上限 (capacity),堂卡扣除 (cards_per_session),備註 (description)\n2026 HQ 3月 常態試跳,Krump 體驗,trial,小Joy,E棟有氧教室,2026-03-16,19:00,20:30,18,0,\n2026 HQ 3月 常態試跳,韓風MV,trial,小可,AB棟韻律教室,2026-03-17,19:15,20:45,25,0,',
+        headers: ['檔期名稱 (group_title)', '課程名稱 (name)', '類型 (type)', '老師 (teacher)', '教室 (room)', '日期 (session_date)', '開始時間 (start_time)', '結束時間 (end_time)', '人數上限 (capacity)', '堂卡扣除 (cards_per_session)', '備註 (description)']
     }
 };
 
@@ -90,13 +90,56 @@ export function ImportClient() {
         setPreview(parseCSV(templateContent, type));
     };
 
+    // RFC 4180 compliant CSV parser: handles quoted fields with commas and newlines
+    const parseCSVRows = (text: string): string[][] => {
+        const rows: string[][] = [];
+        let current: string[] = [];
+        let field = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const next = text[i + 1];
+
+            if (inQuotes) {
+                if (ch === '"' && next === '"') {
+                    field += '"'; // escaped quote
+                    i++;
+                } else if (ch === '"') {
+                    inQuotes = false;
+                } else {
+                    field += ch;
+                }
+            } else {
+                if (ch === '"') {
+                    inQuotes = true;
+                } else if (ch === ',') {
+                    current.push(field.trim());
+                    field = '';
+                } else if (ch === '\n' || (ch === '\r' && next === '\n')) {
+                    current.push(field.trim());
+                    field = '';
+                    if (current.some(c => c !== '')) rows.push(current);
+                    current = [];
+                    if (ch === '\r') i++; // skip \n after \r
+                } else {
+                    field += ch;
+                }
+            }
+        }
+        // Last field/row
+        current.push(field.trim());
+        if (current.some(c => c !== '')) rows.push(current);
+        return rows;
+    };
+
     const parseCSV = (text: string, typeOverride?: ImportType) => {
-        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-        if (lines.length < 1) return null;
+        const allRows = parseCSVRows(text);
+        if (allRows.length < 1) return null;
 
         const currentType = typeOverride || importType;
         const requiredHeaders = templates[currentType].headers;
-        const headers = lines[0].split(',').map(h => h.trim());
+        const headers = allRows[0];
         const errors: string[] = [];
 
         // 1. Header Validation
@@ -106,29 +149,32 @@ export function ImportClient() {
         }
 
         // 2. Data Row Validation
-        const rows = lines.slice(1).map((line, index) => {
-            const values = line.split(',').map(v => v.trim());
+        const rows = allRows.slice(1).map((values, index) => {
             const obj: any = {};
-            
-            // Mandatory field check based on type
+
             const mandatoryFields: Record<ImportType, string[]> = {
                 members: ['電子郵件 (email)', '姓名 (name)', '是否為社員 (is_member)'],
-                card_orders: ['工號 (employee_id)', '堂數 (cards)', '金額 (amount)'],
+                card_orders: ['工號 (employee_id)', '堂數 (cards)'],
                 rosters: ['檔期名稱 (group_title)', '課程名稱 (course_name)', '工號 (employee_id)'],
-                course_groups: ['課程名稱 (title)', '老師姓名 (instructor)']
+                course_groups: ['檔期名稱 (group_title)', '課程名稱 (name)', '老師 (teacher)', '教室 (room)', '日期 (session_date)', '開始時間 (start_time)', '結束時間 (end_time)']
             };
 
             if (values.length !== headers.length) {
                 errors.push(`第 ${index + 2} 行欄位數量不正確 (預期 ${headers.length} 欄，實際讀到 ${values.length} 欄)`);
             }
 
+            const VALID_COURSE_TYPES = ['normal', 'trial', 'special', 'style', 'workshop', 'rehearsal', 'performance'];
+
             headers.forEach((header, i) => {
                 const val = values[i];
                 obj[header] = val;
 
-                // Check for empty mandatory fields
                 if (mandatoryFields[currentType].includes(header) && (!val || val.trim() === '')) {
                     errors.push(`第 ${index + 2} 行資料錯誤: [${header}] 為必填欄位於此匯人類型`);
+                }
+
+                if (currentType === 'course_groups' && header === '類型 (type)' && val && !VALID_COURSE_TYPES.includes(val.trim())) {
+                    errors.push(`第 ${index + 2} 行 [類型] 值 "${val}" 無效，可用值: ${VALID_COURSE_TYPES.join(', ')}`);
                 }
             });
             return obj;
@@ -372,11 +418,15 @@ export function ImportClient() {
                                                     <td className="px-6 py-5 text-[11px] font-mono font-bold text-white/20 whitespace-nowrap tracking-tight border-r border-white/5 bg-black/5">
                                                         {(i + 1).toString().padStart(2, '0')}
                                                     </td>
-                                                    {preview.headers.map(h => (
-                                                        <td key={h} className="px-6 py-5 text-[14px] font-semibold text-white/70 whitespace-nowrap tracking-tight group-hover/row:text-white transition-colors border-l border-white/[0.01]">
-                                                            {row[h] || '---'}
-                                                        </td>
-                                                    ))}
+                                                    {preview.headers.map(h => {
+                                                        const val = row[h] || '---';
+                                                        const isLong = val.length > 30;
+                                                        return (
+                                                            <td key={h} className={`px-6 py-5 text-[14px] font-semibold text-white/70 tracking-tight group-hover/row:text-white transition-colors border-l border-white/[0.01] ${isLong ? 'max-w-[200px] truncate' : 'whitespace-nowrap'}`} title={isLong ? val : undefined}>
+                                                                {val}
+                                                            </td>
+                                                        );
+                                                    })}
                                                 </tr>
                                             ))}
                                         </tbody>

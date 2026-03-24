@@ -84,6 +84,7 @@ const courseSchema = z.object({
     end_time: z.string().regex(/^([01]\d|2[0-3]):?([0-5]\d)$/, { message: '請輸入有效的時間格式 (HH:mm)' }),
     sessions_count: z.coerce.number().min(1, { message: '至少 1 堂課' }),
     capacity: z.coerce.number().min(1, { message: '人數上限至少 1 人' }),
+    cards_per_session: z.coerce.number().min(0, { message: '堂卡扣除不能為負數' }),
     first_session_at: z.coerce.date({
         message: '請選擇日期',
     }),
@@ -277,6 +278,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             end_time: initialData?.end_time || '20:30',
             sessions_count: initialData?.sessions_count || 8,
             capacity: initialData?.capacity || 30,
+            cards_per_session: initialData?.cards_per_session ?? 1,
             first_session_at: initialData?.first_session_at,
             sessions: initialData?.sessions || [],
         },
@@ -791,6 +793,20 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                             <FormControl>
                                                 <Input type="number" className="h-11" {...field} />
                                             </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control as any}
+                                    name="cards_per_session"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>每堂扣除堂卡數</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" min={0} className="h-11" {...field} />
+                                            </FormControl>
+                                            <p className="text-xs text-muted-foreground">0 = 免費，預設 1</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}

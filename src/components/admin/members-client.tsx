@@ -137,7 +137,7 @@ export function MembersClient({ members }: MembersClientProps) {
     const [editMember, setEditMember] = useState<MemberData | null>(null);
     const [editRole, setEditRole] = useState('');
     const [editValidUntil, setEditValidUntil] = useState('');
-    const [editCardBalance, setEditCardBalance] = useState<number>(0);
+    const [editCardBalance, setEditCardBalance] = useState<string>('0');
     const [editMakeupAdj, setEditMakeupAdj] = useState<number>(0);
     const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
 
@@ -162,7 +162,7 @@ export function MembersClient({ members }: MembersClientProps) {
         setEditMember(member);
         setEditRole(member.role);
         setEditValidUntil(member.member_valid_until || '');
-        setEditCardBalance(member.card_balance);
+        setEditCardBalance(String(member.card_balance));
         // Start with the CURRENT TOTAL as the initial value for the direct override
         setEditMakeupAdj(member.makeup_quota);
         setExpandedCourse(null);
@@ -181,7 +181,7 @@ export function MembersClient({ members }: MembersClientProps) {
                 await updateMemberProfile(editMember.id, {
                     role: editRole,
                     member_valid_until: editValidUntil || null,
-                    card_balance: editCardBalance,
+                    card_balance: parseInt(editCardBalance) || 0,
                     makeup_quota: newAdj, // We save the offset, but user saw/edited the TOTAL
                 });
                 toast.success('社員資料已更新');
@@ -361,8 +361,9 @@ export function MembersClient({ members }: MembersClientProps) {
                                 <label className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest ml-1">堂卡點數</label>
                                 <Input
                                     type="number"
-                                    value={editCardBalance === 0 ? '' : editCardBalance}
-                                    onChange={(e) => setEditCardBalance(e.target.value === '' ? 0 : parseInt(e.target.value))}
+                                    value={editCardBalance}
+                                    onChange={(e) => setEditCardBalance(e.target.value)}
+                                    min={0}
                                     className="h-10 bg-background border-muted/40 text-sm font-black rounded-xl focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     inputMode="numeric"
                                 />

@@ -59,6 +59,7 @@ interface SessionEnrollmentDialogProps {
     enrolledCount: number;
     capacity: number;
     courseType?: string;
+    cardsPerSession?: number;
     sessionOccupancy?: Record<string, number>;
     excludeSessionIds?: string[];
 }
@@ -76,6 +77,7 @@ export function SessionEnrollmentDialog({
     enrolledCount,
     capacity,
     courseType,
+    cardsPerSession = 1,
     sessionOccupancy = {},
     excludeSessionIds = [],
 }: SessionEnrollmentDialogProps) {
@@ -205,7 +207,7 @@ export function SessionEnrollmentDialog({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="font-black text-base">單堂報名</p>
-                                    <p className="text-xs text-muted-foreground font-medium mt-0.5">扣除 1 堂卡，報名單一或多個堂次</p>
+                                    <p className="text-xs text-muted-foreground font-medium mt-0.5">每堂扣除 {cardsPerSession} 堂卡{cardsPerSession === 0 ? '（免費）' : '，報名單一或多個堂次'}</p>
                                 </div>
                                 <ArrowRight className="h-5 w-5 text-muted-foreground/30 group-hover:translate-x-1 transition-transform" />
                             </div>
@@ -395,14 +397,14 @@ export function SessionEnrollmentDialog({
                                 <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.1em]">預計扣除</span>
                                 <span className={cn(
                                     "text-2xl font-black leading-none",
-                                    cardBalance < selectedTargetSessionIds.size ? "text-destructive" : "text-orange-500"
+                                    cardBalance < selectedTargetSessionIds.size * cardsPerSession ? "text-destructive" : "text-orange-500"
                                 )}>
-                                    {selectedTargetSessionIds.size} <span className="text-xs opacity-40 font-bold ml-0.5">堂卡</span>
+                                    {selectedTargetSessionIds.size * cardsPerSession} <span className="text-xs opacity-40 font-bold ml-0.5">堂卡</span>
                                 </span>
                             </div>
                         </div>
 
-                        {cardBalance < selectedTargetSessionIds.size && (
+                        {cardBalance < selectedTargetSessionIds.size * cardsPerSession && (
                             <div className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 text-destructive text-sm font-bold animate-in fade-in slide-in-from-top-1">
                                 <Info className="h-4 w-4 shrink-0" />
                                 <span>餘額不足，請先購買堂卡。</span>
@@ -420,7 +422,7 @@ export function SessionEnrollmentDialog({
                             <Button variant="ghost" onClick={reset} className="font-black text-sm px-6 h-14 rounded-2xl shrink-0">返回</Button>
                             <Button
                                 onClick={handleBatchEnroll}
-                                disabled={selectedTargetSessionIds.size === 0 || isPending || cardBalance < selectedTargetSessionIds.size}
+                                disabled={selectedTargetSessionIds.size === 0 || isPending || cardBalance < selectedTargetSessionIds.size * cardsPerSession}
                                 className="flex-1 h-14 font-black text-base bg-orange-500 hover:bg-orange-600 text-white rounded-2xl shadow-xl shadow-orange-500/20 transition-all active:scale-[0.98] border-none"
                             >
                                 {isPending ? (

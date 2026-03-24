@@ -157,30 +157,50 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
             }
         }
     } else if (type === 'card_orders') {
+        // Fetch pricing config once for the entire batch
+        const { data: configRows } = await adminClient
+            .from('system_config')
+            .select('key, value')
+            .in('key', ['card_price_member', 'card_price_non_member']);
+        const priceConfig: Record<string, number> = {};
+        (configRows ?? []).forEach(r => { priceConfig[r.key] = parseInt(r.value); });
+        const memberPrice = priceConfig['card_price_member'] || 270;
+        const nonMemberPrice = priceConfig['card_price_non_member'] || 370;
+
         for (const item of normalizedData) {
             try {
                 const { employee_id, cards, amount, purchase_date } = item;
-                
+
                 const userId = await resolveUserId(employee_id);
                 if (!userId) throw new Error(`找不到學員: ${employee_id}`);
 
                 const { data: profileData } = await adminClient
                     .from('profiles')
-                    .select('card_balance')
+                    .select('card_balance, role')
                     .eq('id', userId)
                     .single();
 
                 const cardCount = parseInt(cards);
-                const amountValue = parseInt(amount);
+                // Auto-calculate price based on member status; allow manual override
+                const isMember = profileData?.role === 'member' || profileData?.role === 'admin';
+                const unitPrice = amount ? Math.round(parseInt(amount) / cardCount) : (isMember ? memberPrice : nonMemberPrice);
+                const totalAmount = amount ? parseInt(amount) : unitPrice * cardCount;
+
+                const purchaseTs = purchase_date ? new Date(purchase_date).toISOString() : new Date().toISOString();
+                const expiresAt = `${new Date(purchaseTs).getFullYear()}-12-31`;
 
                 const { data: order, error: orderError } = await adminClient
                     .from('card_orders')
                     .insert({
                         user_id: userId,
-                        card_count: cardCount,
-                        amount: amountValue,
+                        quantity: cardCount,
+                        unit_price: unitPrice,
+                        total_amount: totalAmount,
                         status: 'confirmed',
-                        created_at: purchase_date ? new Date(purchase_date).toISOString() : new Date().toISOString()
+                        confirmed_at: purchaseTs,
+                        expires_at: expiresAt,
+                        include_membership: false,
+                        created_at: purchaseTs,
                     })
                     .select()
                     .single();
@@ -193,7 +213,7 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                     type: 'purchase',
                     amount: cardCount,
                     balance_after: (profileData?.card_balance || 0) + cardCount,
-                    description: `系統匯入：${purchase_date || '補登'}`
+                    note: `系統匯入：${purchase_date || new Date().toISOString().split('T')[0]}`
                 });
 
                 await adminClient
@@ -245,49 +265,89 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
             }
         }
     } else if (type === 'course_groups') {
+        // Cache: group_title -> group_id (create group only once per unique title)
+        const groupCache = new Map<string, string>();
+
+        // Pre-fetch existing groups and courses to avoid duplicates
+        const { data: existingGroups } = await adminClient
+            .from('course_groups')
+            .select('id, title');
+        (existingGroups ?? []).forEach(g => groupCache.set(g.title, g.id));
+
+        // Pre-fetch existing courses: "groupId::courseName" -> course id
+        const existingCourseSet = new Set<string>();
+        const { data: existingCourses } = await adminClient
+            .from('courses')
+            .select('id, group_id, name');
+        (existingCourses ?? []).forEach(c => existingCourseSet.add(`${c.group_id}::${c.name}`));
+
         for (const item of normalizedData) {
             try {
-                const { title, description, instructor } = item;
-                if (!title) continue;
+                const { group_title, name, type: courseType, teacher, room, session_date, start_time, end_time, capacity, cards_per_session, description } = item;
+                if (!group_title || !name) continue;
 
-                // 1. Resolve Instructor ID
-                const instructorId = instructor ? await resolveUserId(instructor) : null;
+                // 1. Get or create course group
+                let groupId = groupCache.get(group_title);
+                if (!groupId) {
+                    const { data: newGroup, error: groupError } = await adminClient
+                        .from('course_groups')
+                        .insert({
+                            title: group_title,
+                            created_by: profile.id,
+                        })
+                        .select()
+                        .single();
+                    if (groupError) throw groupError;
+                    groupId = newGroup.id as string;
+                    groupCache.set(group_title, groupId);
+                }
 
-                // 2. Generate slug automatically
-                const autoSlug = title.toLowerCase()
-                    .replace(/[^\w\s-]/g, '')
-                    .replace(/[\s_]+/g, '-')
-                    .replace(/^-+|-+$/g, '') + '-' + Math.random().toString(36).substring(2, 5);
+                // 2. Duplicate check: skip if course with same name already exists in this group
+                const courseKey = `${groupId}::${name}`;
+                if (existingCourseSet.has(courseKey)) {
+                    throw new Error(`課程「${name}」在檔期「${group_title}」下已存在，跳過重複匯入`);
+                }
 
-                const { data: newGroup, error: insertError } = await adminClient
-                    .from('course_groups')
+                // 3. Create course
+                const { data: newCourse, error: courseError } = await adminClient
+                    .from('courses')
                     .insert({
-                        title,
-                        description,
-                        instructor_id: instructorId,
-                        slug: autoSlug,
-                        created_by: profile.id
+                        group_id: groupId,
+                        name,
+                        description: description || null,
+                        type: courseType || 'normal',
+                        teacher,
+                        room,
+                        start_time,
+                        end_time,
+                        capacity: parseInt(capacity) || 30,
+                        cards_per_session: cards_per_session !== undefined && cards_per_session !== '' ? parseInt(cards_per_session) : 1,
                     })
                     .select()
                     .single();
-
-                if (insertError) throw insertError;
-
-                // 3. Automatically create a default course entry for this group
-                const { error: courseError } = await adminClient
-                    .from('courses')
-                    .insert({
-                        group_id: newGroup.id,
-                        name: title, // Use group title as default course name
-                        description: description || '系統自動建立',
-                        max_students: 20
-                    });
-                
                 if (courseError) throw courseError;
+                existingCourseSet.add(courseKey);
+
+                // 3. Create session(s) from date(s)
+                // Support multiple dates separated by semicolons (e.g. "2026-03-16;2026-03-23")
+                const dates = session_date.split(';').map((d: string) => d.trim()).filter(Boolean);
+                const sessions = dates.map((d: string, idx: number) => ({
+                    course_id: newCourse.id,
+                    session_date: d,
+                    session_number: idx + 1,
+                }));
+
+                if (sessions.length > 0) {
+                    const { error: sessionError } = await adminClient
+                        .from('course_sessions')
+                        .insert(sessions);
+                    if (sessionError) throw sessionError;
+                }
+
                 successCount++;
             } catch (err: any) {
                 failCount++;
-                errors.push(`${item.title || '未知'}: ${err.message}`);
+                errors.push(`${item.name || item.group_title || '未知'}: ${err.message}`);
             }
         }
     }

@@ -84,7 +84,9 @@ export function SessionCard({
                             className="h-11 w-11 sm:h-12 sm:w-12 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-sm ring-1 ring-white/10"
                             style={{ backgroundColor: avatarColor }}
                         >
-                            {teacher.charAt(0)}
+                            {teacher.startsWith('小') && teacher.length > 1 
+                                ? teacher.charAt(1).toUpperCase() 
+                                : teacher.charAt(0).toUpperCase()}
                         </div>
                     </div>
 

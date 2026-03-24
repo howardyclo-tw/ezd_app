@@ -4,6 +4,29 @@
 
 ---
 
+## 🚀 最新進度 (2026-03-25 Update)
+
+### 1. 資料匯入工具修復與優化 (Import Tool Fixes & Optimization)
+- **根因修復 (Root Cause Fix)**：發現並修復了匯入時 DB Trigger (`handle_new_user`) 與程式碼之間的衝突。Trigger 會在 `auth.users` 新增時自動建立 `profiles` 記錄，但原本程式碼未傳遞 `user_metadata.name`，導致 Trigger 將 email 當成姓名寫入，產生大量「Email 被錯放在 Name」的幽靈資料。
+- **效能提升 (Performance)**：將逐筆處理改為批次並行（每批 10 筆 `Promise.allSettled`），60 筆使用者匯入時間從 ~7 秒縮短至 ~1-2 秒。
+- **分頁問題修復 (Pagination Fix)**：修復 Supabase `listUsers()` 預設僅回傳 50 筆的分頁限制，改為 `perPage: 1000`，解決重複匯入時部分使用者查找失敗的問題。
+- **UI 改善**：匯入成功後不再重置編輯器內容，方便使用者重複提交或微調資料。移除範例工號中的 `mtk` 前綴。
+
+### 2. 註冊流程重構 (Registration Flow Overhaul)
+- **取消 Email 驗證**：改用 Server Action + Admin API 直接建立已驗證帳號，繞過 Supabase 內建郵件的速率限制（免費方案每小時僅 3 封），註冊後可立即登入。
+- **Email 限制**：僅允許 `@mediatek.com` 網域註冊，前後端雙重驗證。
+- **重複帳號偵測**：使用 Admin API 建立帳號時，若 email 已存在會直接回傳明確錯誤訊息「此電子郵件已被註冊」。
+- **新增工號欄位**：在註冊頁姓名下方新增工號輸入欄位，附提示「mtk 開頭請寫數字即可」。工號會透過 `user_metadata` 傳遞並由 DB Trigger 自動寫入 `profiles`。
+
+### 3. 社員管理功能增強 (Member Management Enhancements)
+- **重置密碼功能**：在社員管理的成員編輯視窗中新增「重置密碼為預設 (mediatek)」按鈕，採用兩段式確認 UX（第一次點擊顯示確認狀態，再點一次才執行），避免誤觸。使用 Admin API `updateUserById` 實現。
+- **頁面載入優化**：將原本 `getServerProfile()`（2 次串行 DB 查詢）合併至 `Promise.all` 中與其他 7 個查詢同時並行執行，並從已取得的 `profiles` 資料中直接取出當前用戶資訊進行權限檢查，減少一次網路往返。
+
+### 4. DB Trigger 更新 (Database Changes)
+- **`handle_new_user()` 函式更新**：擴充為同時寫入 `employee_id`（從 `raw_user_meta_data->>'employee_id'` 取值），使註冊與匯入流程建立的帳號都能自動帶入工號。
+
+---
+
 ## 🚀 最新進度 (2026-03-21 Update)
 
 ### 1. 補課系統大幅進化 (Makeup System Evolution)

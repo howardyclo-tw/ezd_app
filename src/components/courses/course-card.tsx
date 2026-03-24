@@ -84,7 +84,9 @@ export function CourseCard({ course }: { course: CourseProps }) {
                                 className="h-11 w-11 sm:h-12 sm:w-12 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-sm ring-1 ring-white/10"
                                 style={{ backgroundColor: avatarColor }}
                             >
-                                {course.teacher.charAt(0)}
+                                {course.teacher.startsWith('小') && course.teacher.length > 1 
+                                    ? course.teacher.charAt(1).toUpperCase() 
+                                    : course.teacher.charAt(0).toUpperCase()}
                             </div>
                         </div>
 
