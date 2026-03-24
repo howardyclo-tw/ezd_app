@@ -1,22 +1,18 @@
-import { createClient, getServerProfile } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, UserSquare } from "lucide-react";
 import Link from 'next/link';
 import { MembersClient } from '@/components/admin/members-client';
-import { getAvailableMakeupQuotaSessions } from '@/lib/supabase/queries';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminMembersPage() {
-    const { user, profile: currentProfile } = await getServerProfile();
-    if (!user) redirect('/login');
-    if (currentProfile?.role !== 'admin') redirect('/dashboard');
-
     const supabase = await createClient();
 
-    // Fetch in parallel
+    // Fetch auth + all data in a single parallel batch
     const [
+        { data: { user } },
         { data: profiles },
         { data: leaderData },
         { data: enrollmentData },
@@ -25,6 +21,7 @@ export default async function AdminMembersPage() {
         { data: transferData },
         { data: attendanceData },
     ] = await Promise.all([
+        supabase.auth.getUser(),
         supabase
             .from('profiles')
             .select('id, name, employee_id, role, member_valid_until, card_balance, makeup_quota')
@@ -79,6 +76,11 @@ export default async function AdminMembersPage() {
             .in('status', ['absent', 'leave'])
             .then(res => res.error ? { data: [] } : res),
     ]);
+
+    if (!user) redirect('/login');
+    // Admin check: find current user's profile from the already-fetched list
+    const currentProfile = profiles?.find(p => p.id === user.id);
+    if (currentProfile?.role !== 'admin') redirect('/dashboard');
 
     // Sessions map
     const courseSessionCountMap = new Map<string, number>();
@@ -236,6 +238,15 @@ export default async function AdminMembersPage() {
             leader_courses: leaderMap.get(p.id) || [],
             enrollments: enrollmentMap.get(p.id) || [],
         };
+    }).sort((a, b) => {
+        const idA = a.employee_id || '';
+        const idB = b.employee_id || '';
+        // Users without employee_id go to the bottom
+        if (idA === '' && idB !== '') return 1;
+        if (idA !== '' && idB === '') return -1;
+        if (idA === '' && idB === '') return a.name.localeCompare(b.name);
+        // Numeric sort for employee IDs (e.g., "2" comes before "10")
+        return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
     });
 
     return (

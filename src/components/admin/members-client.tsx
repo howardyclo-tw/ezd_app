@@ -20,8 +20,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Search, Users, Crown, Shield, User, Calendar, ChevronDown, Info } from 'lucide-react';
-import { updateMemberProfile } from '@/lib/supabase/actions';
+import { Search, Users, Crown, Shield, User, Calendar, ChevronDown, Info, KeyRound } from 'lucide-react';
+import { updateMemberProfile, resetMemberPassword } from '@/lib/supabase/actions';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -71,6 +71,62 @@ function getRoleIcon(role: string) {
         case 'member': return <Users className="h-3 w-3" />;
         default: return <User className="h-3 w-3" />;
     }
+}
+
+function ResetPasswordButton({ memberId }: { memberId?: string }) {
+    const [confirming, setConfirming] = useState(false);
+    const [resetting, setResetting] = useState(false);
+
+    // Reset confirm state when dialog member changes
+    const handleReset = async () => {
+        if (!memberId) return;
+        if (!confirming) {
+            setConfirming(true);
+            return;
+        }
+        setResetting(true);
+        try {
+            const result = await resetMemberPassword(memberId);
+            if (result.success) {
+                toast.success(result.message);
+            } else {
+                toast.error(result.message);
+            }
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setResetting(false);
+            setConfirming(false);
+        }
+    };
+
+    return (
+        <div className="px-6 pb-4 flex gap-2">
+            <Button
+                variant="outline"
+                className={cn(
+                    "flex-1 h-9 rounded-xl text-xs font-bold transition-all",
+                    confirming
+                        ? "text-rose-600 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 hover:text-rose-600"
+                        : "text-amber-600 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 hover:text-amber-600"
+                )}
+                onClick={handleReset}
+                disabled={resetting}
+            >
+                <KeyRound className="h-3.5 w-3.5 mr-1.5" />
+                {resetting ? '重置中...' : confirming ? '確認重置密碼？' : '重置密碼為預設 (mediatek)'}
+            </Button>
+            {confirming && (
+                <Button
+                    variant="ghost"
+                    className="h-9 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground"
+                    onClick={() => setConfirming(false)}
+                >
+                    取消
+                </Button>
+            )}
+        </div>
+    );
 }
 
 export function MembersClient({ members }: MembersClientProps) {
@@ -449,6 +505,7 @@ export function MembersClient({ members }: MembersClientProps) {
                         </div>
                     </div>
 
+                    <ResetPasswordButton memberId={editMember?.id} />
                     <div className="p-6 pt-2 bg-muted/5 border-t border-muted/20 flex flex-col sm:flex-row gap-2">
                         <Button variant="ghost" onClick={() => setEditMember(null)} className="flex-1 font-bold text-muted-foreground/60 hover:text-muted-foreground bg-transparent hover:bg-muted/20 rounded-xl transition-all">
                             關閉視窗

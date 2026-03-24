@@ -20,9 +20,9 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
         return rows.map(row => {
             const newRow: any = {};
             Object.keys(row).forEach(key => {
-                // Extract key from "Description (key)"
+                // Extract key from "Description (key)" or use the key itself
                 const match = key.match(/\(([^)]+)\)/);
-                const actualKey = match ? match[1] : key;
+                const actualKey = match ? match[1] : key.toLowerCase().trim();
                 newRow[actualKey] = row[key];
             });
             return newRow;
@@ -80,70 +80,80 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
     };
 
     if (type === 'members') {
-        for (const item of normalizedData) {
-            try {
-                const { email, name, employee_id, is_member } = item;
-                if (!email) continue;
+        // Pre-fetch all existing auth users once (avoid repeated listUsers per row)
+        const { data: existingAuthUsers } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const authUsersByEmail = new Map(
+            existingAuthUsers?.users?.map(u => [u.email, u.id]) || []
+        );
 
-                // 1. Create or get auth user
-                let defaultPassword = email.split('@')[0];
-                if (defaultPassword.length < 6) {
-                    defaultPassword = defaultPassword.padEnd(6, '1');
-                }
+        const BATCH_SIZE = 10;
+        const processOne = async (item: any) => {
+            const { email, name, employee_id, is_member } = item;
+            if (!email) return;
 
+            // 1. Create or get auth user
+            // Note: a DB trigger (handle_new_user) auto-creates a profiles row on auth.users INSERT.
+            // We pass user_metadata.name so the trigger uses it instead of falling back to email.
+            const defaultPassword = 'mediatek';
+            let userId: string | undefined;
+
+            const existingId = authUsersByEmail.get(email);
+            if (existingId) {
+                userId = existingId;
+            } else {
                 const { data: userData, error: userError } = await adminClient.auth.admin.createUser({
                     email,
                     password: defaultPassword,
                     email_confirm: true,
+                    user_metadata: { name: name || email.split('@')[0] },
                 });
-
-                let userId = userData?.user?.id;
 
                 if (userError) {
                     if (userError.message.includes('already registered')) {
-                        const { data: existingUser } = await adminClient
-                            .from('profiles')
-                            .select('id')
-                            .eq('email', email)
-                            .maybeSingle();
-                        
-                        if (existingUser) {
-                            userId = existingUser.id;
-                        } else {
-                            const { data: authUser } = await adminClient.auth.admin.listUsers();
-                            const target = authUser.users.find(u => u.email === email);
-                            userId = target?.id;
-                        }
+                        const { data: refreshed } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+                        userId = refreshed.users.find(u => u.email === email)?.id;
                     } else {
                         throw userError;
                     }
+                } else {
+                    userId = userData?.user?.id;
+                    if (userId) authUsersByEmail.set(email, userId);
                 }
+            }
 
-                if (!userId) throw new Error('無法獲取 User ID');
+            if (!userId) throw new Error('無法獲取 User ID');
 
-                // 2. Upsert profile
-                const isActualMember = is_member === '1' || is_member === 1;
-                const validUntil = isActualMember
-                    ? `${new Date().getFullYear()}-12-31` 
-                    : null;
+            // 2. Upsert profile (updates the row the trigger already created, or inserts for existing users)
+            const isActualMember = is_member === '1' || is_member === 1;
+            const validUntil = isActualMember
+                ? `${new Date().getFullYear()}-12-31`
+                : null;
 
-                const { error: profileError } = await adminClient
-                    .from('profiles')
-                    .upsert({
-                        id: userId,
-                        email,
-                        name,
-                        employee_id,
-                        role: isActualMember ? 'member' : 'guest',
-                        member_valid_until: validUntil,
-                        updated_at: new Date().toISOString()
-                    });
+            const { error: profileError } = await adminClient
+                .from('profiles')
+                .upsert({
+                    id: userId,
+                    name: name || email.split('@')[0],
+                    employee_id: employee_id || null,
+                    role: isActualMember ? 'member' : 'guest',
+                    member_valid_until: validUntil,
+                    updated_at: new Date().toISOString()
+                });
 
-                if (profileError) throw profileError;
-                successCount++;
-            } catch (err: any) {
-                failCount++;
-                errors.push(`${item.email || item.employee_id || '未知'}: ${err.message}`);
+            if (profileError) throw profileError;
+        };
+
+        for (let i = 0; i < normalizedData.length; i += BATCH_SIZE) {
+            const batch = normalizedData.slice(i, i + BATCH_SIZE);
+            const results = await Promise.allSettled(batch.map(item => processOne(item)));
+            for (let j = 0; j < results.length; j++) {
+                if (results[j].status === 'fulfilled') {
+                    successCount++;
+                } else {
+                    failCount++;
+                    const item = batch[j];
+                    errors.push(`${item.email || item.employee_id || '未知'}: ${(results[j] as PromiseRejectedResult).reason?.message}`);
+                }
             }
         }
     } else if (type === 'card_orders') {

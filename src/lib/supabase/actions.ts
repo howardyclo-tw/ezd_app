@@ -7,6 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from './server';
+import { createAdminClient } from './admin';
 import { computeMakeupQuota, isBeforeClass } from '@/types/database';
 import { getUserMakeupQuotaUsed, getUserTransferCount, getSystemConfig } from './queries';
 
@@ -1740,6 +1741,75 @@ export async function updateMemberProfile(
 
     revalidatePath('/', 'layout');
     return { success: true, message: '社員資料已更新' };
+}
+
+// ------------------------------------------------------------------
+// Registration (no email verification, uses admin API)
+// ------------------------------------------------------------------
+
+export async function registerUserAction(data: {
+    email: string;
+    password: string;
+    name: string;
+    employee_id?: string;
+}): Promise<{ success: boolean; message: string }> {
+    if (!data.email.endsWith('@mediatek.com')) {
+        return { success: false, message: '僅限 mediatek.com 電子郵件註冊' };
+    }
+
+    const adminClient = createAdminClient();
+
+    const { data: userData, error } = await adminClient.auth.admin.createUser({
+        email: data.email,
+        password: data.password,
+        email_confirm: true,
+        user_metadata: {
+            name: data.name,
+            employee_id: data.employee_id || null,
+        },
+    });
+
+    if (error) {
+        if (error.message.includes('already registered')) {
+            return { success: false, message: '此電子郵件已被註冊' };
+        }
+        return { success: false, message: error.message };
+    }
+
+    // The DB trigger handle_new_user() auto-creates the profile row.
+    // Update employee_id if the trigger didn't set it.
+    if (userData.user && data.employee_id) {
+        await adminClient
+            .from('profiles')
+            .update({ employee_id: data.employee_id })
+            .eq('id', userData.user.id);
+    }
+
+    return { success: true, message: '註冊成功' };
+}
+
+// ------------------------------------------------------------------
+// Reset Password (admin only)
+// ------------------------------------------------------------------
+
+export async function resetMemberPassword(
+    userId: string
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以重置密碼');
+
+    const adminClient = createAdminClient();
+    const defaultPassword = 'mediatek';
+
+    const { error } = await adminClient.auth.admin.updateUserById(userId, {
+        password: defaultPassword,
+    });
+
+    if (error) return { success: false, message: `重置密碼失敗: ${error.message}` };
+
+    return { success: true, message: '密碼已重置為預設密碼' };
 }
 
 export async function updateSystemConfig(

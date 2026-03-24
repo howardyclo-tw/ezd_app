@@ -2,51 +2,58 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { registerUserAction } from '@/lib/supabase/actions';
 
 export function RegisterForm() {
   const router = useRouter();
   const [name, setName] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
-    const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name,
-        },
-      },
-    });
-
-    if (error) {
-      toast.error('註冊失敗', {
-        description: error.message,
+    if (!email.endsWith('@mediatek.com')) {
+      toast.error('註冊限制', {
+        description: '僅限 mediatek.com 電子郵件註冊',
       });
-      setLoading(false);
       return;
     }
 
-    toast.success('註冊成功', {
-      description: '請檢查您的電子郵件以驗證帳號',
-    });
-    
-    // Redirect to login after a short delay
-    setTimeout(() => {
-      router.push('/login');
-    }, 2000);
+    setLoading(true);
+
+    try {
+      const result = await registerUserAction({
+        email,
+        password,
+        name,
+        employee_id: employeeId || undefined,
+      });
+
+      if (!result.success) {
+        toast.error('註冊失敗', { description: result.message });
+        setLoading(false);
+        return;
+      }
+
+      toast.success('註冊成功', {
+        description: '帳號已建立，即將跳轉至登入頁面',
+      });
+
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
+    } catch (err: any) {
+      toast.error('註冊失敗', { description: err.message });
+      setLoading(false);
+    }
   };
 
   return (
@@ -70,11 +77,23 @@ export function RegisterForm() {
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="employeeId">工號</Label>
+            <Input
+              id="employeeId"
+              type="text"
+              placeholder="例：12345"
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">mtk 開頭請寫數字即可，例：mtkxxxxx → xxxxx</p>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="email">電子郵件</Label>
             <Input
               id="email"
               type="email"
-              placeholder="name@example.com"
+              placeholder="name@mediatek.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -108,4 +127,3 @@ export function RegisterForm() {
     </Card>
   );
 }
-

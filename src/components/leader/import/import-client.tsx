@@ -40,19 +40,19 @@ const templates = {
     members: {
         title: '社員名單',
         filename: 'ezd_members_template.csv',
-        content: '電子郵件 (email),姓名 (name),工號 (employee_id),是否為社員 (is_member)\nexample_member@mediatek.com,王小明,mtk12345,1\nexample_guest@mediatek.com,李小華,mtk67890,0',
+        content: '電子郵件 (email),姓名 (name),工號 (employee_id),是否為社員 (is_member)\nexample_member@mediatek.com,王小明,12345,1\nexample_guest@mediatek.com,李小華,67890,0',
         headers: ['電子郵件 (email)', '姓名 (name)', '工號 (employee_id)', '是否為社員 (is_member)']
     },
     card_orders: {
         title: '堂卡紀錄',
         filename: 'ezd_card_orders_template.csv',
-        content: '工號 (employee_id),堂數 (cards),金額 (amount),購買日期 (purchase_date)\nmtk12345,10,2400,2026-03-21\nmtk67890,5,1350,2026-03-22',
+        content: '工號 (employee_id),堂數 (cards),金額 (amount),購買日期 (purchase_date)\n12345,10,2400,2026-03-21\n67890,5,1350,2026-03-22',
         headers: ['工號 (employee_id)', '堂數 (cards)', '金額 (amount)', '購買日期 (purchase_date)']
     },
     rosters: {
         title: '課程名單',
         filename: 'ezd_course_roster_template.csv',
-        content: '檔期名稱 (group_title),課程名稱 (course_name),工號 (employee_id)\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,mtk12345\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,mtk67890',
+        content: '檔期名稱 (group_title),課程名稱 (course_name),工號 (employee_id)\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,12345\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,67890',
         headers: ['檔期名稱 (group_title)', '課程名稱 (course_name)', '工號 (employee_id)']
     },
     course_groups: {
@@ -178,9 +178,8 @@ export function ImportClient() {
                 toast.error(`部分匯入失敗 (${result.failed} 筆)，請檢查資料。`);
             }
 
-            if (result.failed === 0) {
-                handleReset();
-            }
+            // Keep the pasted data in the editor after successful import
+            // so users can re-submit or modify the data
         } catch (err: any) {
             toast.error(`匯入發生錯誤: ${err.message}`);
         } finally {
@@ -248,7 +247,7 @@ export function ImportClient() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
                     {/* Editor Section */}
-                    <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl group/editor relative">
+                    <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl group/editor relative h-[700px]">
                         {/* Status bar top glow - SYNCED */}
                         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
                         
@@ -266,7 +265,7 @@ export function ImportClient() {
                                 <Trash2 className="h-4 w-4" />
                             </Button>
                         </CardHeader>
-                        <div className="flex-1 p-0 relative min-h-[500px] flex overflow-hidden">
+                        <div className="flex-1 p-0 relative flex overflow-hidden">
                             <div 
                                 ref={lineNumbersRef}
                                 className="w-12 bg-black/5 flex flex-col items-center py-7 overflow-hidden select-none"
@@ -297,7 +296,7 @@ export function ImportClient() {
                     </Card>
 
                     {/* Preview Section */}
-                    <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl relative">
+                    <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl relative h-[700px]">
                         {/* Status bar top glow - SYNCED */}
                         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
                         
@@ -329,7 +328,7 @@ export function ImportClient() {
                             </div>
                         </CardHeader>
 
-                        <CardContent className="p-0 flex-1 overflow-auto max-h-[500px]">
+                        <CardContent className="p-0 flex-1 overflow-auto">
                             {!preview ? (
                                 <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-white/20 p-12 space-y-5">
                                     <div className="relative">
@@ -361,6 +360,7 @@ export function ImportClient() {
                                     <table className="w-full text-left border-collapse">
                                         <thead className="sticky top-0 bg-[#212124]/95 backdrop-blur-xl z-20">
                                             <tr className="border-b border-white/5">
+                                                <th className="px-6 py-5 text-[11px] font-bold uppercase tracking-widest text-white/30 whitespace-nowrap w-16">#</th>
                                                 {preview.headers.map(h => (
                                                     <th key={h} className="px-6 py-5 text-[11px] font-bold uppercase tracking-widest text-white/30 whitespace-nowrap">{h}</th>
                                                 ))}
@@ -369,6 +369,9 @@ export function ImportClient() {
                                         <tbody className="divide-y divide-white/[0.04]">
                                             {preview.rows.map((row, i) => (
                                                 <tr key={i} className="group/row hover:bg-white/[0.03] transition-colors relative">
+                                                    <td className="px-6 py-5 text-[11px] font-mono font-bold text-white/20 whitespace-nowrap tracking-tight border-r border-white/5 bg-black/5">
+                                                        {(i + 1).toString().padStart(2, '0')}
+                                                    </td>
                                                     {preview.headers.map(h => (
                                                         <td key={h} className="px-6 py-5 text-[14px] font-semibold text-white/70 whitespace-nowrap tracking-tight group-hover/row:text-white transition-colors border-l border-white/[0.01]">
                                                             {row[h] || '---'}
@@ -385,7 +388,7 @@ export function ImportClient() {
                         {preview && preview.isValid && (
                             <div className="p-8 pt-4 flex justify-end items-center gap-6 bg-transparent">
                                 <span className="text-[12px] font-bold text-white/50 uppercase tracking-[0.1em] hidden sm:block">
-                                    {importType === 'members' ? '新帳號預設密碼為 Email 前綴' : '資料已備妥，請確認預覽結果'}
+                                    {importType === 'members' ? '' : '資料已備妥，請確認預覽結果'}
                                 </span>
                                 <Button 
                                     className="rounded-2xl px-12 h-12 font-black bg-white text-black hover:bg-white/90 shadow-[0_10px_40px_-10px_rgba(255,255,255,0.3)] transition-all active:scale-95 group text-sm"
