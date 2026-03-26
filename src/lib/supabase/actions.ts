@@ -913,7 +913,7 @@ export async function submitLeaveRequest(
     // Since student is now LEAVING, remove any existing Transfer or Makeup intents for this slot
     await Promise.all([
         supabase.from('transfer_requests').delete().eq('session_id', sessionId).eq('from_user_id', user.id),
-        supabase.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id)
+        supabase.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id).eq('status', 'pending')
     ]);
 
     // Update attendance record immediately
@@ -997,7 +997,7 @@ export async function reviewLeaveRequest(
         // Cleanup: remove competing records from other tables
         await Promise.all([
             supabase.from('transfer_requests').delete().eq('session_id', req.session_id).eq('from_user_id', req.user_id),
-            supabase.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.user_id)
+            supabase.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.user_id).eq('status', 'pending')
         ]);
     } else {
         // If rejected, remove the attendance record ONLY IF it is currently 'leave'
@@ -1595,7 +1595,7 @@ export async function submitTransferRequest(
     // Student is now TRANSFERRING, remove any existing Leave or Makeup intents for this slot
     await Promise.all([
         supabase.from('leave_requests').delete().eq('session_id', sessionId).eq('user_id', user.id),
-        supabase.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id)
+        supabase.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id).eq('status', 'pending')
     ]);
 
     // Update attendance: sender = transfer_out, receiver = transfer_in
@@ -1687,7 +1687,7 @@ export async function reviewTransferRequest(
         // Cleanup: remove competing records
         await Promise.all([
             supabase.from('leave_requests').delete().eq('session_id', req.session_id).eq('user_id', req.from_user_id),
-            supabase.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.from_user_id)
+            supabase.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.from_user_id).eq('status', 'pending')
         ]);
     } else {
         // If rejected, delete ONLY IF it's currently a transfer status

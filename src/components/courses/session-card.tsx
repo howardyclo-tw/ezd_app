@@ -134,6 +134,8 @@ export function SessionCard({
                                 <span>找課補</span>
                                 <ChevronRight className="h-3.5 w-3.5" />
                             </div>
+                        ) : status === 'enrolled' ? (
+                            href && <ChevronRight className="h-4 w-4 text-muted-foreground/30" />
                         ) : (
                             <Badge
                                 variant="outline"

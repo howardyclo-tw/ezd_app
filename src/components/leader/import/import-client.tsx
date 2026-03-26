@@ -50,7 +50,7 @@ const templates = {
         headers: ['工號 (employee_id)', '堂數 (cards)']
     },
     rosters: {
-        title: '課程名單',
+        title: '學員名單',
         filename: 'ezd_course_roster_template.csv',
         content: '檔期名稱 (group_title),課程名稱 (course_name),工號 (employee_id)\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,12345\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,67890',
         headers: ['檔期名稱 (group_title)', '課程名稱 (course_name)', '工號 (employee_id)']
@@ -285,7 +285,7 @@ export function ImportClient() {
                                 <FileText className="h-3.5 w-3.5" /> 課程資訊
                             </TabsTrigger>
                             <TabsTrigger value="rosters" className="rounded-lg font-bold flex items-center gap-2 px-3 sm:px-6 py-2 data-[state=active]:bg-white/10 data-[state=active]:text-white transition-all text-white/40 whitespace-nowrap text-[13px] sm:text-sm">
-                                <ClipboardList className="h-3.5 w-3.5" /> 課程名單
+                                <ClipboardList className="h-3.5 w-3.5" /> 學員名單
                             </TabsTrigger>
                         </TabsList>
                     </div>
