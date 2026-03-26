@@ -249,8 +249,9 @@ export function MembersClient({ members }: MembersClientProps) {
                 ) : (
                     filtered.map(member => {
                         const roleInfo = getRoleInfo(member.role);
+                        const today = new Date().toLocaleDateString('sv-SE');
                         const isExpired = member.member_valid_until &&
-                            new Date(member.member_valid_until) < new Date();
+                            member.member_valid_until < today;
 
                         return (
                             <Card

@@ -20,8 +20,9 @@ export default async function MyCardsPage() {
         .maybeSingle();
 
     // Determine membership
+    const today = new Date().toLocaleDateString('sv-SE');
     const isMember = profile?.role !== 'guest' &&
-        (!profile?.member_valid_until || new Date(profile.member_valid_until) >= new Date());
+        (!profile?.member_valid_until || profile.member_valid_until >= today);
 
     // Fetch card orders
     const { data: orders } = await supabase
