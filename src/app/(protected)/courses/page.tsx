@@ -5,12 +5,10 @@ import { CourseGroupFilter } from "@/components/courses/course-group-filter";
 export const dynamic = 'force-dynamic';
 
 function getGroupStatus(periodStart: string | null, periodEnd: string | null): string {
-    const now = new Date();
-    const start = periodStart ? new Date(periodStart) : null;
-    const end = periodEnd ? new Date(periodEnd) : null;
-
-    if (end && end < now) return 'ended';
-    if (start && start > now) return 'upcoming';
+    // Compare using date strings (YYYY-MM-DD) to avoid timezone issues
+    const today = new Date().toLocaleDateString('sv-SE'); // "YYYY-MM-DD" in local timezone
+    if (periodEnd && periodEnd < today) return 'ended';
+    if (periodStart && periodStart > today) return 'upcoming';
     return 'active';
 }
 
