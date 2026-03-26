@@ -491,7 +491,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                 type="button"
                                                                 variant="ghost"
                                                                 size="icon"
-                                                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                                                className="h-6 w-6 text-muted-foreground hover:text-destructive transition-colors"
                                                                 onClick={(e) => {
                                                                     e.preventDefault();
                                                                     e.stopPropagation();
@@ -505,7 +505,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                 type="button"
                                                                 variant="ghost"
                                                                 size="icon"
-                                                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                                                                className="h-6 w-6 text-muted-foreground hover:text-primary transition-colors"
                                                                 onClick={(e) => {
                                                                     e.preventDefault();
                                                                     e.stopPropagation();

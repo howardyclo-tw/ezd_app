@@ -178,15 +178,19 @@ export function MembersClient({ members }: MembersClientProps) {
 
         startTransition(async () => {
             try {
-                await updateMemberProfile(editMember.id, {
+                const result = await updateMemberProfile(editMember.id, {
                     role: editRole,
                     member_valid_until: editValidUntil || null,
                     card_balance: parseInt(editCardBalance) || 0,
                     makeup_quota: newAdj, // We save the offset, but user saw/edited the TOTAL
                 });
+                if (!result.success) {
+                    toast.error(result.message);
+                    return;
+                }
                 toast.success('社員資料已更新');
                 setEditMember(null);
-                setEditMakeupAdj(0); 
+                setEditMakeupAdj(0);
                 router.refresh();
             } catch (err: any) {
                 toast.error(err.message || '更新失敗');
@@ -316,10 +320,8 @@ export function MembersClient({ members }: MembersClientProps) {
 
             {/* Edit Dialog */}
             <Dialog open={!!editMember} onOpenChange={(open) => !open && setEditMember(null)}>
-                <DialogContent className="sm:max-w-[440px] max-h-[95vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl rounded-3xl group/dialog">
-                    {/* The (x) close button is provided by Shadcn Dialog by default, but it disappears if DialogContent has custom bg/border. 
-                        We don't need to manually add it unless we want to move it inside our p-6. */}
-                    
+                <DialogContent className="sm:max-w-[440px] max-h-[95vh] p-0 gap-0 border-none shadow-2xl rounded-3xl group/dialog flex flex-col overflow-hidden">
+                    <div className="flex-1 overflow-y-auto">
                     <div className="p-6 pb-4">
                         <DialogHeader>
                             <DialogTitle className="text-xl font-black tracking-tighter">成員帳號管理</DialogTitle>
@@ -506,7 +508,9 @@ export function MembersClient({ members }: MembersClientProps) {
                             )}
                         </div>
                     </div>
+                    </div>
 
+                    <div className="shrink-0">
                     <ResetPasswordButton memberId={editMember?.id} />
                     <div className="p-6 pt-2 bg-muted/5 border-t border-muted/20 flex flex-col sm:flex-row gap-2">
                         <Button variant="ghost" onClick={() => setEditMember(null)} className="flex-1 font-bold text-muted-foreground/60 hover:text-muted-foreground bg-transparent hover:bg-muted/20 rounded-xl transition-all">
@@ -515,6 +519,7 @@ export function MembersClient({ members }: MembersClientProps) {
                         <Button onClick={handleSave} disabled={isPending} className="flex-[2] font-black bg-foreground text-background hover:bg-foreground/90 rounded-xl shadow-lg active:scale-[0.98] transition-all">
                             {isPending ? '儲存中...' : '確認變更'}
                         </Button>
+                    </div>
                     </div>
                 </DialogContent>
             </Dialog>

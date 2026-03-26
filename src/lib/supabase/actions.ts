@@ -1718,7 +1718,7 @@ export async function updateMemberProfile(
 
     // Admin check
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') throw new Error('只有幹部可以修改社員資料');
+    if (profile?.role !== 'admin') return { success: false, message: '只有幹部可以修改社員資料' };
 
     const updateData: Record<string, any> = {};
     if (data.role !== undefined) {
@@ -1748,7 +1748,7 @@ export async function updateMemberProfile(
 
         if (diff !== 0) {
             const adminClient = createAdminClient();
-            await adminClient.from('card_transactions').insert({
+            const { error: txError } = await adminClient.from('card_transactions').insert({
                 user_id: userId,
                 type: diff > 0 ? 'admin_add' : 'admin_deduct',
                 amount: diff,
@@ -1756,6 +1756,10 @@ export async function updateMemberProfile(
                 note: `幹部手動調整：${oldBalance} → ${newBalance}`,
                 created_by: user.id,
             });
+            if (txError) {
+                console.error('card_transactions insert error:', txError);
+                return { success: false, message: `堂卡調整紀錄失敗: ${txError.message}` };
+            }
         }
     }
 
@@ -1764,7 +1768,7 @@ export async function updateMemberProfile(
         .update(updateData)
         .eq('id', userId);
 
-    if (error) throw new Error(`更新社員資料失敗: ${error.message}`);
+    if (error) return { success: false, message: `更新社員資料失敗: ${error.message}` };
 
     revalidatePath('/', 'layout');
     return { success: true, message: '社員資料已更新' };
