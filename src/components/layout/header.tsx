@@ -33,8 +33,8 @@ export async function Header() {
           {user && <NavLinks />}
         </div>
 
-        {/* Development Tools */}
-        {user && (
+        {/* Development Tools - server-side email gating */}
+        {user && ['yichen.lo@mediatek.com', 'admin@test.ezd.app'].includes(user.email ?? '') && (
           <div className="flex items-center">
             <DevRoleToggle userId={user.id} />
           </div>

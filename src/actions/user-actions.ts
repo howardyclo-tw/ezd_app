@@ -12,14 +12,18 @@ export async function updateUserRole(userId: string, newRole: string) {
         // However, since this is a dev tool, if RLS blocks it, we are stuck.
         // Assumption: The logged-in user (admin) has RLS policy allowing update of their own role OR all roles.
 
-        // Check if user is logged in
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             return { success: false, error: 'User not authenticated' };
         }
 
+        // Server-side email gating: only allowed emails can use dev tools
+        const ALLOWED_DEV_EMAILS = ['yichen.lo@mediatek.com', 'admin@test.ezd.app'];
+        if (!ALLOWED_DEV_EMAILS.includes(user.email ?? '')) {
+            return { success: false, error: 'Unauthorized' };
+        }
+
         if (user.id !== userId) {
-            // Just a safety check, though we passed userId from prop which came from user.id
             return { success: false, error: 'User ID mismatch' };
         }
 
