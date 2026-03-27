@@ -35,20 +35,36 @@ export default async function MyCoursesPage() {
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
 
     // ── 2. All attendance records ──
-    const { data: attendanceRecords } = await supabase
-        .from('attendance_records')
-        .select(`
-            status,
-            course_sessions (
-                id, session_date, session_number,
-                courses (
-                    id, slug, name, teacher, start_time, end_time, room, type, capacity,
-                    course_groups ( id, slug, title )
+    const [{ data: attendanceRecords }, { data: myMakeupRequests }, { data: myTransferIns }] = await Promise.all([
+        supabase
+            .from('attendance_records')
+            .select(`
+                status,
+                course_sessions (
+                    id, session_date, session_number,
+                    courses (
+                        id, slug, name, teacher, start_time, end_time, room, type, capacity,
+                        course_groups ( id, slug, title )
+                    )
                 )
-            )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+            `)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }),
+        supabase
+            .from('makeup_requests')
+            .select('target_session_id')
+            .eq('user_id', user.id)
+            .eq('status', 'approved'),
+        supabase
+            .from('transfer_requests')
+            .select('session_id, to_user_id')
+            .eq('to_user_id', user.id)
+            .eq('status', 'approved'),
+    ]);
+
+    // Authoritative source maps (survive attendance overwrites)
+    const makeupSessionIds = new Set((myMakeupRequests ?? []).map(m => m.target_session_id));
+    const transferInSessionIds = new Set((myTransferIns ?? []).map(t => t.session_id));
 
     // Maps to keep track of attendance statuses for upcoming logic
     // We use a Map of counts because a user might have multiple enrollments (slots) for one session.
@@ -68,13 +84,16 @@ export default async function MyCoursesPage() {
         const gId = group?.slug || group?.id;
         const cId = course?.slug || course?.id;
 
-        // Determine status for display
+        // Determine status for display — use authoritative source over attendance status
+        const sessionId = session.id;
         let simpleStatus: any = 'present';
-        if (r.status === 'absent') simpleStatus = 'absent';
-        else if (r.status === 'leave') simpleStatus = 'leave';
+        if (r.status === 'leave') simpleStatus = 'leave';
+        else if (r.status === 'transfer_out') simpleStatus = 'transfer_out';
+        else if (makeupSessionIds.has(sessionId)) simpleStatus = 'makeup';
+        else if (transferInSessionIds.has(sessionId)) simpleStatus = 'transfer_in';
+        else if (r.status === 'absent') simpleStatus = 'absent';
         else if (r.status === 'makeup') simpleStatus = 'makeup';
         else if (r.status === 'transfer_in') simpleStatus = 'transfer_in';
-        else if (r.status === 'transfer_out') simpleStatus = 'transfer_out';
         else if (r.status === 'unmarked') simpleStatus = 'enrolled';
         else simpleStatus = 'present';
 
@@ -100,9 +119,9 @@ export default async function MyCoursesPage() {
         // 1. 已處理的排除 (請假、轉讓出去)
         if (r.status === 'leave' || r.status === 'transfer_out') {
             excludeCountMap.set(session.id, (excludeCountMap.get(session.id) || 0) + 1);
-        } 
-        // 2. 新增的補課/轉入 (僅限未來)
-        else if ((r.status === 'makeup' || r.status === 'transfer_in') && session.session_date >= today) {
+        }
+        // 2. 補課/轉入/非報名但有紀錄的學員 (僅限未來)
+        else if (['makeup', 'transfer_in', 'unmarked', 'present'].includes(r.status) && session.session_date >= today) {
             extraUpcomingSessions.push({
                 groupTitle: group?.title ?? '未知檔期',
                 courseName: course.name,
@@ -111,7 +130,7 @@ export default async function MyCoursesPage() {
                 time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
                 room: course.room,
                 sessionNumber: session.session_number ?? 0,
-                status: 'enrolled',
+                status: makeupSessionIds.has(sessionId) ? 'makeup' : transferInSessionIds.has(sessionId) ? 'transfer_in' : 'enrolled',
                 href: (gId && cId) ? `/courses/groups/${gId}/${cId}` : undefined,
                 sessionId: session.id
             });
@@ -155,26 +174,31 @@ export default async function MyCoursesPage() {
                     time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
                     room: course.room,
                     sessionNumber: sessionIndex + 1,
-                    status: enrollment.status as 'enrolled' | 'waitlist',
+                    status: enrollment.status === 'waitlist' ? 'waitlist' : 'enrolled',
                     waitlistPosition: enrollment.waitlist_position ?? undefined,
                     href: (gId && cId) ? `/courses/groups/${gId}/${cId}` : undefined,
+                    sessionId: s.id,
                 };
             });
     });
 
-    // Merge extra makeup/transfer_in sessions into upcoming
+    // Merge extra sessions into upcoming, deduplicating by sessionId
+    const existingSessionIds = new Set(upcomingSessions.map((s: any) => s.sessionId).filter(Boolean));
     for (const extra of extraUpcomingSessions) {
-        upcomingSessions.push(extra);
+        if (!existingSessionIds.has(extra.sessionId)) {
+            upcomingSessions.push(extra);
+            existingSessionIds.add(extra.sessionId);
+        }
     }
 
     upcomingSessions.sort((a: any, b: any) => a.date.localeCompare(b.date));
 
     // ── 3. Makeup: Group available missed sessions by course group ──
-    const availableSessions = await getAvailableMakeupQuotaSessions(user.id);
+    const { sessions: availableSessions, manualQuota } = await getAvailableMakeupQuotaSessions(user.id);
 
     // Grouping logic: calculate actual available count per group
     const groupMakeupMap = new Map<string, { title: string, count: number, slug: string }>();
-    
+
     // First, we need to track counts per course to respect per-course quota
     const perCourseStats = new Map<string, { absences: number, totalQuota: number, usedQuota: number }>();
     availableSessions.forEach((s: any) => {
@@ -213,7 +237,6 @@ export default async function MyCoursesPage() {
             href: `/courses/groups/${g.slug}`
         }));
 
-    const manualQuota = availableSessions.length > 0 ? (availableSessions[0] as any).manualQuota : 0;
     let availableMakeupQuotaCount = makeupGroups.reduce((sum, g) => sum + g.count, 0) + manualQuota;
 
     return (

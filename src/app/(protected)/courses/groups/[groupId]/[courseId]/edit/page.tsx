@@ -81,7 +81,7 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
         sessions_count: sessions.length,
         capacity: course.capacity,
         cards_per_session: course.cards_per_session,
-        first_session_at: course.first_session_at ? new Date(course.first_session_at) : undefined,
+        first_session_at: sessions.length > 0 ? sessions[0].date : undefined,
         sessions: sessions.map(s => ({
             id: s.id,
             date: s.date,

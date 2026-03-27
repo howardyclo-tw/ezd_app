@@ -457,7 +457,7 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
         return true;
     });
 
-    if (validAttendance.length === 0) return [];
+    if (validAttendance.length === 0) return { sessions: [], manualQuota };
 
     // Construct lookup maps locally in memory from the initial Promise.all results
     const usedMakeupByCourse: Record<string, number> = {};
@@ -472,9 +472,9 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
         usedTransferByCourse[tr.course_id] = (usedTransferByCourse[tr.course_id] ?? 0) + 1; 
     });
 
-    return validAttendance.map(a => {
+    const sessions = validAttendance.map(a => {
         const cId = (a.course_sessions as any).courses.id;
-        
+
         const sessionsCountArray = (a.course_sessions as any).courses.course_sessions;
         const totalSessions = Array.isArray(sessionsCountArray) && sessionsCountArray.length > 0 ? sessionsCountArray[0].count : 0;
 
@@ -497,9 +497,10 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
             isQuotaFull,
             usedQuota,
             totalQuota,
-            manualQuota // Adding manual adjustment from profile
         };
     });
+
+    return { sessions, manualQuota };
 }
 /**
  * Compute remaining makeup quota for a user across all 'full' enrolled

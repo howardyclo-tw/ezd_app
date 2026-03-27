@@ -15,7 +15,10 @@ import {
     DialogDescription
 } from '@/components/ui/dialog';
 import { CreditCard, CalendarDays, Plus, Minus, Clock, AlertCircle, CheckCircle2, ChevronLeft, Check, XCircle } from 'lucide-react';
-import { cancelCardOrder, createCardOrderWithRemittance } from '@/lib/supabase/actions';
+import { cancelCardOrder as _cancelCardOrder, createCardOrderWithRemittance as _createCardOrderWithRemittance } from '@/lib/supabase/actions';
+import { safe } from '@/lib/supabase/safe-action';
+const cancelCardOrder = safe(_cancelCardOrder);
+const createCardOrderWithRemittance = safe(_createCardOrderWithRemittance);
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -473,8 +476,11 @@ export function MyCardsClient({
                                         maxLength={3}
                                         value={bankCode}
                                         onChange={(e) => setBankCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                                        className="h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-orange-600/50"
+                                        className={`h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-orange-600/50 ${bankCode.length > 0 && bankCode.length < 3 ? 'border-red-500/50' : ''}`}
                                     />
+                                    {bankCode.length > 0 && bankCode.length < 3 && (
+                                        <p className="text-[11px] text-red-500 font-bold ml-1">請輸入 3 位數銀行代碼</p>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2">
@@ -484,8 +490,11 @@ export function MyCardsClient({
                                         maxLength={5}
                                         value={last5}
                                         onChange={(e) => setLast5(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                                        className="h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-orange-600/50"
+                                        className={`h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-orange-600/50 ${last5.length > 0 && last5.length < 5 ? 'border-red-500/50' : ''}`}
                                     />
+                                    {last5.length > 0 && last5.length < 5 && (
+                                        <p className="text-[11px] text-red-500 font-bold ml-1">請輸入完整 5 位數字（目前 {last5.length} 位）</p>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2">

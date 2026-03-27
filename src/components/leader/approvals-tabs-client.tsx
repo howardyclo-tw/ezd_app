@@ -8,7 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { Check, Calendar, Loader2, Star, ClipboardList, X, CreditCard, User, Clock } from "lucide-react";
-import { confirmCardOrder, rejectCardOrder, reviewLeaveRequest, reviewMakeupRequest, reviewTransferRequest } from '@/lib/supabase/actions';
+import { confirmCardOrder as _confirmCardOrder, rejectCardOrder as _rejectCardOrder, reviewLeaveRequest as _reviewLeaveRequest, reviewMakeupRequest as _reviewMakeupRequest, reviewTransferRequest as _reviewTransferRequest } from '@/lib/supabase/actions';
+import { safe } from '@/lib/supabase/safe-action';
+const confirmCardOrder = safe(_confirmCardOrder);
+const rejectCardOrder = safe(_rejectCardOrder);
+const reviewLeaveRequest = safe(_reviewLeaveRequest);
+const reviewMakeupRequest = safe(_reviewMakeupRequest);
+const reviewTransferRequest = safe(_reviewTransferRequest);
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -231,7 +237,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                                         </div>
 
                                         {/* Premium Remittance Info Box (Compact) */}
-                                        {isCardOrder && (req.status === 'remitted' || req.status === 'confirmed') && (
+                                        {isCardOrder && req.remittance_bank_code && (
                                             <div className="mt-3 overflow-hidden rounded-xl border border-muted/30 bg-muted/10">
                                                 <div className="flex flex-col sm:flex-row sm:items-center divide-y sm:divide-y-0 sm:divide-x divide-muted/30">
                                                     <div className="flex items-center gap-3 px-4 py-1.5 sm:py-1.5">

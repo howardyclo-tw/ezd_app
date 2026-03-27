@@ -77,7 +77,7 @@ const courseSchema = z.object({
     name: z.string().min(2, { message: '課程名稱至少 2 個字' }),
     description: z.string().optional(),
     leader: z.string().optional(),
-    type: z.enum(['normal', 'trial', 'special', 'style', 'workshop', 'rehearsal', 'performance']),
+    type: z.enum(['normal', 'trial', 'special', 'style', 'workshop']),
     teacher: z.string().min(1, { message: '請輸入老師姓名' }),
     room: z.string().min(1, { message: '請輸入教室' }),
     start_time: z.string().regex(/^([01]\d|2[0-3]):?([0-5]\d)$/, { message: '請輸入有效的時間格式 (HH:mm)' }),
@@ -337,7 +337,18 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                 remove(currentCount - 1 - i);
             }
         }
-    }, [firstDate, sessionsCount, isEdit, replace, append, remove]); // fields.length is handled implicitly by looking at it inside
+    }, [firstDate, sessionsCount, isEdit, replace, append, remove]);
+
+    // Sync: when first_session_at changes, update the first session's date to match
+    const prevFirstDate = useRef<Date | null>(null);
+    useEffect(() => {
+        if (!firstDate || fields.length === 0) return;
+        const firstDateTs = firstDate.getTime();
+        if (prevFirstDate.current && prevFirstDate.current.getTime() !== firstDateTs) {
+            setValue('sessions.0.date', firstDate);
+        }
+        prevFirstDate.current = firstDate;
+    }, [firstDate, fields.length, setValue]);
 
     const onSubmit: SubmitHandler<CourseFormValues> = async (data) => {
         setIsSubmitting(true);
@@ -583,11 +594,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                             <SelectContent>
                                                 <SelectItem value="normal">一般常態</SelectItem>
                                                 <SelectItem value="trial">試跳課程</SelectItem>
-                                                <SelectItem value="special">特殊常態</SelectItem>
                                                 <SelectItem value="style">風格體驗</SelectItem>
                                                 <SelectItem value="workshop">專攻班</SelectItem>
-                                                <SelectItem value="rehearsal">團練</SelectItem>
-                                                <SelectItem value="performance">表演班</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -859,8 +867,15 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                 control={form.control as any}
                                                                 name={`sessions.${index}.date`}
                                                                 render={({ field: sessionField }) => {
-                                                                    // Sync local fieldArray value with form state if they drift
                                                                     const dateValue = sessionField.value ? new Date(sessionField.value) : undefined;
+
+                                                                    // Collect all other sessions' dates for duplicate check
+                                                                    const otherDates = new Set(
+                                                                        form.getValues('sessions')
+                                                                            .filter((_: any, i: number) => i !== index)
+                                                                            .map((s: any) => s.date ? format(new Date(s.date), 'yyyy-MM-dd') : '')
+                                                                            .filter(Boolean)
+                                                                    );
 
                                                                     return (
                                                                         <FormItem className="flex-1 space-y-0 text-left">
@@ -889,8 +904,21 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                                     <Calendar
                                                                                         mode="single"
                                                                                         selected={dateValue}
-                                                                                        onSelect={sessionField.onChange}
-                                                                                        disabled={(date) => date < new Date('2020-01-01')}
+                                                                                        onSelect={(date) => {
+                                                                                            if (date && otherDates.has(format(date, 'yyyy-MM-dd'))) {
+                                                                                                toast.error('此日期已被其他堂次使用');
+                                                                                                return;
+                                                                                            }
+                                                                                            sessionField.onChange(date);
+                                                                                            // If first session date changed, sync first_session_at
+                                                                                            if (index === 0 && date) {
+                                                                                                setValue('first_session_at', date);
+                                                                                            }
+                                                                                        }}
+                                                                                        disabled={(date) =>
+                                                                                            date < new Date('2020-01-01') ||
+                                                                                            otherDates.has(format(date, 'yyyy-MM-dd'))
+                                                                                        }
                                                                                         initialFocus
                                                                                         locale={zhTW}
                                                                                     />

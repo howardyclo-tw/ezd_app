@@ -12,11 +12,9 @@ export type UserRole = 'guest' | 'member' | 'leader' | 'admin';
 export type CourseType =
   | 'normal'       // 一般常態
   | 'trial'        // 試跳課程
-  | 'special'      // 特殊常態
+  | 'special'      // 特殊常態 (隱藏但保留)
   | 'style'        // 風格體驗
-  | 'workshop'     // 專攻班
-  | 'rehearsal'    // 團練
-  | 'performance'; // 表演班
+  | 'workshop';    // 專攻班
 
 export type CourseStatus = 'draft' | 'published' | 'closed';
 
@@ -306,6 +304,4 @@ export const COURSE_TYPE_LABELS: Record<CourseType, string> = {
   special: '特殊常態',
   style: '風格體驗',
   workshop: '專攻班',
-  rehearsal: '團練',
-  performance: '表演班',
 };

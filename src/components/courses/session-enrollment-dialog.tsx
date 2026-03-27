@@ -27,7 +27,10 @@ import {
     Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { batchEnrollInSessions, batchSubmitMakeupRequests } from '@/lib/supabase/actions';
+import { batchEnrollInSessions as _batchEnrollInSessions, batchSubmitMakeupRequests as _batchSubmitMakeupRequests } from '@/lib/supabase/actions';
+import { safe } from '@/lib/supabase/safe-action';
+const batchEnrollInSessions = safe(_batchEnrollInSessions);
+const batchSubmitMakeupRequests = safe(_batchSubmitMakeupRequests);
 import { toast } from 'sonner';
 
 interface Session {

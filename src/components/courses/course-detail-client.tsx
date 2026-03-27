@@ -33,7 +33,15 @@ import { format, parseISO } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import Link from 'next/link';
 import { SessionEnrollmentDialog } from "@/components/courses/session-enrollment-dialog";
-import { saveAttendance, assignCourseLeader, removeCourseLeader, submitLeaveRequest, submitTransferRequest, getTransferCandidates, cancelEnrollment } from '@/lib/supabase/actions';
+import { saveAttendance as _saveAttendance, assignCourseLeader as _assignCourseLeader, removeCourseLeader as _removeCourseLeader, submitLeaveRequest as _submitLeaveRequest, submitTransferRequest as _submitTransferRequest, getTransferCandidates, cancelEnrollment as _cancelEnrollment } from '@/lib/supabase/actions';
+import { safe } from '@/lib/supabase/safe-action';
+
+const saveAttendance = safe(_saveAttendance);
+const assignCourseLeader = safe(_assignCourseLeader);
+const removeCourseLeader = safe(_removeCourseLeader);
+const submitLeaveRequest = safe(_submitLeaveRequest);
+const submitTransferRequest = safe(_submitTransferRequest);
+const cancelEnrollment = safe(_cancelEnrollment);
 import {
     Dialog,
     DialogContent,
@@ -122,6 +130,7 @@ interface CourseDetailClientProps {
     canManageAttendance: boolean;
     currentUserRole: string;
     transferMetadata?: Record<string, Record<string, { type: 'transfer_out' | 'transfer_in'; fromName: string; toName: string }>>;
+    makeupSessionMap?: Record<string, string[]>;
     sessionOccupancy?: Record<string, number>;
 }
 
@@ -149,6 +158,7 @@ export function CourseDetailClient({
     canManageAttendance,
     currentUserRole,
     transferMetadata = {},
+    makeupSessionMap = {},
     sessionOccupancy = {},
 }: CourseDetailClientProps) {
     const router = useRouter();
@@ -303,7 +313,7 @@ export function CourseDetailClient({
         setIsTransferDialogOpen(true);
         setIsLoadingCandidates(true);
         try {
-            const candidates = await getTransferCandidates(course.id);
+            const candidates = await getTransferCandidates(course.id, session.id);
             setTransferCandidates(candidates);
         } catch (err) {
             console.error('Failed to load candidates', err);
@@ -335,6 +345,8 @@ export function CourseDetailClient({
         // Guest logic (Single, Makeup, Transfer) - isolate to focused session if specified
         const isGuestForCurrentSession = sessionId === focusedSessionId || !focusedSessionId;
 
+        // Check makeup_requests as authoritative source (survives attendance saves)
+        if (makeupSessionMap[sessionId]?.includes(studentId)) return isGuestForCurrentSession ? 'makeup' : 'none';
         if (dbStatus === 'makeup') return isGuestForCurrentSession ? 'makeup' : 'none';
 
         // Single enrollment check

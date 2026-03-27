@@ -20,7 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Search, Users, Crown, Shield, User, Calendar, ChevronDown, Info, KeyRound } from 'lucide-react';
+import { Search, Users, Crown, Shield, User, Calendar, ChevronDown, KeyRound } from 'lucide-react';
 import { updateMemberProfile, resetMemberPassword } from '@/lib/supabase/actions';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -372,7 +372,7 @@ export function MembersClient({ members }: MembersClientProps) {
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-black uppercase text-[#FF6B00]/70 tracking-widest ml-1">總補課額度 (手動直接修改)</label>
+                                <label className="text-[10px] font-black uppercase text-[#FF6B00]/70 tracking-widest ml-1">總補課額度 (可用)</label>
                                 <Input
                                     type="number"
                                     value={editMakeupAdj === 0 ? '' : editMakeupAdj}
@@ -381,62 +381,12 @@ export function MembersClient({ members }: MembersClientProps) {
                                     placeholder="0"
                                     inputMode="numeric"
                                 />
+                                <p className="text-[9px] text-[#FF6B00]/50 font-medium ml-1">
+                                    = 系統自動 ({editMember ? editMember.makeup_quota - editMember.makeup_adj : 0}) + 手動調整 ({editMember ? editMakeupAdj - (editMember.makeup_quota - editMember.makeup_adj) : 0})。手動部分不受 1/4 堂數限制。
+                                </p>
                             </div>
                         </div>
 
-                        {/* Makeup Quota Explorer */}
-                        {editMember && (
-                            <div className="p-4 bg-[#FF6B00]/5 border border-[#FF6B00]/10 rounded-2xl space-y-3">
-                                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-[#FF6B00]/70 ml-1">
-                                    <span>補課額度計算解析 (系統自動 + 手動修正)</span>
-                                    <Info className="h-3.5 w-3.5" />
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="p-3 bg-white/40 dark:bg-black/20 rounded-xl border border-border/50 shadow-sm backdrop-blur-sm">
-                                        <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-tight block mb-1">系統判定 (未調整前)</span>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-xl font-black text-foreground/80">{editMember.makeup_quota - editMember.makeup_adj}</span>
-                                            <span className="text-[10px] font-bold text-muted-foreground/60">堂</span>
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-[#FF6B00]/10 rounded-xl border border-[#FF6B00]/20 shadow-sm">
-                                        <span className="text-[10px] font-bold text-[#FF6B00]/70 uppercase tracking-tight block mb-1">最終總計 (可用)</span>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-xl font-black text-[#FF6B00]">{editMakeupAdj}</span>
-                                            <span className="text-[10px] font-bold text-[#FF6B00]/70">堂</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-between px-1">
-                                    <span className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-tight">手動修正預覽</span>
-                                    <Badge variant="outline" className={cn(
-                                        "text-[10px] font-black px-2 h-5 border-none",
-                                        (editMakeupAdj - (editMember.makeup_quota - editMember.makeup_adj)) >= 0 
-                                            ? "bg-blue-500/10 text-blue-600" 
-                                            : "bg-rose-500/10 text-rose-500"
-                                    )}>
-                                        {(editMakeupAdj - (editMember.makeup_quota - editMember.makeup_adj)) > 0 ? `+${editMakeupAdj - (editMember.makeup_quota - editMember.makeup_adj)}` : (editMakeupAdj - (editMember.makeup_quota - editMember.makeup_adj))} 堂
-                                    </Badge>
-                                </div>
-
-                                {(editMember.makeup_base_details || []).length > 0 && (
-                                    <div className="px-1 mt-1">
-                                        <div className="text-[10px] font-bold text-muted-foreground/80 flex flex-wrap gap-x-2 gap-y-1 justify-center">
-                                            實際點數來源：
-                                            {editMember.makeup_base_details.map((detail, idx) => (
-                                                <span key={idx} className="bg-muted/10 px-1.5 py-0.5 rounded border border-muted/20 whitespace-nowrap">
-                                                    {detail}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                <p className="text-[9px] text-orange-500/50 font-medium italic text-center px-2 leading-relaxed">
-                                    * 基礎規則: 常態/特殊常態課整期加總，每 4 堂提供 1 堂補課額度 (無條件進位)
-                                </p>
-                            </div>
-                        )}
 
                         {/* Enrollments Accordion */}
                         <div className="space-y-3">

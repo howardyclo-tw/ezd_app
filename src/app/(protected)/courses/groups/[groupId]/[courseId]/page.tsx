@@ -61,7 +61,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         { count: enrolledCount },
         { data: enrollment },
         { data: userProfileWithCardBalance },
-        missedSessions,
+        missedSessionsResult,
         makeupQuota,
         { data: roster },
         { data: makeupsArriving },
@@ -140,6 +140,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             .eq('user_id', user.id)
             .in('status', ['pending', 'approved']),
     ]);
+
+    const missedSessions = (missedSessionsResult as any)?.sessions ?? [];
 
     // Build attendance map: { [userId]: { [sessionId]: status } }
     const attendanceMap: Record<string, Record<string, string>> = {};
@@ -269,6 +271,15 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         }
     });
 
+    // Build makeup metadata: { [sessionId]: { [userId]: true } }
+    const makeupSessionMap: Record<string, Set<string>> = {};
+    (makeupsArriving ?? []).forEach(m => {
+        if (!m.profiles) return;
+        const p = m.profiles as any;
+        if (!makeupSessionMap[m.target_session_id]) makeupSessionMap[m.target_session_id] = new Set();
+        makeupSessionMap[m.target_session_id].add(p.id);
+    });
+
     // --- Calculate Session Occupancy ---
     // Formula: n = (Official/Single Enrollments) + (Approved Makeup) + (Arriving Transfers) - (Approved Leave) - (Outgoing Transfers)
     // Note: Arriving Transfers and Outgoing Transfers here are matching pairs on the SAME session.
@@ -327,6 +338,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             }))}
             roster={rosterWithAttendance}
             transferMetadata={transferMetadata}
+            makeupSessionMap={Object.fromEntries(Object.entries(makeupSessionMap).map(([k, v]) => [k, Array.from(v)]))}
             enrolledCount={enrolledCount ?? 0}
             userEnrollment={{
                 userId: user.id,

@@ -54,7 +54,7 @@ export default async function AdminMembersPage() {
 
         supabase
             .from('makeup_requests')
-            .select('user_id, original_course_id, status, quota_used')
+            .select('user_id, original_course_id, original_session_id, status, quota_used')
             .then(res => res.error ? { data: [] } : res),
 
         supabase
@@ -158,6 +158,14 @@ export default async function AdminMembersPage() {
         }
     });
 
+    // Track which absence sessions have already been consumed by makeup requests
+    const usedAbsenceSessionIds = new Set<string>();
+    (makeupData ?? []).forEach(m => {
+        if ((m.status === 'approved' || m.status === 'pending') && (m as any).original_session_id) {
+            usedAbsenceSessionIds.add((m as any).original_session_id);
+        }
+    });
+
     // Attendance index: user_id -> sessions
     const userAttendanceMap = new Map<string, any[]>();
     attendanceDataCast.forEach(a => {
@@ -194,7 +202,8 @@ export default async function AdminMembersPage() {
         const courseAbsences = new Map<string, any[]>();
         userAttendances.forEach(a => {
             const cId = (a.course_sessions as any)?.courses?.id;
-            if (cId && fullCourseIds.has(cId)) {
+            // Filter out absences already consumed by makeup requests
+            if (cId && fullCourseIds.has(cId) && !usedAbsenceSessionIds.has(a.session_id)) {
                 const list = courseAbsences.get(cId) || [];
                 list.push(a);
                 courseAbsences.set(cId, list);

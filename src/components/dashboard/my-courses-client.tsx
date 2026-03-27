@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { ClipboardList, Calendar, ArrowRight, ShieldCheck } from 'lucide-react';
+import { ClipboardList, Calendar, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -69,28 +69,6 @@ export function MyCoursesClient({ upcomingSessions, historyRecords, makeupGroups
                     </Card>
                 ) : (
                     <div className="grid gap-3 grid-cols-1">
-                        {/* Manual Adjustment Card - System Note Style */}
-                        {manualQuota !== 0 && (
-                            <div className="p-4 bg-muted/5 border border-muted-foreground/10 rounded-2xl flex items-center justify-between shadow-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-9 w-9 rounded-xl bg-muted/10 flex items-center justify-center text-muted-foreground/60">
-                                        <ShieldCheck className="h-5 w-5" />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <h4 className="text-[13px] font-bold text-muted-foreground/80 tracking-tight">幹部手動調整註記</h4>
-                                        <span className="text-[10px] text-muted-foreground/40 font-black uppercase tracking-widest">System Override Note</span>
-                                    </div>
-                                </div>
-                                <div className={cn(
-                                    "flex items-center justify-center px-4 h-8 rounded-full text-xs font-black shadow-inner border backdrop-blur-md",
-                                    manualQuota > 0 
-                                        ? "bg-blue-500/5 text-blue-400/80 border-blue-500/20" 
-                                        : "bg-rose-500/5 text-rose-400/80 border-rose-500/20"
-                                )}>
-                                    {manualQuota > 0 ? `+${manualQuota}` : manualQuota} 堂
-                                </div>
-                            </div>
-                        )}
 
                         {makeupGroups.map((group) => (
                             <Link href={group.href} key={group.id} className="block w-full no-underline">

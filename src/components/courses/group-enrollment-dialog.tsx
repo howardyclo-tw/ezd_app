@@ -16,7 +16,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, UserPlus, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { batchEnrollInCourses } from '@/lib/supabase/actions';
+import { batchEnrollInCourses as _batchEnrollInCourses } from '@/lib/supabase/actions';
+import { safe } from '@/lib/supabase/safe-action';
+const batchEnrollInCourses = safe(_batchEnrollInCourses);
 import { toast } from 'sonner';
 
 interface CourseOption {

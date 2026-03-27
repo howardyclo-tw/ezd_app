@@ -149,14 +149,15 @@ export default async function DashboardPage() {
   const totalMissedCount = missedSessionsList.length;
 
   // Calculate true available makeup quota by applying course-level max capacity
+  const { sessions: availableMissedSessionsList, manualQuota: dashboardManualQuota } = availableMissedSessions as any;
   const courseCounts = new Map<string, { absences: number, totalQuota: number, usedQuota: number }>();
-  (availableMissedSessions as any[]).forEach(s => {
+  (availableMissedSessionsList ?? []).forEach((s: any) => {
     const existing = courseCounts.get(s.courseId) || { absences: 0, totalQuota: s.totalQuota, usedQuota: s.usedQuota };
     existing.absences += 1;
     courseCounts.set(s.courseId, existing);
   });
 
-  let availableMakeupQuotaCount = 0;
+  let availableMakeupQuotaCount = dashboardManualQuota || 0;
   courseCounts.forEach(val => {
     const remainingQuota = Math.max(0, val.totalQuota - val.usedQuota);
     availableMakeupQuotaCount += Math.min(val.absences, remainingQuota);

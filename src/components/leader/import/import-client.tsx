@@ -163,7 +163,7 @@ export function ImportClient() {
                 errors.push(`第 ${index + 2} 行欄位數量不正確 (預期 ${headers.length} 欄，實際讀到 ${values.length} 欄)`);
             }
 
-            const VALID_COURSE_TYPES = ['normal', 'trial', 'special', 'style', 'workshop', 'rehearsal', 'performance'];
+            const VALID_COURSE_TYPES = ['normal', 'trial', 'special', 'style', 'workshop'];
 
             headers.forEach((header, i) => {
                 const val = values[i];

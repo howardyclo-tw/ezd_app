@@ -13,7 +13,10 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { enrollInCourse, cancelEnrollment } from '@/lib/supabase/actions';
+import { enrollInCourse as _enrollInCourse, cancelEnrollment as _cancelEnrollment } from '@/lib/supabase/actions';
+import { safe } from '@/lib/supabase/safe-action';
+const enrollInCourse = safe(_enrollInCourse);
+const cancelEnrollment = safe(_cancelEnrollment);
 import { cn } from '@/lib/utils';
 import { Loader2, Check, UserPlus, UserMinus, Clock } from 'lucide-react';
 
