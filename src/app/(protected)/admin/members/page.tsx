@@ -101,6 +101,18 @@ export default async function AdminMembersPage() {
     const enrollmentMap = new Map<string, any[]>();
     const userQuotaCourses = new Map<string, { id: string; name: string; quota: number }[]>();
 
+    // Build course -> all sessions lookup for full enrollments
+    const allCourseSessionsMap = new Map<string, { id: string; date: string }[]>();
+    const { data: allCourseSessions } = await supabase
+        .from('course_sessions')
+        .select('id, course_id, session_date')
+        .order('session_date');
+    (allCourseSessions ?? []).forEach(cs => {
+        const list = allCourseSessionsMap.get(cs.course_id) || [];
+        list.push({ id: cs.id, date: cs.session_date });
+        allCourseSessionsMap.set(cs.course_id, list);
+    });
+
     for (const en of enrollmentData ?? []) {
         const course = en.courses as any;
         if (!course) continue;
@@ -110,17 +122,30 @@ export default async function AdminMembersPage() {
         // Display
         const enrolls = enrollmentMap.get(en.user_id) || [];
         const existing = enrolls.find(e => e.courseId === courseId);
-        const date = (en.course_sessions as any)?.session_date || '未定日期';
-        if (existing) {
-            existing.sessions.push({ id: en.id, date, source: (en as any).source });
-        } else {
+
+        if (enrollType === 'full' && !existing) {
+            // Full enrollment: show all sessions in the course
+            const courseSessions = allCourseSessionsMap.get(courseId) || [];
             enrolls.push({
                 courseId,
                 courseName: course.name,
                 groupTitle: course.course_groups?.title || '',
-                sessions: [{ id: en.id, date, source: (en as any).source }]
+                sessions: courseSessions.map(cs => ({ id: cs.id, date: cs.date, source: (en as any).source }))
             });
             enrollmentMap.set(en.user_id, enrolls);
+        } else if (enrollType === 'single') {
+            const date = (en.course_sessions as any)?.session_date || '未定日期';
+            if (existing) {
+                existing.sessions.push({ id: en.id, date, source: (en as any).source });
+            } else {
+                enrolls.push({
+                    courseId,
+                    courseName: course.name,
+                    groupTitle: course.course_groups?.title || '',
+                    sessions: [{ id: en.id, date, source: (en as any).source }]
+                });
+                enrollmentMap.set(en.user_id, enrolls);
+            }
         }
 
         // Calculation: Normal or Special courses with full enrollment
