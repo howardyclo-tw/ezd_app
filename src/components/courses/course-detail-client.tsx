@@ -35,6 +35,7 @@ import Link from 'next/link';
 import { SessionEnrollmentDialog } from "@/components/courses/session-enrollment-dialog";
 import { saveAttendance as _saveAttendance, assignCourseLeader as _assignCourseLeader, removeCourseLeader as _removeCourseLeader, submitLeaveRequest as _submitLeaveRequest, submitTransferRequest as _submitTransferRequest, getTransferCandidates, cancelEnrollment as _cancelEnrollment } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
+import { ATTENDANCE_COLORS, ATTENDANCE_LABELS } from '@/lib/constants';
 
 const saveAttendance = safe(_saveAttendance);
 const assignCourseLeader = safe(_assignCourseLeader);
@@ -134,14 +135,14 @@ interface CourseDetailClientProps {
     sessionOccupancy?: Record<string, number>;
 }
 
-// Status display map
+// Status display map — derived from shared constants with icon overrides for attendance grid
 const ATTENDANCE_DISPLAY: Record<string, { label: string; color: string; icon: 'check' | 'x' | 'text' }> = {
-    present: { label: 'v', color: 'bg-green-500/10 text-green-600', icon: 'check' },
-    absent: { label: 'x', color: 'bg-red-500/10 text-red-500', icon: 'x' },
-    leave: { label: '請假', color: 'bg-blue-500/10 text-blue-600', icon: 'text' },
-    makeup: { label: '補', color: 'bg-purple-500/10 text-purple-600', icon: 'text' },
-    transfer_in: { label: '轉入', color: 'bg-purple-500/10 text-purple-600', icon: 'text' },
-    transfer_out: { label: '轉出', color: 'bg-slate-500/10 text-slate-500', icon: 'text' },
+    present: { label: 'v', color: ATTENDANCE_COLORS.present, icon: 'check' },
+    absent: { label: 'x', color: ATTENDANCE_COLORS.absent, icon: 'x' },
+    leave: { label: ATTENDANCE_LABELS.leave, color: ATTENDANCE_COLORS.leave, icon: 'text' },
+    makeup: { label: '補', color: ATTENDANCE_COLORS.makeup, icon: 'text' },
+    transfer_in: { label: ATTENDANCE_LABELS.transfer_in, color: ATTENDANCE_COLORS.transfer_in, icon: 'text' },
+    transfer_out: { label: ATTENDANCE_LABELS.transfer_out, color: ATTENDANCE_COLORS.transfer_out, icon: 'text' },
     unmarked: { label: '', color: '', icon: 'text' },
 };
 
