@@ -20,6 +20,7 @@ export default async function AdminMembersPage() {
         { data: makeupData },
         { data: transferData },
         { data: attendanceData },
+        { data: allAttendanceData },
     ] = await Promise.all([
         supabase.auth.getUser(),
         supabase
@@ -42,7 +43,7 @@ export default async function AdminMembersPage() {
                 source,
                 type,
                 session_id,
-                courses ( id, name, type, course_groups ( title ) ),
+                courses ( id, name, type, teacher, course_groups ( title ) ),
                 course_sessions ( id, session_date )
             `)
             .then(res => res.error ? { data: [] } : res),
@@ -54,12 +55,12 @@ export default async function AdminMembersPage() {
 
         supabase
             .from('makeup_requests')
-            .select('user_id, original_course_id, original_session_id, status, quota_used')
+            .select('user_id, original_course_id, original_session_id, target_session_id, target_course_id, status, quota_used')
             .then(res => res.error ? { data: [] } : res),
 
         supabase
             .from('transfer_requests')
-            .select('from_user_id, course_id, status')
+            .select('from_user_id, to_user_id, course_id, session_id, status')
             .then(res => res.error ? { data: [] } : res),
 
         supabase
@@ -74,6 +75,12 @@ export default async function AdminMembersPage() {
                 )
             `)
             .in('status', ['absent', 'leave'])
+            .then(res => res.error ? { data: [] } : res),
+
+        // All attendance records (for display in member management)
+        supabase
+            .from('attendance_records')
+            .select('user_id, session_id, status')
             .then(res => res.error ? { data: [] } : res),
     ]);
 
@@ -113,6 +120,28 @@ export default async function AdminMembersPage() {
         allCourseSessionsMap.set(cs.course_id, list);
     });
 
+    // Build per-user per-session attendance status map from ALL records (for display)
+    const attendanceStatusMap = new Map<string, string>();
+    (allAttendanceData as any[] ?? []).forEach(a => {
+        attendanceStatusMap.set(`${a.user_id}-${a.session_id}`, a.status);
+    });
+
+    // Build makeup target sessions: "userId-sessionId" -> true
+    const makeupTargetMap = new Set<string>();
+    (makeupData ?? []).forEach(m => {
+        if ((m.status === 'approved' || m.status === 'pending') && (m as any).target_session_id) {
+            makeupTargetMap.add(`${m.user_id}-${(m as any).target_session_id}`);
+        }
+    });
+
+    // Build transfer_in sessions: "userId-sessionId" -> true
+    const transferInMap = new Set<string>();
+    (transferData as any[] ?? []).forEach(t => {
+        if (t.status === 'approved' && t.to_user_id && t.session_id) {
+            transferInMap.add(`${t.to_user_id}-${t.session_id}`);
+        }
+    });
+
     for (const en of enrollmentData ?? []) {
         const course = en.courses as any;
         if (!course) continue;
@@ -123,26 +152,41 @@ export default async function AdminMembersPage() {
         const enrolls = enrollmentMap.get(en.user_id) || [];
         const existing = enrolls.find(e => e.courseId === courseId);
 
+        const buildSessionInfo = (sessionId: string, date: string, source: string) => {
+            const key = `${en.user_id}-${sessionId}`;
+            const attendance = attendanceStatusMap.get(key) || 'unmarked';
+            // Determine the true type of this session
+            let sessionType: string = enrollType; // 'full' or 'single'
+            if (makeupTargetMap.has(key)) sessionType = 'makeup';
+            else if (transferInMap.has(key)) sessionType = 'transfer_in';
+            return { id: sessionId, date, source, attendance, sessionType };
+        };
+
         if (enrollType === 'full' && !existing) {
-            // Full enrollment: show all sessions in the course
             const courseSessions = allCourseSessionsMap.get(courseId) || [];
             enrolls.push({
                 courseId,
                 courseName: course.name,
+                teacher: course.teacher || '',
                 groupTitle: course.course_groups?.title || '',
-                sessions: courseSessions.map(cs => ({ id: cs.id, date: cs.date, source: (en as any).source }))
+                enrollType: 'full',
+                sessions: courseSessions.map(cs => buildSessionInfo(cs.id, cs.date, (en as any).source))
             });
             enrollmentMap.set(en.user_id, enrolls);
         } else if (enrollType === 'single') {
+            const sessionId = (en as any).session_id;
             const date = (en.course_sessions as any)?.session_date || '未定日期';
+            const sessionInfo = buildSessionInfo(sessionId || en.id, date, (en as any).source);
             if (existing) {
-                existing.sessions.push({ id: en.id, date, source: (en as any).source });
+                existing.sessions.push(sessionInfo);
             } else {
                 enrolls.push({
                     courseId,
                     courseName: course.name,
+                    teacher: course.teacher || '',
                     groupTitle: course.course_groups?.title || '',
-                    sessions: [{ id: en.id, date, source: (en as any).source }]
+                    enrollType: 'single',
+                    sessions: [sessionInfo]
                 });
                 enrollmentMap.set(en.user_id, enrolls);
             }
@@ -160,6 +204,95 @@ export default async function AdminMembersPage() {
             }
         }
     }
+
+    // Add makeup target sessions and transfer_in sessions to enrollment map
+    // Build course info lookup
+    const courseInfoMap = new Map<string, { name: string; teacher: string; groupTitle: string }>();
+    const { data: allCourses } = await supabase
+        .from('courses')
+        .select('id, name, teacher, course_groups ( title )');
+    (allCourses ?? []).forEach(c => {
+        courseInfoMap.set(c.id, { name: c.name, teacher: c.teacher, groupTitle: (c.course_groups as any)?.title || '' });
+    });
+
+    // Session -> course_id lookup
+    const sessionCourseMap = new Map<string, string>();
+    (allCourseSessions ?? []).forEach(cs => {
+        sessionCourseMap.set(cs.id, cs.course_id);
+    });
+
+    // Add approved makeup targets
+    (makeupData ?? []).forEach(m => {
+        if (m.status !== 'approved' || !(m as any).target_session_id) return;
+        const targetSessionId = (m as any).target_session_id as string;
+        const targetCourseId = (m as any).target_course_id as string;
+        const courseInfo = courseInfoMap.get(targetCourseId);
+        if (!courseInfo) return;
+
+        const sessionDate = (allCourseSessions ?? []).find(cs => cs.id === targetSessionId)?.session_date;
+        if (!sessionDate) return;
+
+        const enrolls = enrollmentMap.get(m.user_id) || [];
+        const existing = enrolls.find(e => e.courseId === targetCourseId);
+        const key = `${m.user_id}-${targetSessionId}`;
+        const attendance = attendanceStatusMap.get(key) || 'unmarked';
+        const sessionInfo = { id: targetSessionId, date: sessionDate, source: 'makeup', attendance, sessionType: 'makeup' };
+
+        if (existing) {
+            if (!existing.sessions.some((s: any) => s.id === targetSessionId)) {
+                existing.sessions.push(sessionInfo);
+            }
+        } else {
+            enrolls.push({
+                courseId: targetCourseId,
+                courseName: courseInfo.name,
+                teacher: courseInfo.teacher,
+                groupTitle: courseInfo.groupTitle,
+                enrollType: 'makeup',
+                sessions: [sessionInfo]
+            });
+            enrollmentMap.set(m.user_id, enrolls);
+        }
+    });
+
+    // Add approved transfer_in
+    (transferData as any[] ?? []).forEach(t => {
+        if (t.status !== 'approved' || !t.to_user_id || !t.session_id) return;
+        const courseInfo = courseInfoMap.get(t.course_id);
+        if (!courseInfo) return;
+
+        const sessionDate = (allCourseSessions ?? []).find((cs: any) => cs.id === t.session_id)?.session_date;
+        if (!sessionDate) return;
+
+        const enrolls = enrollmentMap.get(t.to_user_id) || [];
+        const existing = enrolls.find((e: any) => e.courseId === t.course_id);
+        const key = `${t.to_user_id}-${t.session_id}`;
+        const attendance = attendanceStatusMap.get(key) || 'unmarked';
+        const sessionInfo = { id: t.session_id, date: sessionDate, source: 'transfer', attendance, sessionType: 'transfer_in' };
+
+        if (existing) {
+            if (!existing.sessions.some((s: any) => s.id === t.session_id)) {
+                existing.sessions.push(sessionInfo);
+            }
+        } else {
+            enrolls.push({
+                courseId: t.course_id,
+                courseName: courseInfo.name,
+                teacher: courseInfo.teacher,
+                groupTitle: courseInfo.groupTitle,
+                enrollType: 'transfer_in',
+                sessions: [sessionInfo]
+            });
+            enrollmentMap.set(t.to_user_id, enrolls);
+        }
+    });
+
+    // Sort sessions by date within each enrollment
+    enrollmentMap.forEach(enrolls => {
+        enrolls.forEach(en => {
+            en.sessions.sort((a: any, b: any) => a.date.localeCompare(b.date));
+        });
+    });
 
     const attendanceDataCast = (attendanceData as any[]) || [];
 

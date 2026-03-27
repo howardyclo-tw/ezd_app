@@ -33,11 +33,11 @@ const statusConfig: Record<string, { label: string; color: string }> = {
     enrolled: { label: '待出席', color: 'bg-muted/30 text-muted-foreground border-muted/50 ring-0' },
     waitlist: { label: '候補', color: 'bg-orange-500/10 text-orange-600 ring-orange-600/20' },
     present: { label: '出席', color: 'bg-green-500/10 text-green-600 ring-green-600/20' },
-    absent: { label: '缺席', color: 'bg-red-500/10 text-red-600 ring-red-600/20' },
+    absent: { label: '缺席', color: 'bg-red-500/10 text-red-500 ring-red-500/20' },
     leave: { label: '請假', color: 'bg-blue-500/10 text-blue-600 ring-blue-600/20' },
     makeup: { label: '補課', color: 'bg-purple-500/10 text-purple-600 ring-purple-600/20' },
-    transfer_in: { label: '轉入', color: 'bg-indigo-500/10 text-indigo-600 ring-indigo-600/20' },
-    transfer_out: { label: '已轉讓', color: 'bg-muted/30 text-muted-foreground border-muted/50 ring-0' },
+    transfer_in: { label: '轉入', color: 'bg-purple-500/10 text-purple-600 ring-purple-600/20' },
+    transfer_out: { label: '轉出', color: 'bg-slate-500/10 text-slate-500 ring-slate-500/20' },
     available: { label: '找課補', color: 'bg-orange-500/10 border border-orange-500/30 text-orange-500 shadow-sm hover:bg-orange-500/20 hover:border-orange-500/50' },
 };
 

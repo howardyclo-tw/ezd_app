@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Search, Users, Crown, Shield, User, Calendar, ChevronDown, KeyRound } from 'lucide-react';
 import { updateMemberProfile, resetMemberPassword } from '@/lib/supabase/actions';
+import { ATTENDANCE_COLORS, ATTENDANCE_LABELS, ENROLL_TYPE_COLORS, ENROLL_TYPE_LABELS } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -42,11 +43,15 @@ interface MemberData {
     enrollments: {
         courseId: string;
         courseName: string;
+        teacher: string;
         groupTitle: string;
+        enrollType: string;
         sessions: {
             id: string;
             date: string;
             source: string;
+            attendance: string;
+            sessionType: string;
         }[]
     }[];
 }
@@ -198,20 +203,7 @@ export function MembersClient({ members }: MembersClientProps) {
         });
     };
 
-    const deleteSessionEnrollment = async (enrollmentId: string, date: string, source: string) => {
-        if (!editMember) return;
 
-        const isSpecial = source === 'transfer' || source === 'makeup' || source === 'card_purchase';
-        const warning = isSpecial
-            ? `\n\n🚨 注意：此堂課的報名來源為「${source}」。取消後不會自動返還點數給原主，如需退還請手動調整「補課點數」或原主的點數。`
-            : '';
-
-        const message = `⚠️ 安全保護確認：\n\n確定取消此堂 (${date}) 的報名嗎？\n\n1. 此操作將連同「點名、請假」紀錄一併移除。${warning}\n\n確定要執行嗎？`;
-
-        if (!confirm(message)) return;
-
-        toast.info('單堂取消功能開發中。');
-    };
 
     return (
         <>
@@ -414,9 +406,14 @@ export function MembersClient({ members }: MembersClientProps) {
                                                 >
                                                     <div className="flex flex-col min-w-0">
                                                         <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">{en.groupTitle}</span>
-                                                        <span className="text-xs font-black text-foreground truncate">{en.courseName}</span>
+                                                        <span className="text-xs font-black text-foreground truncate">{en.teacher} {en.courseName}</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
+                                                        <Badge variant="outline" className={cn("text-[9px] font-black h-4 px-1.5 border-none",
+                                                            en.enrollType === 'full' ? "bg-primary/10 text-primary" : "bg-orange-500/10 text-orange-500"
+                                                        )}>
+                                                            {en.enrollType === 'full' ? '整期' : '單堂'}
+                                                        </Badge>
                                                         <Badge variant="secondary" className="bg-background text-[10px] font-black rounded-lg h-5 px-1.5">
                                                             {en.sessions.length} 堂
                                                         </Badge>
@@ -426,29 +423,37 @@ export function MembersClient({ members }: MembersClientProps) {
 
                                                 {isExpanded && (
                                                     <div className="px-3 pb-3 space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                        {en.sessions.map((ses) => (
-                                                            <div key={ses.id} className="flex items-center justify-between p-2.5 bg-background rounded-xl border border-muted/20 shadow-sm">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-[11px] font-black text-foreground/80">{ses.date}</span>
-                                                                    {ses.source !== 'self' && (
-                                                                        <Badge variant="outline" className="text-[9px] font-black h-4 px-1.5 text-purple-600 border-purple-200 bg-purple-50">
-                                                                            {ses.source === 'admin' ? '代報' : ses.source === 'makeup' ? '補課' : '轉讓'}
-                                                                        </Badge>
-                                                                    )}
-                                                                </div>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-7 px-3 text-[10px] font-black text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 rounded-lg transition-all active:scale-95"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        deleteSessionEnrollment(ses.id, ses.date, ses.source);
-                                                                    }}
-                                                                >
-                                                                    取消此堂
-                                                                </Button>
+                                                        {en.sessions.map((ses) => {
+                                                            const attColors = ATTENDANCE_COLORS;
+                                                            const attLabels = ATTENDANCE_LABELS;
+                                                            const typeLabels = ENROLL_TYPE_LABELS;
+                                                            const typeColors = ENROLL_TYPE_COLORS;
+
+                                                            // Determine effective attendance label (skip if same as type to avoid "補課 補課")
+                                                            const showAttBadge = ses.attendance !== 'unmarked'
+                                                                && attLabels[ses.attendance]
+                                                                && !(ses.sessionType === 'makeup' && ses.attendance === 'makeup')
+                                                                && !(ses.sessionType === 'transfer_in' && ses.attendance === 'transfer_in');
+
+                                                            return (
+                                                            <div key={ses.id} className={cn(
+                                                                "flex items-center gap-1.5 flex-wrap p-2.5 bg-background rounded-xl border shadow-sm",
+                                                                ses.attendance === 'transfer_out' ? "border-muted/10 opacity-50" : "border-muted/20"
+                                                            )}>
+                                                                <span className="text-[11px] font-black text-foreground/80">{ses.date}</span>
+                                                                {typeLabels[ses.sessionType] && (
+                                                                    <Badge variant="outline" className={cn("text-[8px] font-black h-3.5 px-1 border-none", typeColors[ses.sessionType] || 'bg-muted/30 text-muted-foreground')}>
+                                                                        {typeLabels[ses.sessionType]}
+                                                                    </Badge>
+                                                                )}
+                                                                {showAttBadge && (
+                                                                    <Badge variant="outline" className={cn("text-[8px] font-black h-3.5 px-1 border-none", attColors[ses.attendance])}>
+                                                                        {attLabels[ses.attendance]}
+                                                                    </Badge>
+                                                                )}
                                                             </div>
-                                                        ))}
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
                                             </div>
