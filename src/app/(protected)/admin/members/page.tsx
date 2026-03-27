@@ -23,11 +23,12 @@ export default async function AdminMembersPage() {
         { data: allAttendanceData },
         { data: allCourses },
         { data: cardOrdersData },
+        { data: memberGroups },
     ] = await Promise.all([
         supabase.auth.getUser(),
         supabase
             .from('profiles')
-            .select('id, name, employee_id, role, member_valid_until, card_balance, makeup_quota')
+            .select('id, name, employee_id, role, member_group_id, card_balance, makeup_quota')
             .order('name', { ascending: true }),
 
         supabase
@@ -93,6 +94,13 @@ export default async function AdminMembersPage() {
             .select('id, user_id, quantity, used, expires_at')
             .eq('status', 'confirmed')
             .order('expires_at', { ascending: true })
+            .then(res => res.error ? { data: [] } : res),
+
+        // Member groups
+        supabase
+            .from('member_groups')
+            .select('id, name, valid_until')
+            .order('valid_until', { ascending: false })
             .then(res => res.error ? { data: [] } : res),
     ]);
 
@@ -411,7 +419,7 @@ export default async function AdminMembersPage() {
             email: emailMap.get(p.id) || null,
             employee_id: p.employee_id,
             role: p.role,
-            member_valid_until: p.member_valid_until,
+            member_group_id: p.member_group_id || null,
             card_balance: p.card_balance ?? 0,
             card_pools: (cardOrdersData ?? [])
                 .filter(o => o.user_id === p.id)
@@ -453,7 +461,7 @@ export default async function AdminMembersPage() {
                     </div>
                 </div>
             </div>
-            <MembersClient members={members} />
+            <MembersClient members={members} memberGroups={(memberGroups ?? []).map(g => ({ id: g.id, name: g.name, validUntil: g.valid_until }))} />
         </div>
     );
 }

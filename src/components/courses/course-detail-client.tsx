@@ -232,7 +232,12 @@ export function CourseDetailClient({
 
     const [focusedSessionId, setFocusedSessionId] = useState<string | null>(() => {
         const todayStr = format(new Date(), "yyyy-MM-dd");
-        return sessions.find(s => s.date === todayStr)?.id || sessions[0]?.id || null;
+        // Prefer today → most recent past session → first session
+        const todaySession = sessions.find(s => s.date === todayStr);
+        if (todaySession) return todaySession.id;
+        const pastSessions = sessions.filter(s => s.date <= todayStr);
+        if (pastSessions.length > 0) return pastSessions[pastSessions.length - 1].id;
+        return sessions[0]?.id || null;
     });
 
     // --- Leave/Transfer Dialogs ---
@@ -361,6 +366,7 @@ export function CourseDetailClient({
 
     // Toggle attendance: pending -> present -> absent -> restore original
     const toggleAttendance = (studentId: string, sessionId: string) => {
+
         const origType = getOriginalType(studentId, sessionId);
         setAttendanceState((prev: AttendanceMap) => {
             const current = prev[studentId]?.[sessionId] ?? 'unmarked';
@@ -448,6 +454,8 @@ export function CourseDetailClient({
 
     const renderAttendanceCell = (status: string, studentId: string, sessionId: string) => {
         const origType = getOriginalType(studentId, sessionId);
+        const sessionDate = sessions.find(s => s.id === sessionId)?.date;
+        const isFutureSession = sessionDate ? sessionDate > todayStr : false;
         const canEdit = isEditing && origType !== 'leave' && origType !== 'transfer_out';
         const isOfficialStudent = officialStudents.some(s => s.id === studentId);
 
@@ -478,7 +486,10 @@ export function CourseDetailClient({
 
         return (
             <div
-                onClick={canEdit ? () => toggleAttendance(studentId, sessionId) : undefined}
+                onClick={canEdit ? () => {
+                    if (isFutureSession && !confirm(`此堂次 (${sessionDate}) 尚未到來，確定要點名嗎？`)) return;
+                    toggleAttendance(studentId, sessionId);
+                } : undefined}
                 className={cn(
                     "w-full h-full flex flex-col items-center justify-center transition-all duration-200 relative px-1",
                     status === 'present' ? "bg-emerald-500/20" :

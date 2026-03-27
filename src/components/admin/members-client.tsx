@@ -20,8 +20,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Search, Users, Crown, Shield, User, Calendar, ChevronDown, KeyRound } from 'lucide-react';
-import { updateMemberProfile, resetMemberPassword, adminAddCards } from '@/lib/supabase/actions';
+import { Search, Users, Crown, Shield, User, Calendar, ChevronDown, KeyRound, Plus, Trash2, Pencil } from 'lucide-react';
+import { updateMemberProfile, resetMemberPassword, adminAddCards, createMemberGroup, updateMemberGroup, deleteMemberGroup } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 import { ATTENDANCE_COLORS, ATTENDANCE_LABELS, ENROLL_TYPE_COLORS, ENROLL_TYPE_LABELS } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
@@ -36,13 +36,19 @@ interface CardPool {
     expires_at: string | null;
 }
 
+interface MemberGroup {
+    id: string;
+    name: string;
+    validUntil: string;
+}
+
 interface MemberData {
     id: string;
     name: string;
     email: string | null;
     employee_id: string | null;
     role: string;
-    member_valid_until: string | null;
+    member_group_id: string | null;
     card_balance: number;
     card_pools: CardPool[];
     makeup_quota: number; // Final available count
@@ -69,6 +75,7 @@ interface MemberData {
 
 interface MembersClientProps {
     members: MemberData[];
+    memberGroups: MemberGroup[];
 }
 
 const ROLE_OPTIONS = [
@@ -145,14 +152,19 @@ function ResetPasswordButton({ memberId }: { memberId?: string }) {
     );
 }
 
-export function MembersClient({ members }: MembersClientProps) {
+export function MembersClient({ members, memberGroups }: MembersClientProps) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
     const [editMember, setEditMember] = useState<MemberData | null>(null);
     const [editRole, setEditRole] = useState('');
-    const [editValidUntil, setEditValidUntil] = useState('');
+    const [editGroupId, setEditGroupId] = useState<string | null>(null);
+    const [newGroupName, setNewGroupName] = useState('');
+    const [newGroupDate, setNewGroupDate] = useState('');
+    const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+    const [editGroupName, setEditGroupName] = useState('');
+    const [editGroupDate, setEditGroupDate] = useState('');
     const [editMakeupAdj, setEditMakeupAdj] = useState<number>(0);
     const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
     const [addCardQty, setAddCardQty] = useState('');
@@ -178,7 +190,7 @@ export function MembersClient({ members }: MembersClientProps) {
     const openEdit = (member: MemberData) => {
         setEditMember(member);
         setEditRole(member.role);
-        setEditValidUntil(member.member_valid_until || '');
+        setEditGroupId(member.member_group_id);
         setEditMakeupAdj(member.makeup_quota);
         setExpandedCourse(null);
         setAddCardQty('');
@@ -195,7 +207,7 @@ export function MembersClient({ members }: MembersClientProps) {
             try {
                 const result = await updateMemberProfile(editMember.id, {
                     role: editRole,
-                    member_valid_until: editValidUntil || null,
+                    member_group_id: editGroupId,
                     makeup_quota: newAdj,
                 });
                 if (!result.success) {
@@ -278,8 +290,8 @@ export function MembersClient({ members }: MembersClientProps) {
                     filtered.map(member => {
                         const roleInfo = getRoleInfo(member.role);
                         const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
-                        const isExpired = member.member_valid_until &&
-                            member.member_valid_until < today;
+                        const memberGroup = memberGroups.find(g => g.id === member.member_group_id);
+                        const isExpired = memberGroup && memberGroup.validUntil < today;
 
                         return (
                             <Card
@@ -304,13 +316,13 @@ export function MembersClient({ members }: MembersClientProps) {
                                         </div>
                                         <div className="flex items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-0.5 font-medium flex-wrap">
                                             {member.employee_id && <span>{member.employee_id}</span>}
-                                            {member.member_valid_until && (
+                                            {memberGroup && (
                                                 <span className={cn(
                                                     "flex items-center gap-1 font-bold",
                                                     isExpired ? "text-rose-500" : "text-muted-foreground"
                                                 )}>
                                                     <Calendar className="h-3 w-3 text-muted-foreground/60" />
-                                                    {isExpired ? '已到期' : '效期'} {member.member_valid_until}
+                                                    {memberGroup.name} {isExpired ? '(已到期)' : ''}
                                                 </span>
                                             )}
                                             <div className="flex items-center gap-1.5 shrink-0">
@@ -366,30 +378,125 @@ export function MembersClient({ members }: MembersClientProps) {
                         </div>
 
                         <div className="px-5 pb-5 space-y-4">
-                            {/* Row 1: Role + Expiry */}
-                            <div className="grid grid-cols-2 gap-2.5">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest ml-0.5">身份等級</label>
-                                    <Select value={editRole} onValueChange={setEditRole}>
-                                        <SelectTrigger className="h-9 bg-muted/20 border-muted/30 text-[13px] font-bold rounded-lg focus:ring-0">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-lg border-muted/40 font-bold">
-                                            {ROLE_OPTIONS.map(r => (
-                                                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest ml-0.5">帳號效期</label>
-                                    <Input
-                                        type="date"
-                                        value={editValidUntil}
-                                        onChange={(e) => setEditValidUntil(e.target.value)}
-                                        className="h-9 bg-muted/20 border-muted/30 text-[13px] font-bold rounded-lg focus-visible:ring-0"
-                                    />
-                                </div>
+                            {/* Role */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest ml-0.5">身份等級</label>
+                                <Select value={editRole} onValueChange={setEditRole}>
+                                    <SelectTrigger className="h-9 bg-muted/20 border-muted/30 text-[13px] font-bold rounded-lg focus:ring-0">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-lg border-muted/40 font-bold">
+                                        {ROLE_OPTIONS.map(r => (
+                                            <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Member Group (年度群組) — styled like course group selector */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest ml-0.5">所屬年度群組</label>
+                                <Select value={editGroupId || 'none'} onValueChange={(v) => setEditGroupId(v === 'none' ? null : v)}>
+                                    <SelectTrigger className="h-9 bg-muted/20 border-muted/30 text-[13px] font-bold rounded-lg focus:ring-0">
+                                        <SelectValue placeholder="未加入群組" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-lg border-muted/40">
+                                        <SelectItem value="none" className="font-bold">未加入群組</SelectItem>
+                                        
+                                        <div className="h-px bg-muted my-1 font-bold" />
+                                        
+                                        {memberGroups.map(g => (
+                                            <div key={g.id} className="flex items-center justify-between group px-1">
+                                                <SelectItem value={g.id} className="flex-1 font-bold pr-16 truncate">
+                                                    {g.name} <span className="text-muted-foreground font-normal ml-1">({g.validUntil})</span>
+                                                </SelectItem>
+                                                <div className="flex items-center gap-0.5 group px-1 absolute right-2">
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-6 w-6 text-muted-foreground hover:text-destructive transition-colors"
+                                                        onClick={async (e) => { 
+                                                            e.stopPropagation(); 
+                                                            if(confirm('確定要刪除此群組嗎？')) {
+                                                                const res = await safe(deleteMemberGroup)(g.id); 
+                                                                if (res.success) { 
+                                                                    toast.success(res.message); 
+                                                                    if (editGroupId === g.id) setEditGroupId(null);
+                                                                    router.refresh(); 
+                                                                } else {
+                                                                    toast.error(res.message);
+                                                                }
+                                                            }
+                                                        }}>
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-6 w-6 text-muted-foreground hover:text-primary transition-colors"
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setEditingGroupId(g.id); 
+                                                            setEditGroupName(g.name); 
+                                                            setEditGroupDate(g.validUntil); 
+                                                        }}>
+                                                        <Pencil className="h-3 w-3" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        
+                                        <div className="h-px bg-muted my-1" />
+                                        
+                                        {/* Inline create new group */}
+                                        <div className="px-2 py-2 space-y-2">
+                                            <div className="flex items-center gap-1.5 text-primary text-xs font-bold px-1 pb-1">
+                                                <Plus className="h-3.5 w-3.5" /> 建立新群組
+                                            </div>
+                                            <div className="flex gap-1.5">
+                                                <Input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="群組名稱" className="h-7 text-xs font-bold rounded px-2 flex-1" />
+                                                <Input type="date" value={newGroupDate} onChange={(e) => setNewGroupDate(e.target.value)} className="h-7 text-xs font-bold rounded px-2 flex-1 w-[110px]" />
+                                            </div>
+                                            <Button variant="outline" size="sm" className="w-full h-7 text-xs font-bold rounded bg-primary/5 text-primary hover:bg-primary/10 border-primary/20 hover:text-primary transition-colors" disabled={!newGroupName || !newGroupDate} onClick={async () => {
+                                                const res = await safe(createMemberGroup)(newGroupName, newGroupDate);
+                                                if (res.success) { toast.success(res.message); setNewGroupName(''); setNewGroupDate(''); router.refresh(); }
+                                                else toast.error(res.message);
+                                            }}>
+                                                儲存新群組
+                                            </Button>
+                                        </div>
+                                    </SelectContent>
+                                </Select>
+                                {/* Edit group dialog (inline) */}
+                                {editingGroupId && (() => {
+                                    const g = memberGroups.find(g => g.id === editingGroupId);
+                                    if (!g) return null;
+                                    return (
+                                        <div className="mt-2 p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-2 animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="flex items-center gap-1.5 text-primary text-xs font-bold mb-1">
+                                                <Pencil className="h-3 w-3" /> 編輯群組
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-muted-foreground/60">名稱</label>
+                                                    <Input value={editGroupName} onChange={(e) => setEditGroupName(e.target.value)} className="h-8 text-xs font-bold rounded-md bg-background" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-muted-foreground/60">到期日</label>
+                                                    <Input type="date" value={editGroupDate} onChange={(e) => setEditGroupDate(e.target.value)} className="h-8 text-xs font-bold rounded-md bg-background" />
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 justify-end pt-1">
+                                                <Button variant="ghost" size="sm" className="h-7 text-xs font-bold px-3 text-muted-foreground" onClick={() => setEditingGroupId(null)}>取消</Button>
+                                                <Button variant="default" size="sm" className="h-7 text-xs font-bold px-4" onClick={async () => {
+                                                    const res = await safe(updateMemberGroup)(editingGroupId, editGroupName, editGroupDate);
+                                                    if (res.success) { toast.success(res.message); setEditingGroupId(null); router.refresh(); }
+                                                    else toast.error(res.message);
+                                                }}>儲存變更</Button>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {/* Reset Password */}

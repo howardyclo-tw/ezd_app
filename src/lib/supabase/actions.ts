@@ -1851,25 +1851,90 @@ export async function reviewTransferRequest(
 }
 
 // ------------------------------------------------------------------
+// Member Group Actions
+// ------------------------------------------------------------------
+
+export async function createMemberGroup(
+    name: string,
+    validUntil: string
+): Promise<{ success: boolean; message: string; id?: string }> {
+    const { supabase, user } = await getCurrentUser();
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以建立年度群組');
+
+    const { data, error } = await supabase
+        .from('member_groups')
+        .insert({ name, valid_until: validUntil })
+        .select()
+        .single();
+
+    if (error) throw new Error(`建立群組失敗: ${error.message}`);
+    revalidatePath('/', 'layout');
+    return { success: true, message: `已建立「${name}」群組`, id: data.id };
+}
+
+export async function updateMemberGroup(
+    id: string,
+    name: string,
+    validUntil: string
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以修改年度群組');
+
+    const { error } = await supabase
+        .from('member_groups')
+        .update({ name, valid_until: validUntil })
+        .eq('id', id);
+
+    if (error) throw new Error(`修改群組失敗: ${error.message}`);
+    revalidatePath('/', 'layout');
+    return { success: true, message: '群組已更新' };
+}
+
+export async function deleteMemberGroup(
+    id: string
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以刪除年度群組');
+
+    // Check if any members are in this group
+    const { count } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_group_id', id);
+
+    if (count && count > 0) {
+        return { success: false, message: `此群組仍有 ${count} 位成員，請先將成員移至其他群組` };
+    }
+
+    const { error } = await supabase.from('member_groups').delete().eq('id', id);
+    if (error) throw new Error(`刪除群組失敗: ${error.message}`);
+    revalidatePath('/', 'layout');
+    return { success: true, message: '群組已刪除' };
+}
+
+// ------------------------------------------------------------------
 // Member Profile Actions
 // ------------------------------------------------------------------
 
 export async function updateMemberProfile(
     userId: string,
-    data: { role?: string; member_valid_until?: string | null; makeup_quota?: number }
+    data: { role?: string; member_group_id?: string | null; makeup_quota?: number }
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
     // Admin check
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') return { success: false, message: '只有幹部可以修改社員資料' };
+    if (profile?.role !== 'admin') return { success: false, message: '只有幹部可以修改成員資料' };
 
     const updateData: Record<string, any> = {};
     if (data.role !== undefined) {
         const allowedRole = data.role === 'leader' ? 'member' : data.role;
         updateData.role = allowedRole;
     }
-    if (data.member_valid_until !== undefined) updateData.member_valid_until = data.member_valid_until;
+    if (data.member_group_id !== undefined) updateData.member_group_id = data.member_group_id;
     if (data.makeup_quota !== undefined) updateData.makeup_quota = data.makeup_quota;
 
     if (Object.keys(updateData).length === 0) {
@@ -2067,12 +2132,14 @@ export async function createCardOrder(quantity: number, includeMembership: boole
     // Get user profile to determine price
     const { data: profile } = await supabase
         .from('profiles')
-        .select('role, member_valid_until')
+        .select('role, member_group_id, member_groups ( valid_until )')
         .eq('id', user.id)
         .maybeSingle();
 
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+    const groupValidUntil = (profile?.member_groups as any)?.valid_until;
     const isMember = profile?.role !== 'guest' &&
-        (!profile?.member_valid_until || new Date(profile.member_valid_until) >= new Date());
+        (!groupValidUntil || groupValidUntil >= today);
     const unitPrice = (isMember || includeMembership)
         ? parseInt(config['card_price_member'] ?? '270', 10)
         : parseInt(config['card_price_non_member'] ?? '370', 10);
@@ -2198,18 +2265,23 @@ export async function confirmCardOrder(orderId: string): Promise<{ success: bool
     const { syncCardBalance } = await import('./card-utils');
     const newBalance = await syncCardBalance(order.user_id);
 
-    // If membership included, upgrade user to member or extend validity
+    // If membership included, upgrade user to member and assign to latest group
     if (order.include_membership) {
-        // Set expiry to end of current year
-        const validUntil = new Date(new Date().getFullYear(), 11, 31).toISOString().split('T')[0];
-        
         const { data: upProfile } = await supabase
             .from('profiles')
             .select('role')
             .eq('id', order.user_id)
             .single();
 
-        const updateData: any = { member_valid_until: validUntil };
+        // Get latest member group
+        const { data: latestGroup } = await supabase
+            .from('member_groups')
+            .select('id')
+            .order('valid_until', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        const updateData: any = { member_group_id: latestGroup?.id || null };
         if (upProfile?.role === 'guest') {
             updateData.role = 'member';
         }

@@ -125,9 +125,18 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
 
             // 2. Upsert profile (updates the row the trigger already created, or inserts for existing users)
             const isActualMember = is_member === '1' || is_member === 1;
-            const validUntil = isActualMember
-                ? `${new Date().getFullYear()}-12-31`
-                : null;
+
+            // Get latest member group for assignment
+            let latestGroupId = null;
+            if (isActualMember) {
+                const { data: latestGroup } = await adminClient
+                    .from('member_groups')
+                    .select('id')
+                    .order('valid_until', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                latestGroupId = latestGroup?.id || null;
+            }
 
             const { error: profileError } = await adminClient
                 .from('profiles')
@@ -136,7 +145,7 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                     name: name || email.split('@')[0],
                     employee_id: employee_id || null,
                     role: isActualMember ? 'member' : 'guest',
-                    member_valid_until: validUntil,
+                    member_group_id: latestGroupId,
                     updated_at: new Date().toISOString()
                 });
 

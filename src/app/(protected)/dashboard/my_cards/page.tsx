@@ -15,14 +15,15 @@ export default async function MyCardsPage() {
     // Fetch user profile for balance and membership
     const { data: profile } = await supabase
         .from('profiles')
-        .select('name, card_balance, role, member_valid_until')
+        .select('name, card_balance, role, member_group_id, member_groups ( valid_until )')
         .eq('id', user.id)
         .maybeSingle();
 
     // Determine membership
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+    const groupValidUntil = (profile?.member_groups as any)?.valid_until;
     const isMember = profile?.role !== 'guest' &&
-        (!profile?.member_valid_until || profile.member_valid_until >= today);
+        (!groupValidUntil || groupValidUntil >= today);
 
     // Fetch card orders
     const { data: orders } = await supabase
