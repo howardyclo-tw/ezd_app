@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, UserSquare } from "lucide-react";
@@ -16,11 +17,12 @@ export default async function AdminMembersPage() {
         { data: profiles },
         { data: leaderData },
         { data: enrollmentData },
-        { data: courseSessionCounts },
+        { data: allCourseSessions },
         { data: makeupData },
         { data: transferData },
-        { data: attendanceData },
         { data: allAttendanceData },
+        { data: allCourses },
+        { data: cardOrdersData },
     ] = await Promise.all([
         supabase.auth.getUser(),
         supabase
@@ -48,9 +50,11 @@ export default async function AdminMembersPage() {
             `)
             .then(res => res.error ? { data: [] } : res),
 
+        // All course sessions (used for: session counts, full enrollment display, date lookups)
         supabase
             .from('course_sessions')
-            .select('course_id')
+            .select('id, course_id, session_date')
+            .order('session_date')
             .then(res => res.error ? { data: [] } : res),
 
         supabase
@@ -63,6 +67,7 @@ export default async function AdminMembersPage() {
             .select('from_user_id, to_user_id, course_id, session_id, status')
             .then(res => res.error ? { data: [] } : res),
 
+        // All attendance records (used for: quota calc + display)
         supabase
             .from('attendance_records')
             .select(`
@@ -74,24 +79,41 @@ export default async function AdminMembersPage() {
                     courses ( id, type )
                 )
             `)
-            .in('status', ['absent', 'leave'])
             .then(res => res.error ? { data: [] } : res),
 
-        // All attendance records (for display in member management)
+        // All courses (for makeup/transfer display)
         supabase
-            .from('attendance_records')
-            .select('user_id, session_id, status')
+            .from('courses')
+            .select('id, name, teacher, course_groups ( title )')
+            .then(res => res.error ? { data: [] } : res),
+
+        // Card orders (for card pools display)
+        supabase
+            .from('card_orders')
+            .select('id, user_id, quantity, used, expires_at')
+            .eq('status', 'confirmed')
+            .order('expires_at', { ascending: true })
             .then(res => res.error ? { data: [] } : res),
     ]);
 
+    // Filter attendance for quota calculation (only absent/leave)
+    const attendanceData = (allAttendanceData ?? []).filter((a: any) => a.status === 'absent' || a.status === 'leave');
+
     if (!user) redirect('/login');
+
+    // Fetch auth user emails (admin only, after auth check)
+    const adminClient = createAdminClient();
+    const { data: authUsers } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const emailMap = new Map<string, string>();
+    (authUsers?.users ?? []).forEach(u => { if (u.email) emailMap.set(u.id, u.email); });
+
     // Admin check: find current user's profile from the already-fetched list
     const currentProfile = profiles?.find(p => p.id === user.id);
     if (currentProfile?.role !== 'admin') redirect('/dashboard');
 
-    // Sessions map
+    // Sessions map (derived from allCourseSessions)
     const courseSessionCountMap = new Map<string, number>();
-    for (const cs of courseSessionCounts ?? []) {
+    for (const cs of allCourseSessions ?? []) {
         courseSessionCountMap.set(cs.course_id, (courseSessionCountMap.get(cs.course_id) || 0) + 1);
     }
 
@@ -108,12 +130,8 @@ export default async function AdminMembersPage() {
     const enrollmentMap = new Map<string, any[]>();
     const userQuotaCourses = new Map<string, { id: string; name: string; quota: number }[]>();
 
-    // Build course -> all sessions lookup for full enrollments
+    // Build course -> all sessions lookup for full enrollments (from already-fetched data)
     const allCourseSessionsMap = new Map<string, { id: string; date: string }[]>();
-    const { data: allCourseSessions } = await supabase
-        .from('course_sessions')
-        .select('id, course_id, session_date')
-        .order('session_date');
     (allCourseSessions ?? []).forEach(cs => {
         const list = allCourseSessionsMap.get(cs.course_id) || [];
         list.push({ id: cs.id, date: cs.session_date });
@@ -206,11 +224,8 @@ export default async function AdminMembersPage() {
     }
 
     // Add makeup target sessions and transfer_in sessions to enrollment map
-    // Build course info lookup
+    // Build course info lookup (from already-fetched data)
     const courseInfoMap = new Map<string, { name: string; teacher: string; groupTitle: string }>();
-    const { data: allCourses } = await supabase
-        .from('courses')
-        .select('id, name, teacher, course_groups ( title )');
     (allCourses ?? []).forEach(c => {
         courseInfoMap.set(c.id, { name: c.name, teacher: c.teacher, groupTitle: (c.course_groups as any)?.title || '' });
     });
@@ -393,10 +408,14 @@ export default async function AdminMembersPage() {
         return {
             id: p.id,
             name: p.name || '(未設定姓名)',
+            email: emailMap.get(p.id) || null,
             employee_id: p.employee_id,
             role: p.role,
             member_valid_until: p.member_valid_until,
             card_balance: p.card_balance ?? 0,
+            card_pools: (cardOrdersData ?? [])
+                .filter(o => o.user_id === p.id)
+                .map(o => ({ id: o.id, quantity: o.quantity, used: o.used, remaining: o.quantity - o.used, expires_at: o.expires_at })),
             makeup_quota: finalSpendable,
             makeup_base: base,
             makeup_used: used,
@@ -428,7 +447,7 @@ export default async function AdminMembersPage() {
                             <UserSquare className="h-5 w-5" />
                         </div>
                         <div className="space-y-0.5 select-none">
-                            <h1 className="text-2xl font-bold tracking-tight leading-none text-foreground">社員管理</h1>
+                            <h1 className="text-2xl font-bold tracking-tight leading-none text-foreground">成員管理</h1>
                             <p className="text-[13px] text-muted-foreground font-medium">共 {members.length} 人</p>
                         </div>
                     </div>

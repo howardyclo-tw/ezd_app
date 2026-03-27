@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 function getGroupStatus(periodStart: string | null, periodEnd: string | null): string {
     // Compare using date strings (YYYY-MM-DD) to avoid timezone issues
-    const today = new Date().toLocaleDateString('sv-SE'); // "YYYY-MM-DD" in local timezone
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
     if (periodEnd && periodEnd < today) return 'ended';
     if (periodStart && periodStart > today) return 'upcoming';
     return 'active';

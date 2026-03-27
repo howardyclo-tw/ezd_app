@@ -14,28 +14,23 @@ export default async function MyCoursesPage() {
     if (!user) redirect('/login');
 
     // ── 1. Upcoming: enrolled sessions with future dates ──
-    const { data: myEnrollments } = await supabase
-        .from('enrollments')
-        .select(`
-            id,
-            status,
-            type,
-            session_id,
-            waitlist_position,
-            courses (
-                id, name, teacher, start_time, end_time, room, type, capacity, slug,
-                course_groups ( id, title, slug ),
-                course_sessions ( id, session_date, session_number )
-            )
-        `)
-        .eq('user_id', user.id)
-        .in('status', ['enrolled', 'waitlist']);
-
     // Use Asia/Taipei timezone to match user's local date
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
 
-    // ── 2. All attendance records ──
-    const [{ data: attendanceRecords }, { data: myMakeupRequests }, { data: myTransferIns }] = await Promise.all([
+    // Fetch all data in parallel
+    const [{ data: myEnrollments }, { data: attendanceRecords }, { data: myMakeupRequests }, { data: myTransferIns }] = await Promise.all([
+        supabase
+            .from('enrollments')
+            .select(`
+                id, status, type, session_id, waitlist_position,
+                courses (
+                    id, name, teacher, start_time, end_time, room, type, capacity, slug,
+                    course_groups ( id, title, slug ),
+                    course_sessions ( id, session_date, session_number )
+                )
+            `)
+            .eq('user_id', user.id)
+            .in('status', ['enrolled', 'waitlist']),
         supabase
             .from('attendance_records')
             .select(`

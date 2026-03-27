@@ -20,7 +20,7 @@ export default async function MyCardsPage() {
         .maybeSingle();
 
     // Determine membership
-    const today = new Date().toLocaleDateString('sv-SE');
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
     const isMember = profile?.role !== 'guest' &&
         (!profile?.member_valid_until || profile.member_valid_until >= today);
 
@@ -41,8 +41,7 @@ export default async function MyCardsPage() {
         config[row.key] = row.value;
     }
 
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
     const purchaseStart = config['card_purchase_start'];
     const purchaseEnd = config['card_purchase_end'];
 
@@ -54,10 +53,20 @@ export default async function MyCardsPage() {
     const minPurchase = parseInt(config['card_min_purchase'] ?? '5', 10);
     const bankInfo = config['bank_info'] ?? '';
 
+    // Build card pools from confirmed orders for display
+    const cardPools = (orders ?? [])
+        .filter(o => o.status === 'confirmed' && (o.quantity - (o.used ?? 0)) > 0)
+        .map(o => ({
+            remaining: o.quantity - (o.used ?? 0),
+            expires_at: o.expires_at as string | null,
+        }))
+        .sort((a, b) => (a.expires_at ?? '9999').localeCompare(b.expires_at ?? '9999'));
+
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
             <MyCardsClient
                 balance={profile?.card_balance ?? 0}
+                cardPools={cardPools}
                 orders={(orders ?? []).map(o => ({
                     id: o.id,
                     quantity: o.quantity,

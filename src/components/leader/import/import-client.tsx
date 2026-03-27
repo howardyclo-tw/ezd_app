@@ -38,7 +38,7 @@ interface PreviewData {
 // CSV Template Definitions
 const templates = {
     members: {
-        title: '社員名單',
+        title: '成員名單',
         filename: 'ezd_members_template.csv',
         content: '電子郵件 (email),姓名 (name),工號 (employee_id),是否為社員 (is_member)\nexample_member@mediatek.com,王小明,12345,1\nexample_guest@mediatek.com,李小華,67890,0',
         headers: ['電子郵件 (email)', '姓名 (name)', '工號 (employee_id)', '是否為社員 (is_member)']
@@ -79,7 +79,7 @@ export function ImportClient() {
     const copyTemplateToClipboard = () => {
         const template = templates[importType];
         navigator.clipboard.writeText(template.content);
-        toast.success(`已複製 ${importType === 'members' ? '社員名單' : importType === 'card_orders' ? '堂卡紀錄' : '課程名冊'} 範本內容`);
+        toast.success(`已複製 ${importType === 'members' ? '成員名單' : importType === 'card_orders' ? '堂卡紀錄' : '課程名冊'} 範本內容`);
     };
 
     const handleTabChange = (value: string) => {
@@ -265,7 +265,7 @@ export function ImportClient() {
                             href="/admin/members" 
                             className="bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-black inline-flex items-center gap-2 hover:bg-blue-600 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] active:scale-95 shrink-0"
                         >
-                            前往社員管理 <ArrowRight className="h-3.5 w-3.5" />
+                            前往成員管理 <ArrowRight className="h-3.5 w-3.5" />
                         </a>
                     </div>
                 </div>
@@ -276,7 +276,7 @@ export function ImportClient() {
                     <div className="overflow-x-auto pb-4 px-4 scrollbar-hide">
                         <TabsList className="bg-white/5 p-1 rounded-xl border border-white/5 backdrop-blur-md flex flex-nowrap w-max min-w-full gap-1">
                             <TabsTrigger value="members" className="rounded-lg font-bold flex items-center gap-2 px-3 sm:px-6 py-2 data-[state=active]:bg-white/10 data-[state=active]:text-white transition-all text-white/40 whitespace-nowrap text-[13px] sm:text-sm">
-                                <Users className="h-3.5 w-3.5" /> 社員名單
+                                <Users className="h-3.5 w-3.5" /> 成員名單
                             </TabsTrigger>
                             <TabsTrigger value="card_orders" className="rounded-lg font-bold flex items-center gap-2 px-3 sm:px-6 py-2 data-[state=active]:bg-white/10 data-[state=active]:text-white transition-all text-white/40 whitespace-nowrap text-[13px] sm:text-sm">
                                 <CreditCard className="h-3.5 w-3.5" /> 堂卡紀錄

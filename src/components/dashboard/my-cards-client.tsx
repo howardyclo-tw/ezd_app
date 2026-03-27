@@ -14,7 +14,7 @@ import {
     DialogFooter,
     DialogDescription
 } from '@/components/ui/dialog';
-import { CreditCard, CalendarDays, Plus, Minus, Clock, AlertCircle, CheckCircle2, ChevronLeft, Check, XCircle } from 'lucide-react';
+import { CreditCard, Plus, Minus, Clock, AlertCircle, CheckCircle2, ChevronLeft, Check, XCircle } from 'lucide-react';
 import { cancelCardOrder as _cancelCardOrder, createCardOrderWithRemittance as _createCardOrderWithRemittance } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 const cancelCardOrder = safe(_cancelCardOrder);
@@ -39,8 +39,14 @@ interface CardOrder {
     confirmed_at: string | null;
 }
 
+interface CardPoolInfo {
+    remaining: number;
+    expires_at: string | null;
+}
+
 interface MyCardsClientProps {
     balance: number;
+    cardPools?: CardPoolInfo[];
     orders: CardOrder[];
     isPurchaseOpen: boolean;
     priceMember: number;
@@ -59,6 +65,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 
 export function MyCardsClient({
     balance,
+    cardPools = [],
     orders,
     isPurchaseOpen,
     priceMember,
@@ -247,9 +254,28 @@ export function MyCardsClient({
                                                 {balance} <span className="text-lg sm:text-xl opacity-40 font-bold ml-1">堂卡</span>
                                             </p>
                                         </div>
-                                        <div className="flex items-center gap-4 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-muted-foreground relative">
-                                            <span className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> 系統即時更新</span>
-                                        </div>
+                                        {/* Card pools breakdown by expiry */}
+                                        {cardPools.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                {cardPools.map((pool, i) => {
+                                                    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+                                                    const isExpired = pool.expires_at && pool.expires_at < today;
+                                                    return (
+                                                        <div key={i} className={cn(
+                                                            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border",
+                                                            isExpired
+                                                                ? "bg-red-500/5 border-red-500/20 text-red-400 line-through"
+                                                                : "bg-muted/30 border-muted/40 text-muted-foreground"
+                                                        )}>
+                                                            <span className="font-black">{pool.remaining}</span>
+                                                            <span className="opacity-60">張</span>
+                                                            <span className="opacity-40">|</span>
+                                                            <span>{isExpired ? '已過期' : `${pool.expires_at} 到期`}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </Card>
 
                                     {activeOrders.map((order) => (
@@ -257,8 +283,9 @@ export function MyCardsClient({
                                             <div className="space-y-1 min-w-0 flex-1">
                                                 <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600/60 truncate">Purchase ID: {order.id.slice(0, 8)}</p>
                                                 <h3 className="text-sm sm:text-base font-bold truncate">已開通: {order.quantity} 堂課卡</h3>
-                                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium uppercase tracking-wider truncate">
+                                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium tracking-wider truncate">
                                                     購於 {order.confirmed_at?.slice(0, 10) || order.created_at.slice(0, 10)}
+                                                    {order.expires_at && <span className="ml-2 opacity-60">| 到期 {order.expires_at}</span>}
                                                 </p>
                                             </div>
                                             <div className="text-right shrink-0">

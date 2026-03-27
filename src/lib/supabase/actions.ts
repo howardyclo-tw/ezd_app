@@ -80,7 +80,7 @@ export async function enrollInCourse(
         throw new Error('報名已截止');
     }
 
-    // 3. Calculate cards to deduct
+    // 3. Calculate cards to deduct and determine course end date for expiry check
     let cardsToDeduct = 0;
     const sessionsCount = (course.course_sessions as any)?.[0]?.count ?? 0;
 
@@ -90,11 +90,36 @@ export async function enrollInCourse(
         cardsToDeduct = course.cards_per_session;
     }
 
-    if (profile.card_balance < cardsToDeduct) {
+    // Determine the end date for card expiry validation
+    let courseEndDate: string;
+    if (type === 'full') {
+        // Full enrollment: use last session date
+        const { data: lastSession } = await supabase
+            .from('course_sessions')
+            .select('session_date')
+            .eq('course_id', courseId)
+            .order('session_date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        courseEndDate = lastSession?.session_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+    } else {
+        // Single enrollment: use that session's date
+        const { data: sessionData } = await supabase
+            .from('course_sessions')
+            .select('session_date')
+            .eq('id', sessionId!)
+            .maybeSingle();
+        courseEndDate = sessionData?.session_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+    }
+
+    // Check available balance (unexpired as of course end date)
+    const { getAvailableCardBalance } = await import('./card-utils');
+    const cardInfo = await getAvailableCardBalance(user.id, courseEndDate);
+    if (cardInfo.available < cardsToDeduct) {
         return {
             success: false,
-            status: 'enrolled', // meaningless here but satisfying type
-            message: `堂卡餘額不足 (餘額: ${profile.card_balance}, 需扣除: ${cardsToDeduct})`,
+            status: 'enrolled',
+            message: `堂卡餘額不足（可用: ${cardInfo.available}, 需扣除: ${cardsToDeduct}）`,
         };
     }
 
@@ -136,12 +161,7 @@ export async function enrollInCourse(
         return { success: true, status: 'waitlist', message: '已加入候補名單 (候補期間不扣卡)' };
     }
 
-    // 5. Enroll directly and deduct cards
-    const newBalance = profile.card_balance - cardsToDeduct;
-
-    // Use a transaction-like approach (Supabase doesn't have cross-table transactions in client SDK easily without RPC, 
-    // but we can do sequential updates and hope for the best, or better: use an RPC for atomic deduction)
-    // For MVP, we'll do sequential.
+    // 5. Enroll directly and deduct cards (FIFO)
     const { data: enrollment, error: enrollError } = await supabase.from('enrollments').upsert({
         id: existing?.id ?? undefined,
         course_id: courseId,
@@ -156,18 +176,15 @@ export async function enrollInCourse(
 
     if (enrollError) throw new Error(`報名失敗: ${enrollError.message}`);
 
-    // Update profile balance
-    await supabase.from('profiles').update({ card_balance: newBalance }).eq('id', user.id);
-
-    // Record transaction
-    await supabase.from('card_transactions').insert({
-        user_id: user.id,
-        type: 'deduct',
-        amount: -cardsToDeduct,
-        balance_after: newBalance,
-        enrollment_id: enrollment.id,
-        note: `${type === 'full' ? '整期' : '單堂'}報名課程: ${course.name}`,
-    });
+    // FIFO deduct cards
+    const { deductCardsFIFO } = await import('./card-utils');
+    const { newBalance } = await deductCardsFIFO(
+        user.id,
+        cardsToDeduct,
+        courseEndDate,
+        `${type === 'full' ? '整期' : '單堂'}報名課程: ${course.name}`,
+        enrollment.id
+    );
 
     revalidatePath(`/`, `layout`);
     return { success: true, status: 'enrolled', message: `報名成功！扣除 ${cardsToDeduct} 堂卡，剩餘 ${newBalance} 堂。` };
@@ -219,25 +236,32 @@ export async function batchEnrollInCourses(
 
     if (toEnroll.length === 0) return { success: false, message: '所選課程皆已報名或不開放報名' };
 
-    // 3. Calculate total cost
+    // 3. Calculate total cost and determine latest course end date
     let totalCost = 0;
+    let latestEndDate = '';
     for (const course of toEnroll) {
         const sessionsCount = (course.course_sessions as any)?.[0]?.count ?? 0;
         totalCost += course.cards_per_session * sessionsCount;
     }
 
-    if (profile.card_balance < totalCost) {
-        return { success: false, message: `堂卡餘額不足 (餘額: ${profile.card_balance}, 需扣除: ${totalCost})` };
+    // Get the latest session date across all courses being enrolled
+    const allCourseIds = toEnroll.map(c => c.id);
+    const { data: lastSessions } = await supabase
+        .from('course_sessions')
+        .select('session_date')
+        .in('course_id', allCourseIds)
+        .order('session_date', { ascending: false })
+        .limit(1);
+    latestEndDate = lastSessions?.[0]?.session_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+
+    // Check available balance
+    const { getAvailableCardBalance } = await import('./card-utils');
+    const cardInfo = await getAvailableCardBalance(user.id, latestEndDate);
+    if (cardInfo.available < totalCost) {
+        return { success: false, message: `堂卡餘額不足（可用: ${cardInfo.available}, 需扣除: ${totalCost}）` };
     }
 
-    // 4. Perform enrollments (Sequential updates since batching across tables is hard without logic)
-    // We'll mark the balance update first (atomic deduction would be better via RPC)
-    const newBalance = profile.card_balance - totalCost;
-
-    // Update balance
-    await supabase.from('profiles').update({ card_balance: newBalance }).eq('id', user.id);
-
-    // Create enrollments
+    // 4. Create enrollments
     const enrollments = toEnroll.map(c => ({
         course_id: c.id,
         user_id: user.id,
@@ -248,30 +272,17 @@ export async function batchEnrollInCourses(
     }));
 
     const { data: inserted, error: enrollError } = await supabase.from('enrollments').upsert(enrollments, { onConflict: 'course_id,user_id,session_id' }).select('id, course_id');
-    if (enrollError) {
-        // Rollback balance (not perfect but better than nothing)
-        await supabase.from('profiles').update({ card_balance: profile.card_balance }).eq('id', user.id);
-        throw new Error(`報名失敗: ${enrollError.message}`);
-    }
+    if (enrollError) throw new Error(`報名失敗: ${enrollError.message}`);
 
-    // Record transactions
-    const transactions = toEnroll.map(c => {
-        const enrollmentId = inserted.find(i => i.course_id === c.id)?.id;
-        const sessionsCount = (c.course_sessions as any)?.[0]?.count ?? 0;
-        const cost = c.cards_per_session * sessionsCount;
-        return {
-            user_id: user.id,
-            type: 'deduct' as const,
-            amount: -cost,
-            balance_after: 0, // We'll just leave it or calculate per step
-            enrollment_id: enrollmentId,
-            note: `整期報名課程: ${c.name}`,
-        };
-    });
-
-    // We'll insert transactions one by one or batch if possible, but balance_after is tricky in batch
-    // For simplicity, we'll just insert and ignore balance_after or set to current newBalance for all (ledger style)
-    await supabase.from('card_transactions').insert(transactions.map(t => ({ ...t, balance_after: newBalance })));
+    // FIFO deduct cards
+    const { deductCardsFIFO } = await import('./card-utils');
+    const { newBalance } = await deductCardsFIFO(
+        user.id,
+        totalCost,
+        latestEndDate,
+        `整期報名 ${toEnroll.length} 門課程`,
+        inserted?.[0]?.id
+    );
 
     revalidatePath('/', 'layout');
     return { success: true, message: `成功報名 ${toEnroll.length} 門課程，扣除 ${totalCost} 堂卡。` };
@@ -313,11 +324,21 @@ export async function batchEnrollInSessions(
 
     if (toEnrollSessionIds.length === 0) return { success: false, message: '所選堂次皆已報名' };
 
-    // 3. Calculate total cost
+    // 3. Calculate total cost and get latest session date for expiry check
     const totalCost = course.cards_per_session * toEnrollSessionIds.length;
 
-    if (profile.card_balance < totalCost) {
-        return { success: false, message: `堂卡餘額不足 (餘額: ${profile.card_balance}, 需扣除: ${totalCost})` };
+    const { data: sessionDates } = await supabase
+        .from('course_sessions')
+        .select('session_date')
+        .in('id', toEnrollSessionIds)
+        .order('session_date', { ascending: false })
+        .limit(1);
+    const latestSessionDate = sessionDates?.[0]?.session_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+
+    const { getAvailableCardBalance } = await import('./card-utils');
+    const cardInfo = await getAvailableCardBalance(user.id, latestSessionDate);
+    if (cardInfo.available < totalCost) {
+        return { success: false, message: `堂卡餘額不足（可用: ${cardInfo.available}, 需扣除: ${totalCost}）` };
     }
 
     // 4. Capacity guard: check each session's real-time occupancy
@@ -349,13 +370,7 @@ export async function batchEnrollInSessions(
         }
     }
 
-    // 5. Perform enrollments
-    const newBalance = profile.card_balance - totalCost;
-
-    // Update balance
-    await supabase.from('profiles').update({ card_balance: newBalance }).eq('id', user.id);
-
-    // Create enrollments
+    // 5. Create enrollments
     const enrollments = toEnrollSessionIds.map(sid => ({
         course_id: courseId,
         user_id: user.id,
@@ -367,26 +382,17 @@ export async function batchEnrollInSessions(
     }));
 
     const { data: inserted, error: enrollError } = await supabase.from('enrollments').upsert(enrollments, { onConflict: 'course_id,user_id,session_id' }).select('id, session_id');
+    if (enrollError) throw new Error(`報名失敗: ${enrollError.message}`);
 
-    if (enrollError) {
-        await supabase.from('profiles').update({ card_balance: profile.card_balance }).eq('id', user.id);
-        throw new Error(`報名失敗: ${enrollError.message}`);
-    }
-
-    // Record transactions
-    const transactions = toEnrollSessionIds.map(sid => {
-        const enrollmentId = inserted.find(i => i.session_id === sid)?.id;
-        return {
-            user_id: user.id,
-            type: 'deduct' as const,
-            amount: -course.cards_per_session,
-            balance_after: newBalance,
-            enrollment_id: enrollmentId,
-            note: `單堂報名課程: ${course.name} (堂次: ${sid})`,
-        };
-    });
-
-    await supabase.from('card_transactions').insert(transactions);
+    // FIFO deduct cards
+    const { deductCardsFIFO } = await import('./card-utils');
+    await deductCardsFIFO(
+        user.id,
+        totalCost,
+        latestSessionDate,
+        `單堂報名課程: ${course.name} (${toEnrollSessionIds.length} 堂)`,
+        inserted?.[0]?.id
+    );
 
     revalidatePath('/', 'layout');
     return { success: true, message: `成功報名 ${toEnrollSessionIds.length} 堂課，扣除 ${totalCost} 堂卡。` };
@@ -871,6 +877,16 @@ export async function submitLeaveRequest(
 
     if (!enrollment && !hasMakeupForSession && !hasTransferInForSession) throw new Error('您未報名此課程，無法申請請假');
 
+    // --- Date Guard: cannot take leave on past sessions ---
+    const { data: sessionInfo } = await supabase
+        .from('course_sessions')
+        .select('session_date, courses ( start_time )')
+        .eq('id', sessionId)
+        .maybeSingle();
+    if (sessionInfo && !isBeforeClass(sessionInfo.session_date, (sessionInfo.courses as any)?.start_time ?? '00:00')) {
+        throw new Error('課程已開始或已結束，無法申請請假');
+    }
+
     // --- Dual Status Guard ---
     // Guard: Prevent duplicate leave intents. If one exists, we will update it.
     const { data: existingLeave } = await supabase
@@ -1096,7 +1112,7 @@ async function internalSubmitMakeupRequest(
     // Check original/target courses
     const [originalCourseRes, targetRes, enrollmentsRes] = await Promise.all([
         supabase.from('courses').select('group_id, type').eq('id', originalCourseId).maybeSingle(),
-        supabase.from('course_sessions').select('course_id, courses ( group_id, capacity )').eq('id', targetSessionId).maybeSingle(),
+        supabase.from('course_sessions').select('course_id, session_date, courses ( group_id, capacity, start_time )').eq('id', targetSessionId).maybeSingle(),
         supabase.from('enrollments').select('type').eq('course_id', originalCourseId).eq('user_id', user.id).eq('status', 'enrolled'),
     ]);
 
@@ -1107,6 +1123,11 @@ async function internalSubmitMakeupRequest(
     let effectiveOriginalCourseId = originalCourseId;
 
     if (!target) throw new Error('目標堂次不存在');
+
+    // Date guard: cannot makeup into a past session
+    if (!isBeforeClass(target.session_date, (target.courses as any)?.start_time ?? '00:00')) {
+        throw new Error('目標堂次已開始或已結束，無法申請補課');
+    }
 
     // Fetch manual makeup_quota adjustment from profile
     const { data: userProfile } = await supabase
@@ -1835,7 +1856,7 @@ export async function reviewTransferRequest(
 
 export async function updateMemberProfile(
     userId: string,
-    data: { role?: string; member_valid_until?: string | null; card_balance?: number; makeup_quota?: number }
+    data: { role?: string; member_valid_until?: string | null; makeup_quota?: number }
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
@@ -1845,45 +1866,14 @@ export async function updateMemberProfile(
 
     const updateData: Record<string, any> = {};
     if (data.role !== undefined) {
-        // Prevent setting 'leader' role explicitly as it's now course-specific status
         const allowedRole = data.role === 'leader' ? 'member' : data.role;
         updateData.role = allowedRole;
     }
     if (data.member_valid_until !== undefined) updateData.member_valid_until = data.member_valid_until;
-    if (data.card_balance !== undefined) updateData.card_balance = data.card_balance;
     if (data.makeup_quota !== undefined) updateData.makeup_quota = data.makeup_quota;
 
     if (Object.keys(updateData).length === 0) {
         return { success: false, message: '沒有要更新的欄位' };
-    }
-
-    // If card_balance changed, create an adjustment transaction for audit trail
-    if (data.card_balance !== undefined) {
-        const { data: currentProfile } = await supabase
-            .from('profiles')
-            .select('card_balance')
-            .eq('id', userId)
-            .single();
-
-        const oldBalance = currentProfile?.card_balance ?? 0;
-        const newBalance = data.card_balance;
-        const diff = newBalance - oldBalance;
-
-        if (diff !== 0) {
-            const adminClient = createAdminClient();
-            const { error: txError } = await adminClient.from('card_transactions').insert({
-                user_id: userId,
-                type: diff > 0 ? 'admin_add' : 'admin_deduct',
-                amount: diff,
-                balance_after: newBalance,
-                note: `幹部手動調整：${oldBalance} → ${newBalance}`,
-                created_by: user.id,
-            });
-            if (txError) {
-                console.error('card_transactions insert error:', txError);
-                return { success: false, message: `堂卡調整紀錄失敗: ${txError.message}` };
-            }
-        }
     }
 
     const { error } = await supabase
@@ -1946,6 +1936,61 @@ export async function registerUserAction(data: {
 // Reset Password (admin only)
 // ------------------------------------------------------------------
 
+
+/**
+ * Admin: add cards to a member with a specific expiration date.
+ * Creates a confirmed card_order and syncs balance.
+ */
+export async function adminAddCards(
+    userId: string,
+    quantity: number,
+    expiresAt: string
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') return { success: false, message: '只有幹部可以新增堂卡' };
+
+    if (quantity <= 0) return { success: false, message: '數量必須大於 0' };
+    if (!expiresAt) return { success: false, message: '請指定到期日' };
+
+    const adminClient = createAdminClient();
+
+    // Create a confirmed card_order (admin grant)
+    const { error: orderError } = await adminClient
+        .from('card_orders')
+        .insert({
+            user_id: userId,
+            quantity,
+            used: 0,
+            unit_price: 0,
+            total_amount: 0,
+            status: 'confirmed',
+            confirmed_by: user.id,
+            confirmed_at: new Date().toISOString(),
+            expires_at: expiresAt,
+            include_membership: false,
+        });
+
+    if (orderError) return { success: false, message: `新增堂卡失敗: ${orderError.message}` };
+
+    // Sync balance
+    const { syncCardBalance } = await import('./card-utils');
+    const newBalance = await syncCardBalance(userId);
+
+    // Record transaction
+    await adminClient.from('card_transactions').insert({
+        user_id: userId,
+        type: 'admin_add',
+        amount: quantity,
+        balance_after: newBalance,
+        note: `幹部手動新增 ${quantity} 堂卡（到期日: ${expiresAt}）`,
+        created_by: user.id,
+    });
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: `已新增 ${quantity} 堂卡，到期日 ${expiresAt}` };
+}
 
 export async function resetMemberPassword(
     userId: string
@@ -2149,21 +2194,9 @@ export async function confirmCardOrder(orderId: string): Promise<{ success: bool
 
     if (orderError) throw new Error(`確認訂單失敗: ${orderError.message}`);
 
-    // Get current balance
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('card_balance')
-        .eq('id', order.user_id)
-        .maybeSingle();
-
-    const currentBalance = profile?.card_balance ?? 0;
-    const newBalance = currentBalance + order.quantity;
-
-    // Update card_balance on profile
-    await supabase
-        .from('profiles')
-        .update({ card_balance: newBalance })
-        .eq('id', order.user_id);
+    // Sync balance from pools (respects expiry)
+    const { syncCardBalance } = await import('./card-utils');
+    const newBalance = await syncCardBalance(order.user_id);
 
     // If membership included, upgrade user to member or extend validity
     if (order.include_membership) {
@@ -2209,17 +2242,8 @@ export async function rejectCardOrder(orderId: string): Promise<{ success: boole
     const { data: order } = await supabase.from('card_orders').select('*').eq('id', orderId).maybeSingle();
     if (!order) throw new Error('訂單不存在');
 
-    // 2. If it was already confirmed, we need to deduct the cards back and delete the transaction
-    if (order.status === 'confirmed') {
-        const { data: profile } = await supabase.from('profiles').select('card_balance').eq('id', order.user_id).single();
-        if (profile) {
-            const newBalance = Math.max(0, (profile.card_balance || 0) - order.quantity);
-            await supabase.from('profiles').update({ card_balance: newBalance }).eq('id', order.user_id);
-            // Optionally delete/mark the transaction, but deduction is core
-        }
-    }
-
-    // 3. Update status to rejected
+    // 2. Update status to rejected (this removes it from the pool since status != 'confirmed')
+    // 3. Then sync balance to reflect the change
     const { error } = await supabase
         .from('card_orders')
         .update({
@@ -2230,6 +2254,10 @@ export async function rejectCardOrder(orderId: string): Promise<{ success: boole
         .eq('id', orderId);
 
     if (error) return { success: false, message: '駁回失敗' };
-    
+
+    // Sync balance from pools (rejected orders are excluded)
+    const { syncCardBalance } = await import('./card-utils');
+    await syncCardBalance(order.user_id);
+
     return { success: true, message: '訂單已駁回' };
 }

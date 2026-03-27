@@ -330,7 +330,7 @@ export default async function DashboardPage() {
                       <UserSquare className="h-5 w-5" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold">社員管理</p>
+                      <p className="text-sm font-bold">成員管理</p>
                       <p className="text-[10px] text-muted-foreground font-bold">管理權限與資歷資訊</p>
                     </div>
                   </div>
