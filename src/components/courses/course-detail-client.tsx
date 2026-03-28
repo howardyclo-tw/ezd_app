@@ -309,10 +309,10 @@ export function CourseDetailClient({
     // Transfer user picker state
     const [transferStep, setTransferStep] = useState<'pick' | 'confirm'>('pick');
     const [transferCandidates, setTransferCandidates] = useState<{
-        waitlist: { id: string; name: string; role: string; position: number }[];
-        allMembers: { id: string; name: string; role: string }[];
+        waitlist: { id: string; name: string; role: string; position: number; employee_id?: string | null }[];
+        allMembers: { id: string; name: string; role: string; employee_id?: string | null }[];
     }>({ waitlist: [], allMembers: [] });
-    const [selectedTransferUser, setSelectedTransferUser] = useState<{ id: string; name: string; role: string } | null>(null);
+    const [selectedTransferUser, setSelectedTransferUser] = useState<{ id: string; name: string; role: string; employee_id?: string | null } | null>(null);
     const [transferSearch, setTransferSearch] = useState('');
     const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
 
@@ -1154,7 +1154,14 @@ export function CourseDetailClient({
                                                                 {user.position}
                                                             </div>
                                                             <div>
-                                                                <p className="text-sm font-bold text-foreground">{user.name}</p>
+                                                                <p className="text-sm font-bold text-foreground flex items-center gap-2">
+                                                                    {user.name}
+                                                                    {user.employee_id && (
+                                                                        <Badge variant="outline" className="bg-muted/30 text-muted-foreground/80 font-mono text-[10px] px-1.5 py-0 border-none h-4 leading-4 shadow-none">
+                                                                            {user.employee_id}
+                                                                        </Badge>
+                                                                    )}
+                                                                </p>
                                                                 <p className="text-[10px] text-muted-foreground">候補第 {user.position} 名</p>
                                                             </div>
                                                         </div>
@@ -1199,7 +1206,14 @@ export function CourseDetailClient({
                                                                 {user.name.charAt(0)}
                                                             </div>
                                                             <div>
-                                                                <p className="text-sm font-medium text-foreground">{user.name}</p>
+                                                                <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                                                                    {user.name}
+                                                                    {user.employee_id && (
+                                                                        <Badge variant="outline" className="bg-muted/30 text-muted-foreground/80 font-mono text-[10px] px-1.5 py-0 border-none h-4 leading-4 shadow-none">
+                                                                            {user.employee_id}
+                                                                        </Badge>
+                                                                    )}
+                                                                </p>
                                                                 <p className="text-[10px] text-muted-foreground">
                                                                     {user.role === 'guest' ? '非社員' : '社員'}
                                                                 </p>

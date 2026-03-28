@@ -533,6 +533,8 @@ export function MembersClient({ members, memberGroups }: MembersClientProps) {
                                     <p className="text-xs text-muted-foreground/40 italic text-center py-1">無堂卡紀錄</p>
                                 )}
 
+                                <p className="text-[10px] text-muted-foreground/40 font-medium">* 到期日後的課程堂次無法使用該批堂卡報名</p>
+
                                 {/* Add cards inline form */}
                                 <div className="flex gap-1.5 items-end pt-0.5 border-t border-muted/10">
                                     <div className="w-16">

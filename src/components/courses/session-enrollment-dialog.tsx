@@ -416,6 +416,10 @@ export function SessionEnrollmentDialog({
                             </div>
                         )}
 
+                        <p className="text-[10px] text-muted-foreground/40 text-center font-medium">
+                            系統會優先使用最快到期的堂卡，已過期的堂卡無法用於該日期後的堂次
+                        </p>
+
                         <div className="flex items-start gap-3 p-3 px-5 bg-orange-500/5 text-orange-500/90 rounded-2xl border border-orange-500/10">
                             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 opacity-80" />
                             <p className="text-[11px] font-bold leading-relaxed">

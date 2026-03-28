@@ -30,8 +30,8 @@ You can ask your AI assistant to perform the following tasks directly:
 ## 🛠 Project Structure
 - `/src`: Application source code (Next.js + Tailwind)
 - `/supabase`: Local Supabase configuration, migrations, and seed data.
-- `/docs`: Project documentation (`PRD.md`, `feature-plan.md`).
+- `/docs`: Project documentation (`prd.md`, `system-overview.md`).
 
 ## 📜 Documentation Links
 - [Product Requirements Document (PRD)](./prd.md)
-- [Feature Plan & Roadmap](./feature-plan.md)
+- [System Overview](./system-overview.md)

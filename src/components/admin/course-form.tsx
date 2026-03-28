@@ -61,6 +61,7 @@ interface Profile {
     id: string;
     name: string;
     role: string;
+    employee_id?: string | null;
 }
 
 
@@ -686,8 +687,17 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                         setIsLeaderSearchOpen(false);
                                                                     }}
                                                                 >
-                                                                    <Check className={cn("mr-2 h-4 w-4", field.value === p.id ? "opacity-100" : "opacity-0")} />
-                                                                    {p.name} {p.role === 'leader' ? '(班長)' : p.role === 'admin' ? '(幹部)' : ''}
+                                                                    <div className="flex items-center justify-between w-full pr-1">
+                                                                        <div className="flex items-center">
+                                                                            <Check className={cn("mr-2 h-4 w-4 shrink-0", field.value === p.id ? "opacity-100" : "opacity-0")} />
+                                                                            <span className="truncate">{p.name} {p.role === 'leader' ? '(班長)' : p.role === 'admin' ? '(幹部)' : ''}</span>
+                                                                        </div>
+                                                                        {p.employee_id && (
+                                                                            <Badge variant="outline" className="ml-2 bg-muted/30 text-muted-foreground/80 font-mono text-[10px] px-1.5 py-0 border-none shrink-0 h-4 leading-4 flex items-center shadow-none">
+                                                                                {p.employee_id}
+                                                                            </Badge>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             ))
                                                         )}

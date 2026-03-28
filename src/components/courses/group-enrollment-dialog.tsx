@@ -181,6 +181,10 @@ export function GroupEnrollmentDialog({
                         </div>
                     )}
 
+                    <p className="text-[10px] text-muted-foreground/40 text-center font-medium">
+                        整期報名以最後一堂日期計算，已過期的堂卡無法使用
+                    </p>
+
                     <Button
                         onClick={handleEnroll}
                         disabled={selectedIds.size === 0 || isPending || isOverBalance}

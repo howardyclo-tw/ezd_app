@@ -324,16 +324,21 @@ export async function batchEnrollInSessions(
 
     if (toEnrollSessionIds.length === 0) return { success: false, message: '所選堂次皆已報名' };
 
-    // 3. Calculate total cost and get latest session date for expiry check
+    // 3. Get each session's date for per-session FIFO deduction
     const totalCost = course.cards_per_session * toEnrollSessionIds.length;
 
-    const { data: sessionDates } = await supabase
+    const { data: sessionDateRows } = await supabase
         .from('course_sessions')
-        .select('session_date')
+        .select('id, session_date')
         .in('id', toEnrollSessionIds)
-        .order('session_date', { ascending: false })
-        .limit(1);
-    const latestSessionDate = sessionDates?.[0]?.session_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+        .order('session_date', { ascending: true });
+
+    const sessionDateMap = new Map<string, string>();
+    (sessionDateRows ?? []).forEach(s => sessionDateMap.set(s.id, s.session_date));
+
+    // Quick check: use the latest session date for total available balance check
+    const latestSessionDate = sessionDateRows?.[sessionDateRows.length - 1]?.session_date
+        || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
 
     const { getAvailableCardBalance } = await import('./card-utils');
     const cardInfo = await getAvailableCardBalance(user.id, latestSessionDate);
@@ -384,15 +389,19 @@ export async function batchEnrollInSessions(
     const { data: inserted, error: enrollError } = await supabase.from('enrollments').upsert(enrollments, { onConflict: 'course_id,user_id,session_id' }).select('id, session_id');
     if (enrollError) throw new Error(`報名失敗: ${enrollError.message}`);
 
-    // FIFO deduct cards
+    // FIFO deduct cards per session (each session uses its own date for expiry check)
     const { deductCardsFIFO } = await import('./card-utils');
-    await deductCardsFIFO(
-        user.id,
-        totalCost,
-        latestSessionDate,
-        `單堂報名課程: ${course.name} (${toEnrollSessionIds.length} 堂)`,
-        inserted?.[0]?.id
-    );
+    for (const sid of toEnrollSessionIds) {
+        const sessionDate = sessionDateMap.get(sid) || latestSessionDate;
+        const enrollmentId = inserted?.find((i: any) => i.session_id === sid)?.id;
+        await deductCardsFIFO(
+            user.id,
+            course.cards_per_session,
+            sessionDate,
+            `單堂報名課程: ${course.name} (${sessionDate})`,
+            enrollmentId
+        );
+    }
 
     revalidatePath('/', 'layout');
     return { success: true, message: `成功報名 ${toEnrollSessionIds.length} 堂課，扣除 ${totalCost} 堂卡。` };
@@ -1493,15 +1502,15 @@ export async function getTransferCandidates(
     courseId: string,
     sessionId?: string
 ): Promise<{
-    waitlist: { id: string; name: string; role: string; position: number }[];
-    allMembers: { id: string; name: string; role: string }[];
+    waitlist: { id: string; name: string; role: string; position: number; employee_id?: string | null }[];
+    allMembers: { id: string; name: string; role: string; employee_id?: string | null }[];
 }> {
     const { supabase, user } = await getCurrentUser();
 
     // 1. Get waitlisted users for this course (ordered by position)
     const { data: waitlistData } = await supabase
         .from('enrollments')
-        .select('waitlist_position, profiles ( id, name, role )')
+        .select('waitlist_position, profiles ( id, name, role, employee_id )')
         .eq('course_id', courseId)
         .eq('status', 'waitlist')
         .order('waitlist_position');
@@ -1512,6 +1521,7 @@ export async function getTransferCandidates(
             name: w.profiles?.name ?? '未知',
             role: w.profiles?.role ?? 'guest',
             position: w.waitlist_position ?? 0,
+            employee_id: w.profiles?.employee_id,
         }))
         .filter((w: any) => w.id && w.id !== user.id && w.role !== 'guest');
 
@@ -1548,7 +1558,7 @@ export async function getTransferCandidates(
 
     const { data: membersData } = await supabase
         .from('profiles')
-        .select('id, name, role')
+        .select('id, name, role, employee_id')
         .order('name');
 
     const allMembers = (membersData ?? [])
@@ -1557,6 +1567,7 @@ export async function getTransferCandidates(
             id: m.id,
             name: m.name ?? '未知',
             role: m.role ?? 'guest',
+            employee_id: m.employee_id,
         }));
 
     return { waitlist, allMembers };

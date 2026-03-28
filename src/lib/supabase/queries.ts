@@ -658,7 +658,7 @@ export async function getProfiles() {
     const supabase = await createClient();
     const { data, error } = await supabase
         .from('profiles')
-        .select('id, name, role')
+        .select('id, name, role, employee_id')
         .order('name');
 
     if (error) throw new Error(`getProfiles: ${error.message}`);

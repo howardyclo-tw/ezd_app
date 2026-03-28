@@ -256,24 +256,29 @@ export function MyCardsClient({
                                         </div>
                                         {/* Card pools breakdown by expiry */}
                                         {cardPools.length > 0 && (
-                                            <div className="flex flex-wrap gap-2 mt-1">
-                                                {cardPools.map((pool, i) => {
-                                                    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
-                                                    const isExpired = pool.expires_at && pool.expires_at < today;
-                                                    return (
-                                                        <div key={i} className={cn(
-                                                            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border",
-                                                            isExpired
-                                                                ? "bg-red-500/5 border-red-500/20 text-red-400 line-through"
-                                                                : "bg-muted/30 border-muted/40 text-muted-foreground"
-                                                        )}>
-                                                            <span className="font-black">{pool.remaining}</span>
-                                                            <span className="opacity-60">張</span>
-                                                            <span className="opacity-40">|</span>
-                                                            <span>{isExpired ? '已過期' : `${pool.expires_at} 到期`}</span>
-                                                        </div>
-                                                    );
-                                                })}
+                                            <div className="space-y-2 mt-2">
+                                                <div className="flex flex-wrap gap-2">
+                                                    {cardPools.map((pool, i) => {
+                                                        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+                                                        const isExpired = pool.expires_at && pool.expires_at < today;
+                                                        return (
+                                                            <div key={i} className={cn(
+                                                                "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border",
+                                                                isExpired
+                                                                    ? "bg-red-500/5 border-red-500/20 text-red-400 line-through"
+                                                                    : "bg-muted/30 border-muted/40 text-muted-foreground"
+                                                            )}>
+                                                                <span className="font-black">{pool.remaining}</span>
+                                                                <span className="opacity-60">張</span>
+                                                                <span className="opacity-40">|</span>
+                                                                <span>{isExpired ? '已過期' : `${pool.expires_at} 到期`}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground/40 font-medium leading-relaxed">
+                                                    * 到期日後的課程堂次無法使用該批堂卡報名
+                                                </p>
                                             </div>
                                         )}
                                     </Card>
@@ -488,7 +493,7 @@ export function MyCardsClient({
                             </div>
 
                             <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
-                                堂卡有效期至購買當年度年底。
+                                堂卡有效期至購買當年度年底，到期後無法用於報名該日期之後的課程堂次。
                             </p>
                         </div>
                     ) : (
