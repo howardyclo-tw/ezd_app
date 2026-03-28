@@ -244,38 +244,83 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
     } else if (type === 'rosters') {
         for (const item of normalizedData) {
             try {
-                const { group_title, course_name, employee_id } = item;
-                
-                const userId = await resolveUserId(employee_id);
-                if (!userId) throw new Error(`找不到學員: ${employee_id}`);
+                const { name, employee_id, group_title, course_name, enroll_type, session_dates } = item;
 
+                // 1. Resolve user by employee_id or name
+                let userId: string | null = null;
+                if (employee_id) {
+                    userId = await resolveUserId(employee_id.toLowerCase().trim());
+                }
+                if (!userId && name) {
+                    const { data: byName } = await adminClient
+                        .from('profiles')
+                        .select('id')
+                        .eq('name', name.trim());
+                    if (byName && byName.length === 1) {
+                        userId = byName[0].id;
+                    } else if (byName && byName.length > 1) {
+                        throw new Error(`「${name}」有多位同名成員，請提供工號以區分`);
+                    }
+                }
+                if (!userId) throw new Error(`找不到成員「${name || employee_id}」`);
+
+                // 2. Resolve course
                 const courseId = await resolveCourseId(group_title, course_name);
-                if (!courseId) throw new Error(`在檔期「${group_title}」下找不到課程: ${course_name}`);
+                if (!courseId) throw new Error(`在檔期「${group_title}」下找不到課程「${course_name}」，請確認名稱完全一致`);
 
-                const { data: sessions } = await adminClient
-                    .from('course_sessions')
-                    .select('id')
-                    .eq('course_id', courseId);
-                
-                if (!sessions || sessions.length === 0) throw new Error(`課程「${course_name}」尚無任何場次`);
+                // 3. Determine enrollment type
+                const dbType = enroll_type?.trim() === '單堂' ? 'single' : 'full';
 
-                const enrollments = sessions.map(s => ({
-                    user_id: userId,
-                    session_id: s.id,
-                    course_id: courseId,
-                    status: 'enrolled',
-                    type: 'full'
-                }));
+                if (dbType === 'full') {
+                    // Full enrollment: enroll in all sessions
+                    const { error: enrollError } = await adminClient
+                        .from('enrollments')
+                        .upsert({
+                            user_id: userId,
+                            course_id: courseId,
+                            session_id: null,
+                            status: 'enrolled',
+                            type: 'full',
+                            source: 'admin',
+                        }, { onConflict: 'course_id,user_id,session_id' });
+                    if (enrollError) throw enrollError;
+                } else {
+                    // Single enrollment: enroll in specified sessions
+                    if (!session_dates || !session_dates.trim()) {
+                        throw new Error(`單堂報名必須提供堂次日期`);
+                    }
+                    const dates = session_dates.split(';').map((d: string) => d.trim()).filter(Boolean);
 
-                const { error: enrollError } = await adminClient
-                    .from('enrollments')
-                    .upsert(enrollments, { onConflict: 'user_id,session_id' });
+                    // Lookup session IDs by date
+                    const { data: allSessions } = await adminClient
+                        .from('course_sessions')
+                        .select('id, session_date')
+                        .eq('course_id', courseId);
 
-                if (enrollError) throw enrollError;
+                    const sessionMap = new Map((allSessions ?? []).map(s => [s.session_date, s.id]));
+
+                    for (const date of dates) {
+                        const sessionId = sessionMap.get(date);
+                        if (!sessionId) throw new Error(`課程「${course_name}」找不到 ${date} 的堂次，請確認日期正確`);
+
+                        const { error: enrollError } = await adminClient
+                            .from('enrollments')
+                            .upsert({
+                                user_id: userId,
+                                course_id: courseId,
+                                session_id: sessionId,
+                                status: 'enrolled',
+                                type: 'single',
+                                source: 'admin',
+                            }, { onConflict: 'course_id,user_id,session_id' });
+                        if (enrollError) throw enrollError;
+                    }
+                }
+
                 successCount++;
             } catch (err: any) {
                 failCount++;
-                errors.push(`${item.employee_id || '未知'}: ${err.message}`);
+                errors.push(`${item.name || item.employee_id || '未知'}: ${err.message}`);
             }
         }
     } else if (type === 'course_groups') {
@@ -297,7 +342,7 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
 
         for (const item of normalizedData) {
             try {
-                const { group_title, name, type: courseType, teacher, room, session_date, start_time, end_time, capacity, cards_per_session, description } = item;
+                const { group_title, name, type: courseType, teacher, room, first_date, sessions_count, session_date, start_time, end_time, capacity, cards_per_session, description } = item;
                 if (!group_title || !name) continue;
 
                 // 1. Get or create course group
@@ -342,14 +387,33 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                 if (courseError) throw courseError;
                 existingCourseSet.add(courseKey);
 
-                // 3. Create session(s) from date(s)
-                // Support multiple dates separated by semicolons (e.g. "2026-03-16;2026-03-23")
-                const dates = session_date.split(';').map((d: string) => d.trim()).filter(Boolean);
-                const sessions = dates.map((d: string, idx: number) => ({
-                    course_id: newCourse.id,
-                    session_date: d,
-                    session_number: idx + 1,
-                }));
+                // 3. Create session(s)
+                // Priority: first_date + sessions_count (auto-generate weekly) > session_date (manual semicolon-separated)
+                const startDate = first_date || session_date;
+                const numSessions = parseInt(sessions_count) || 1;
+                let sessions: { course_id: string; session_date: string; session_number: number }[] = [];
+
+                if (startDate && startDate.includes(';')) {
+                    // Manual: semicolon-separated dates
+                    const dates = startDate.split(';').map((d: string) => d.trim()).filter(Boolean);
+                    sessions = dates.map((d: string, idx: number) => ({
+                        course_id: newCourse.id,
+                        session_date: d,
+                        session_number: idx + 1,
+                    }));
+                } else if (startDate) {
+                    // Auto-generate: first_date + sessions_count (weekly intervals)
+                    const base = new Date(startDate + 'T00:00:00');
+                    for (let i = 0; i < numSessions; i++) {
+                        const d = new Date(base);
+                        d.setDate(d.getDate() + i * 7);
+                        sessions.push({
+                            course_id: newCourse.id,
+                            session_date: d.toISOString().split('T')[0],
+                            session_number: i + 1,
+                        });
+                    }
+                }
 
                 if (sessions.length > 0) {
                     const { error: sessionError } = await adminClient

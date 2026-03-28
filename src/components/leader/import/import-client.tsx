@@ -41,25 +41,29 @@ const templates = {
         title: '成員名單',
         filename: 'ezd_members_template.csv',
         content: '電子郵件 (email),姓名 (name),工號 (employee_id),是否為社員 (is_member)\nexample_member@mediatek.com,王小明,mtk12345,1\nexample_guest@mediatek.com,李小華,mtk67890,0',
-        headers: ['電子郵件 (email)', '姓名 (name)', '工號 (employee_id)', '是否為社員 (is_member)']
+        headers: ['電子郵件 (email)', '姓名 (name)', '工號 (employee_id)', '是否為社員 (is_member)'],
+        hint: '必填：電子郵件、姓名、是否為社員（1=社員, 0=非社員）｜選填：工號（含前綴，如 mtk12345、ds901402）\n\n• 社員自動加入最新年度群組，非社員不加入群組\n• 已存在的 email 會更新姓名與工號（不會重複建帳）\n• 新帳號預設密碼為 mediatek\n• Email 與工號會自動轉為小寫儲存'
     },
     card_orders: {
         title: '堂卡紀錄',
         filename: 'ezd_card_orders_template.csv',
         content: '工號 (employee_id),堂數 (cards)\nmtk12345,10\nmtk67890,5',
-        headers: ['工號 (employee_id)', '堂數 (cards)']
+        headers: ['工號 (employee_id)', '堂數 (cards)'],
+        hint: '必填：工號、堂數\n\n• 工號須已存在於系統（需先匯入成員名單）\n• 金額依成員目前的社員/非社員身份自動計算\n• 到期日為系統最新年度群組的到期日\n• 發放後立即生效，無需審核'
     },
     rosters: {
         title: '學員名單',
         filename: 'ezd_course_roster_template.csv',
-        content: '檔期名稱 (group_title),課程名稱 (course_name),工號 (employee_id)\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,mtk12345\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,mtk67890',
-        headers: ['檔期名稱 (group_title)', '課程名稱 (course_name)', '工號 (employee_id)']
+        content: '姓名 (name),工號 (employee_id),檔期名稱 (group_title),課程名稱 (course_name),報名類型 (enroll_type),堂次日期 (session_dates)\n王小明,,HQ 2026 H1 常態課程,週一舞感養成,整期,\n李小華,mtk12345,HQ 2026 H1 常態課程,週一舞感養成,單堂,2026-04-12;2026-05-03',
+        headers: ['姓名 (name)', '工號 (employee_id)', '檔期名稱 (group_title)', '課程名稱 (course_name)', '報名類型 (enroll_type)', '堂次日期 (session_dates)'],
+        hint: '必填：姓名、檔期名稱、課程名稱、報名類型（僅接受「整期」或「單堂」）｜條件必填：單堂須填堂次日期（YYYY-MM-DD，多堂用分號分隔）｜選填：工號（同名成員時必填）\n\n• 成員須已存在於系統，如有尚未加入的非社員，請先用「成員名單」匯入（is_member=0）建立帳號\n• 檔期與課程名稱須與系統完全一致（含空格與符號），不一致會匯入失敗\n• 單堂日期須與課程已建立的堂次日期一致，不一致會匯入失敗\n• 此匯入不扣堂卡（由幹部代為報名）\n• 整期報名會加入該課程所有堂次'
     },
     course_groups: {
         title: '課程資訊',
         filename: 'ezd_course_info_template.csv',
-        content: '檔期名稱 (group_title),課程名稱 (name),類型 (type),老師 (teacher),教室 (room),日期 (session_date),開始時間 (start_time),結束時間 (end_time),人數上限 (capacity),堂卡扣除 (cards_per_session),備註 (description)\n2026 HQ 3月 常態試跳,Krump 體驗,trial,小Joy,E棟有氧教室,2026-03-16,19:00,20:30,18,0,\n2026 HQ 3月 常態試跳,韓風MV,trial,小可,AB棟韻律教室,2026-03-17,19:15,20:45,25,0,',
-        headers: ['檔期名稱 (group_title)', '課程名稱 (name)', '類型 (type)', '老師 (teacher)', '教室 (room)', '日期 (session_date)', '開始時間 (start_time)', '結束時間 (end_time)', '人數上限 (capacity)', '堂卡扣除 (cards_per_session)', '備註 (description)']
+        content: '檔期名稱 (group_title),課程名稱 (name),類型 (type),老師 (teacher),教室 (room),第一堂日期 (first_date),堂數 (sessions_count),開始時間 (start_time),結束時間 (end_time),人數上限 (capacity),堂卡扣除 (cards_per_session),備註 (description)\n2026 HQ 3月 常態試跳,Krump 體驗,trial,小Joy,E棟有氧教室,2026-03-16,1,19:00,20:30,18,0,\nHQ 2026 H1 常態課程,週一舞感養成,normal,小joy,E棟有氧教室,2026-04-12,13,19:00,20:30,18,1,',
+        headers: ['檔期名稱 (group_title)', '課程名稱 (name)', '類型 (type)', '老師 (teacher)', '教室 (room)', '第一堂日期 (first_date)', '堂數 (sessions_count)', '開始時間 (start_time)', '結束時間 (end_time)', '人數上限 (capacity)', '堂卡扣除 (cards_per_session)', '備註 (description)'],
+        hint: '必填：檔期名稱、課程名稱、類型、老師、教室、第一堂日期、開始/結束時間｜選填：堂數（預設 1）、人數上限（預設 30）、堂卡扣除（預設 1，填 0=免費）、備註\n\n• 類型僅接受：normal（常態）/ trial（試跳）/ style（風格）/ workshop（專攻）\n• 堂數 > 1 時系統從第一堂起每週自動排一堂\n• 個別堂次日期調整請匯入後至「編輯課程」頁面設定\n• 同一檔期下課程名稱不可重複，重複會跳過\n• 檔期名稱須完全一致（含空格與符號），不一致會自動建立新檔期，請仔細核對避免誤建'
     }
 };
 
@@ -155,8 +159,8 @@ export function ImportClient() {
             const mandatoryFields: Record<ImportType, string[]> = {
                 members: ['電子郵件 (email)', '姓名 (name)', '是否為社員 (is_member)'],
                 card_orders: ['工號 (employee_id)', '堂數 (cards)'],
-                rosters: ['檔期名稱 (group_title)', '課程名稱 (course_name)', '工號 (employee_id)'],
-                course_groups: ['檔期名稱 (group_title)', '課程名稱 (name)', '老師 (teacher)', '教室 (room)', '日期 (session_date)', '開始時間 (start_time)', '結束時間 (end_time)']
+                rosters: ['姓名 (name)', '檔期名稱 (group_title)', '課程名稱 (course_name)', '報名類型 (enroll_type)'],
+                course_groups: ['檔期名稱 (group_title)', '課程名稱 (name)', '老師 (teacher)', '教室 (room)', '第一堂日期 (first_date)', '開始時間 (start_time)', '結束時間 (end_time)']
             };
 
             if (values.length !== headers.length) {
@@ -175,6 +179,10 @@ export function ImportClient() {
 
                 if (currentType === 'course_groups' && header === '類型 (type)' && val && !VALID_COURSE_TYPES.includes(val.trim())) {
                     errors.push(`第 ${index + 2} 行 [類型] 值 "${val}" 無效，可用值: ${VALID_COURSE_TYPES.join(', ')}`);
+                }
+
+                if (currentType === 'rosters' && header === '報名類型 (enroll_type)' && val && !['整期', '單堂'].includes(val.trim())) {
+                    errors.push(`第 ${index + 2} 行 [報名類型] 值 "${val}" 無效，僅接受「整期」或「單堂」`);
                 }
             });
             return obj;
@@ -220,7 +228,11 @@ export function ImportClient() {
                 toast.success(`匯入完成！成功：${result.success} 筆${result.failed > 0 ? `，失敗：${result.failed} 筆` : ''}`);
             }
 
-            if (result.failed > 0) {
+            if (result.failed > 0 && result.errors?.length > 0) {
+                result.errors.forEach((err: string) => {
+                    toast.error(err, { duration: 10000 });
+                });
+            } else if (result.failed > 0) {
                 toast.error(`部分匯入失敗 (${result.failed} 筆)，請檢查資料。`);
             }
 
@@ -247,26 +259,15 @@ export function ImportClient() {
 
     return (
         <div className="space-y-6">
-            {/* Info Hint */}
-            <div className="bg-blue-500/10 border border-blue-500/20 backdrop-blur-md rounded-2xl p-4 flex items-start gap-4 shadow-xl animate-in fade-in slide-in-from-top-4 duration-700 group">
+            {/* Dynamic Hint per import type */}
+            <div className="bg-blue-500/10 border border-blue-500/20 backdrop-blur-md rounded-2xl p-4 flex items-start gap-4 shadow-xl animate-in fade-in slide-in-from-top-4 duration-700">
                 <div className="h-10 w-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0 border border-blue-500/30">
                     <AlertCircle className="h-5 w-5 text-blue-400" />
                 </div>
                 <div className="flex-1">
-                    <p className="text-sm font-black text-blue-100 uppercase tracking-widest mb-1.5 opacity-80">小提示</p>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <p className="text-sm font-bold text-white/70 leading-relaxed max-w-2xl">
-                            如果是要修改單一成員的 
-                            <span className="text-blue-400 mx-1 border-b border-blue-400/30">身份等級、到期日</span> 或 
-                            <span className="text-blue-400 mx-1 border-b border-blue-400/30">堂卡點數</span>，
-                            無需重新上傳！
-                        </p>
-                        <a 
-                            href="/admin/members" 
-                            className="bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-black inline-flex items-center gap-2 hover:bg-blue-600 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] active:scale-95 shrink-0"
-                        >
-                            前往成員管理 <ArrowRight className="h-3.5 w-3.5" />
-                        </a>
+                    <p className="text-sm font-black text-blue-100 uppercase tracking-widest mb-1.5 opacity-80">{templates[importType].title} — 使用說明</p>
+                    <div className="text-sm font-bold text-white/70 leading-relaxed whitespace-pre-line">
+                        {templates[importType].hint}
                     </div>
                 </div>
             </div>
