@@ -148,7 +148,9 @@ export default async function DashboardPage() {
 
   const totalMissedCount = missedSessionsList.length;
 
-  // Calculate true available makeup quota by applying course-level max capacity
+  // Calculate true available makeup quota:
+  // = min(unused absences, 1/4 quota remaining) + manual quota
+  // 1/4 rule is a CAP, not points. Real points come from actual absences + manual grants.
   const { sessions: availableMissedSessionsList, manualQuota: dashboardManualQuota } = availableMissedSessions as any;
   const courseCounts = new Map<string, { absences: number, totalQuota: number, usedQuota: number }>();
   (availableMissedSessionsList ?? []).forEach((s: any) => {

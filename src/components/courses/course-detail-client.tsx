@@ -206,10 +206,15 @@ export function CourseDetailClient({
 
         startTransition(async () => {
             try {
+                let res;
                 if (selectedStudent.isLeader) {
-                    await removeCourseLeader(course.id, selectedStudent.id);
+                    res = await removeCourseLeader(course.id, selectedStudent.id);
                 } else {
-                    await assignCourseLeader(course.id, selectedStudent.id);
+                    res = await assignCourseLeader(course.id, selectedStudent.id);
+                }
+                if (res && !res.success) {
+                    alert(res.message || '操作失敗');
+                    return;
                 }
                 setIsLeaderDialogOpen(false);
                 router.refresh();

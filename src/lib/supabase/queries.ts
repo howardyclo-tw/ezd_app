@@ -514,16 +514,17 @@ export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: s
     const [
         { data: enrollments },
         { data: makeupRequests },
-        { data: transferRequests }
+        { data: transferRequests },
+        { data: absenceRecords },
+        { data: profile },
     ] = await Promise.all([
-        // 1. Find all full-enrolled, normal/special courses for this user in this group, and their session counts
         supabase
             .from('enrollments')
             .select(`
-                course_id, 
-                courses!inner ( 
-                    id, 
-                    type, 
+                course_id,
+                courses!inner (
+                    id,
+                    type,
                     group_id,
                     course_sessions(count)
                 )
@@ -534,22 +535,35 @@ export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: s
             .eq('courses.group_id', groupId)
             .in('courses.type', ['normal', 'special']),
 
-        // 2. Get used makeup quota globally for the user
         supabase
             .from('makeup_requests')
-            .select('original_course_id, quota_used')
+            .select('original_course_id, original_session_id, quota_used')
             .eq('user_id', userId)
             .in('status', ['pending', 'approved']),
 
-        // 3. Get used transfer quota globally for the user
         supabase
             .from('transfer_requests')
             .select('course_id')
             .eq('from_user_id', userId)
-            .eq('status', 'approved')
+            .eq('status', 'approved'),
+
+        // Unused absences (absent/leave, not already consumed by makeup)
+        supabase
+            .from('attendance_records')
+            .select('session_id, course_sessions!inner ( course_id )')
+            .eq('user_id', userId)
+            .in('status', ['absent', 'leave']),
+
+        supabase
+            .from('profiles')
+            .select('makeup_quota')
+            .eq('id', userId)
+            .single(),
     ]);
 
-    if (!enrollments || enrollments.length === 0) return { total: 0, used: 0, remaining: 0 };
+    const manualAdj = profile?.makeup_quota || 0;
+
+    if (!enrollments || enrollments.length === 0) return { total: manualAdj, used: 0, remaining: manualAdj };
 
     const courseIds = new Set(enrollments.map((e: any) => e.course_id));
 
@@ -567,7 +581,22 @@ export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: s
         }
     });
 
-    let totalQuotaSum = 0;
+    // Build set of already-consumed absence session IDs
+    const usedAbsenceIds = new Set(
+        (makeupRequests ?? []).map((mr: any) => mr.original_session_id).filter(Boolean)
+    );
+
+    // Count unused absences per course
+    const absencesByCourse: Record<string, number> = {};
+    (absenceRecords ?? []).forEach((a: any) => {
+        if (usedAbsenceIds.has(a.session_id)) return; // already consumed
+        const cId = (a.course_sessions as any)?.course_id;
+        if (cId && courseIds.has(cId)) {
+            absencesByCourse[cId] = (absencesByCourse[cId] ?? 0) + 1;
+        }
+    });
+
+    let spendableFromAbsences = 0;
     let totalUsedSum = 0;
 
     for (const enr of enrollments) {
@@ -577,21 +606,25 @@ export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: s
         const cId = enr.course_id;
         const sessionsCountArray = course.course_sessions;
         const sessionsCount = Array.isArray(sessionsCountArray) && sessionsCountArray.length > 0 ? sessionsCountArray[0].count : 0;
-        
+
         const totalQuota = Math.ceil(sessionsCount / 4);
         const usedMakeup = usedMakeupByCourse[cId] ?? 0;
         const usedTransfer = usedTransferByCourse[cId] ?? 0;
-        
-        totalQuotaSum += totalQuota;
-        totalUsedSum += (usedMakeup + usedTransfer);
+        const used = usedMakeup + usedTransfer;
+        const remainingQuota = Math.max(0, totalQuota - used);
+        const unusedAbsences = absencesByCourse[cId] ?? 0;
+
+        // 1/4 rule is a CAP on absences, not standalone points
+        spendableFromAbsences += Math.min(unusedAbsences, remainingQuota);
+        totalUsedSum += used;
     }
 
-    const totalRemaining = Math.max(0, totalQuotaSum - totalUsedSum);
+    const totalAvailable = spendableFromAbsences + manualAdj;
 
     return {
-        total: totalQuotaSum,
+        total: totalAvailable + totalUsedSum,
         used: totalUsedSum,
-        remaining: totalRemaining
+        remaining: totalAvailable
     };
 }
 

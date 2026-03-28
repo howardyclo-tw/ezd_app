@@ -460,7 +460,7 @@ export async function assignCourseLeader(courseId: string, targetUserId: string)
         .eq('id', user.id)
         .maybeSingle();
 
-    if (profile?.role !== 'admin') throw new Error('只有管理員可以指派班長');
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以指派班長');
 
     // Enforce one-leader-per-course: check if there's already a different leader assigned
     const { data: existingLeaders } = await supabase
@@ -481,13 +481,6 @@ export async function assignCourseLeader(courseId: string, targetUserId: string)
 
     if (error) throw new Error(`指派失敗: ${error.message}`);
 
-    // Update the target user's role to 'leader' if they're a member
-    await supabase
-        .from('profiles')
-        .update({ role: 'leader' })
-        .eq('id', targetUserId)
-        .eq('role', 'member');
-
     revalidatePath(`/`, `layout`);
     return { success: true, message: '班長指派成功' };
 }
@@ -501,7 +494,7 @@ export async function removeCourseLeader(courseId: string, targetUserId: string)
         .eq('id', user.id)
         .maybeSingle();
 
-    if (profile?.role !== 'admin') throw new Error('只有管理員可以移除班長');
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以移除班長');
 
     const { error } = await supabase
         .from('course_leaders')
@@ -524,7 +517,7 @@ export async function createCourseGroup(title: string, registration_start?: Date
 
     // Verify current user is admin
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') throw new Error('只有管理員可以建立課程檔期');
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以建立課程檔期');
 
     const { data, error } = await supabase
         .from('course_groups')
@@ -548,7 +541,7 @@ export async function updateCourseGroup(id: string, title: string, registration_
 
     // Verify current user is admin
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') throw new Error('只有管理員可以修改課程檔期');
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以修改課程檔期');
 
     const { error } = await supabase
         .from('course_groups')
@@ -570,7 +563,7 @@ export async function deleteCourseGroup(id: string): Promise<{ success: boolean;
 
     // Verify current user is admin
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') throw new Error('只有管理員可以刪除課程檔期');
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以刪除課程檔期');
 
     // Check if courses exist in this group
     const { count, error: countError } = await supabase
@@ -658,7 +651,7 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
 
     // Admin check
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin') throw new Error('只有管理員可以更新課程');
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以更新課程');
 
     // 1. Update Course
     const { error: courseError } = await supabase
@@ -720,7 +713,7 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
             .in('session_id', idsToRemove);
 
         if (attendanceCount && attendanceCount > 0) {
-            throw new Error('無法刪除已有紀錄的課堂。此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統管理員。');
+            throw new Error('無法刪除已有紀錄的課堂。此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統幹部。');
         }
 
         // Check Requests (Leave, Makeup, Transfer)
@@ -731,7 +724,7 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
         ]);
 
         if ((leaveRes.count || 0) > 0 || (makeupRes.count || 0) > 0 || (transferRes.count || 0) > 0) {
-            throw new Error('無法刪除已有紀錄的課堂。此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統管理員。');
+            throw new Error('無法刪除已有紀錄的課堂。此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統幹部。');
         }
     }
 

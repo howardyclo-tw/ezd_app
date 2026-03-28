@@ -191,48 +191,74 @@ export default async function MyCoursesPage() {
     // ── 3. Makeup: Group available missed sessions by course group ──
     const { sessions: availableSessions, manualQuota } = await getAvailableMakeupQuotaSessions(user.id);
 
-    // Grouping logic: calculate actual available count per group
-    const groupMakeupMap = new Map<string, { title: string, count: number, slug: string }>();
-
-    // First, we need to track counts per course to respect per-course quota
-    const perCourseStats = new Map<string, { absences: number, totalQuota: number, usedQuota: number }>();
+    // Build absence-based spendable count per group
+    const perCourseStats = new Map<string, { absences: number, totalQuota: number, usedQuota: number, groupId: string }>();
     availableSessions.forEach((s: any) => {
-        const stats = perCourseStats.get(s.courseId) || { absences: 0, totalQuota: s.totalQuota, usedQuota: s.usedQuota };
+        const stats = perCourseStats.get(s.courseId) || { absences: 0, totalQuota: s.totalQuota, usedQuota: s.usedQuota, groupId: s.groupId };
         stats.absences += 1;
         perCourseStats.set(s.courseId, stats);
     });
 
-    // Now, calculate the spendable makeup sessions for each course and aggregate by group
-    availableSessions.forEach((s: any) => {
-        const groupKey = s.groupId;
-        if (!groupMakeupMap.has(groupKey)) {
-            groupMakeupMap.set(groupKey, { title: s.groupTitle, count: 0, slug: s.groupSlug || s.groupId });
+    const groupAbsenceCounts = new Map<string, number>();
+    perCourseStats.forEach((stats) => {
+        const spendable = Math.min(stats.absences, Math.max(0, stats.totalQuota - stats.usedQuota));
+        if (spendable > 0) {
+            groupAbsenceCounts.set(stats.groupId, (groupAbsenceCounts.get(stats.groupId) || 0) + spendable);
         }
     });
 
-    // For each course, add its spendable count to its group
-    perCourseStats.forEach((stats, courseId) => {
-        const spendable = Math.min(stats.absences, Math.max(0, stats.totalQuota - stats.usedQuota));
-        if (spendable > 0) {
-            // Find which group this course belongs to
-            const sampleSession = availableSessions.find((s: any) => s.courseId === courseId);
-            if (sampleSession) {
-                const groupData = groupMakeupMap.get(sampleSession.groupId);
-                if (groupData) groupData.count += spendable;
+    // Build all enrolled groups (for manualQuota navigation), filter out ended ones
+    const groupInfoMap = new Map<string, { title: string, slug: string, lastDate: string }>();
+    (myEnrollments ?? []).forEach((e: any) => {
+        if (e.type !== 'full') return;
+        const group = e.courses?.course_groups;
+        if (!group) return;
+        const gId = group.id;
+        if (!groupInfoMap.has(gId)) {
+            // Get last session date to determine if group has ended
+            const sessions = (e.courses?.course_sessions ?? []) as any[];
+            const lastDate = sessions.length > 0
+                ? sessions.sort((a: any, b: any) => b.session_date.localeCompare(a.session_date))[0].session_date
+                : '';
+            groupInfoMap.set(gId, { title: group.title || '未知檔期', slug: group.slug || gId, lastDate });
+        } else {
+            // Update lastDate if this course has a later session
+            const existing = groupInfoMap.get(gId)!;
+            const sessions = (e.courses?.course_sessions ?? []) as any[];
+            if (sessions.length > 0) {
+                const last = sessions.sort((a: any, b: any) => b.session_date.localeCompare(a.session_date))[0].session_date;
+                if (last > existing.lastDate) existing.lastDate = last;
             }
         }
     });
 
-    const makeupGroups = Array.from(groupMakeupMap.values())
-        .filter(g => g.count > 0)
-        .map(g => ({
-            id: g.slug,
-            title: g.title,
-            count: g.count,
-            href: `/courses/groups/${g.slug}`
-        }));
+    // Build makeup groups: show groups that have absences OR user has manual quota (skip ended groups)
+    const makeupGroups: { id: string; title: string; absenceCount: number; href: string }[] = [];
+    const addedGroupIds = new Set<string>();
 
-    let availableMakeupQuotaCount = makeupGroups.reduce((sum, g) => sum + g.count, 0) + manualQuota;
+    // Add groups with absences
+    groupAbsenceCounts.forEach((count, groupId) => {
+        const info = groupInfoMap.get(groupId);
+        const session = availableSessions.find((s: any) => s.groupId === groupId);
+        const slug = info?.slug || session?.groupSlug || groupId;
+        const title = info?.title || session?.groupTitle || '未知檔期';
+        const lastDate = info?.lastDate || '';
+        if (lastDate && lastDate < today) return; // skip ended groups
+        makeupGroups.push({ id: slug, title, absenceCount: count, href: `/courses/groups/${slug}` });
+        addedGroupIds.add(groupId);
+    });
+
+    // If manual quota > 0, also show enrolled groups without absences (for navigation)
+    if (manualQuota > 0) {
+        groupInfoMap.forEach((info, groupId) => {
+            if (addedGroupIds.has(groupId)) return;
+            if (info.lastDate && info.lastDate < today) return; // skip ended
+            makeupGroups.push({ id: info.slug, title: info.title, absenceCount: 0, href: `/courses/groups/${info.slug}` });
+        });
+    }
+
+    const totalAbsenceCount = makeupGroups.reduce((sum, g) => sum + g.absenceCount, 0);
+    let availableMakeupQuotaCount = totalAbsenceCount + manualQuota;
 
     return (
         <div className="container max-w-5xl py-6 space-y-4">

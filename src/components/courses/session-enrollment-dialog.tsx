@@ -99,11 +99,13 @@ export function SessionEnrollmentDialog({
     // 1. The number of actual eligible missed sessions we have in this group
     // 2. The remaining quota budget for the user
     // This ENSURES the number at the bottom (N 堂) matches what's actually selectable.
-    const trueAvailableCount = Math.min(availableQuota.length, makeupQuota.remaining);
+    // Available count: if there are absence sources, limit by those; otherwise use full remaining quota
+    const trueAvailableCount = availableQuota.length > 0
+        ? Math.min(availableQuota.length, makeupQuota.remaining)
+        : makeupQuota.remaining;
 
-    // canMakeup is true if there are actually selectable sessions
-    const canMakeup = trueAvailableCount > 0;
-    // If no specific missed sessions but quota exists, user can makeup without selecting an original session
+    // canMakeup is true if there's remaining quota (with or without absence sources)
+    const canMakeup = makeupQuota.remaining > 0;
     const hasSourceSessions = availableQuota.length > 0;
 
     const toggleTargetSession = (id: string) => {

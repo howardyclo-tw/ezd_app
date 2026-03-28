@@ -14,7 +14,7 @@ import { SessionCard, type SessionCardProps } from '@/components/courses/session
 interface MyCoursesClientProps {
     upcomingSessions: SessionCardProps[];
     historyRecords: SessionCardProps[];
-    makeupGroups: { id: string, title: string, count: number, href: string }[];
+    makeupGroups: { id: string, title: string, absenceCount: number, href: string }[];
     availableMakeupQuotaCount: number;
     manualQuota: number;
 }
@@ -82,9 +82,16 @@ export function MyCoursesClient({ upcomingSessions, historyRecords, makeupGroups
                                                 <h3 className="font-bold text-[15px] sm:text-base leading-tight truncate text-foreground tracking-tight group-hover:text-primary transition-colors">
                                                     {group.title}
                                                 </h3>
-                                                <p className="text-[12px] sm:text-[13px] text-muted-foreground font-medium mt-1">
-                                                    共有 <span className="text-orange-500 font-bold">{group.count}</span> 堂課可以補
-                                                </p>
+                                                <div className="flex items-center gap-3 mt-1.5">
+                                                    <span className="text-xs font-bold text-blue-500">
+                                                        缺席可補 <span className="font-black">{group.absenceCount}</span> 堂
+                                                    </span>
+                                                    {manualQuota > 0 && (
+                                                        <span className="text-xs font-bold text-purple-500">
+                                                            幹部贈予 <span className="font-black">{manualQuota}</span> 堂
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="shrink-0 flex items-center justify-end gap-2 ml-auto">

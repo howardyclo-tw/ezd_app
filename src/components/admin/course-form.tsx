@@ -242,7 +242,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
         setIsGroupSubmitting(true);
         // The following lines were added based on the user's "Code Edit" snippet,
         // assuming they were intended to be inserted here as part of a larger change.
-        // The instruction specifically asked to change '管理員' to '幹部' within this context.
+        // The instruction specifically asked to change '幹部' to '幹部' within this context.
         // Verify current user is admin
         // const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
         // if (profile?.role !== 'admin') throw new Error('只有幹部可以建立課程檔期');
@@ -687,7 +687,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                     }}
                                                                 >
                                                                     <Check className={cn("mr-2 h-4 w-4", field.value === p.id ? "opacity-100" : "opacity-0")} />
-                                                                    {p.name} {p.role === 'leader' ? '(班長)' : p.role === 'admin' ? '(管理員)' : ''}
+                                                                    {p.name} {p.role === 'leader' ? '(班長)' : p.role === 'admin' ? '(幹部)' : ''}
                                                                 </div>
                                                             ))
                                                         )}
@@ -1053,7 +1053,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                         <DialogDescription className="text-sm leading-relaxed">
                             無法刪除已有紀錄的課堂。
                             <br /><br />
-                            此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統管理員。
+                            此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統幹部。
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
