@@ -110,10 +110,14 @@ export default async function AdminMembersPage() {
     if (!user) redirect('/login');
 
     // Fetch auth user emails (admin only, after auth check)
-    const adminClient = createAdminClient();
-    const { data: authUsers } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const emailMap = new Map<string, string>();
-    (authUsers?.users ?? []).forEach(u => { if (u.email) emailMap.set(u.id, u.email); });
+    try {
+        const adminClient = createAdminClient();
+        const { data: authUsers } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        (authUsers?.users ?? []).forEach(u => { if (u.email) emailMap.set(u.id, u.email); });
+    } catch (e) {
+        console.error('Failed to fetch auth users for emails:', e);
+    }
 
     // Admin check: find current user's profile from the already-fetched list
     const currentProfile = profiles?.find(p => p.id === user.id);
