@@ -1978,7 +1978,7 @@ export async function registerUserAction(data: {
         email_confirm: true,
         user_metadata: {
             name: data.name,
-            employee_id: data.employee_id || null,
+            employee_id: data.employee_id?.toLowerCase().trim() || null,
         },
     });
 
@@ -1994,7 +1994,7 @@ export async function registerUserAction(data: {
     if (userData.user && data.employee_id) {
         await adminClient
             .from('profiles')
-            .update({ employee_id: data.employee_id })
+            .update({ employee_id: data.employee_id?.toLowerCase().trim() })
             .eq('id', userData.user.id);
     }
 
@@ -2059,6 +2059,33 @@ export async function adminAddCards(
 
     revalidatePath('/', 'layout');
     return { success: true, message: `已新增 ${quantity} 堂卡，到期日 ${expiresAt}` };
+}
+
+export async function updateCardPoolExpiry(
+    orderId: string,
+    newExpiresAt: string
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以修改堂卡到期日');
+
+    const adminClient = createAdminClient();
+    const { error } = await adminClient
+        .from('card_orders')
+        .update({ expires_at: newExpiresAt })
+        .eq('id', orderId);
+
+    if (error) return { success: false, message: `修改失敗: ${error.message}` };
+
+    // Sync balance for the order's owner
+    const { data: order } = await adminClient.from('card_orders').select('user_id').eq('id', orderId).single();
+    if (order) {
+        const { syncCardBalance } = await import('./card-utils');
+        await syncCardBalance(order.user_id);
+    }
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: `到期日已更新為 ${newExpiresAt}` };
 }
 
 export async function resetMemberPassword(
@@ -2148,9 +2175,16 @@ export async function createCardOrder(quantity: number, includeMembership: boole
         ? parseInt(config['card_price_member'] ?? '270', 10)
         : parseInt(config['card_price_non_member'] ?? '370', 10);
 
-    // Card expiry: end of current year by default
-    const expireMonth = parseInt(config['card_expire_month'] ?? '12', 10);
-    const expiresAt = new Date(new Date().getFullYear(), expireMonth, 0); // last day of expire month
+    // Card expiry: use latest member group's valid_until as default
+    const { data: latestGroup } = await supabase
+        .from('member_groups')
+        .select('valid_until')
+        .order('valid_until', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    const expiresAt = latestGroup?.valid_until
+        ? new Date(latestGroup.valid_until + 'T00:00:00')
+        : new Date(new Date().getFullYear(), 11, 31); // fallback to year-end
 
     const membershipPrice = includeMembership ? 1800 : 0;
     const totalAmount = (quantity * unitPrice) + membershipPrice;

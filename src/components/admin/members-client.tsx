@@ -21,7 +21,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Search, Users, Crown, Shield, User, Calendar, ChevronDown, KeyRound, Plus, Trash2, Pencil } from 'lucide-react';
-import { updateMemberProfile, resetMemberPassword, adminAddCards, createMemberGroup, updateMemberGroup, deleteMemberGroup } from '@/lib/supabase/actions';
+import { updateMemberProfile, resetMemberPassword, adminAddCards, updateCardPoolExpiry, createMemberGroup, updateMemberGroup, deleteMemberGroup } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 import { ATTENDANCE_COLORS, ATTENDANCE_LABELS, ENROLL_TYPE_COLORS, ENROLL_TYPE_LABELS } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
@@ -169,6 +169,8 @@ export function MembersClient({ members, memberGroups }: MembersClientProps) {
     const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
     const [addCardQty, setAddCardQty] = useState('');
     const [addCardExpiry, setAddCardExpiry] = useState('');
+    const [editingPoolId, setEditingPoolId] = useState<string | null>(null);
+    const [editingPoolDate, setEditingPoolDate] = useState('');
 
     // Filter members
     const filtered = members.filter(m => {
@@ -503,10 +505,13 @@ export function MembersClient({ members, memberGroups }: MembersClientProps) {
                             <ResetPasswordButton memberId={editMember?.id} />
 
                             {/* Card Pools */}
-                            <div className="p-3 bg-muted/10 rounded-xl border border-muted/20 space-y-2.5">
+                            <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest">堂卡餘額</label>
-                                    <span className="text-[13px] font-black tabular-nums">{editMember?.card_balance ?? 0} <span className="text-xs font-bold text-muted-foreground/50">張</span></span>
+                                    <label className="text-[11px] font-black uppercase text-muted-foreground/60 tracking-widest">堂卡餘額</label>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xl font-black tabular-nums leading-none">{editMember?.card_balance ?? 0}</span>
+                                        <span className="text-xs font-bold text-muted-foreground/50">張</span>
+                                    </div>
                                 </div>
 
                                 {editMember?.card_pools && editMember.card_pools.filter(p => p.remaining > 0).length > 0 ? (
@@ -514,6 +519,7 @@ export function MembersClient({ members, memberGroups }: MembersClientProps) {
                                         {editMember.card_pools.filter(p => p.remaining > 0).map(pool => {
                                             const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
                                             const isExpired = pool.expires_at && pool.expires_at < today;
+                                            const isEditingThis = editingPoolId === pool.id;
                                             return (
                                                 <div key={pool.id} className={cn(
                                                     "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs",
@@ -522,9 +528,30 @@ export function MembersClient({ members, memberGroups }: MembersClientProps) {
                                                     <span className={cn("font-black tabular-nums", isExpired ? "text-rose-500 line-through" : "text-foreground/80")}>
                                                         {pool.remaining} 張
                                                     </span>
-                                                    <span className={cn("font-medium", isExpired ? "text-rose-400" : "text-muted-foreground/60")}>
-                                                        {isExpired ? '已過期' : `到期 ${pool.expires_at}`}
-                                                    </span>
+                                                    {isEditingThis ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <Input
+                                                                type="date"
+                                                                value={editingPoolDate}
+                                                                onChange={(e) => setEditingPoolDate(e.target.value)}
+                                                                className="h-6 text-[10px] font-bold rounded px-1 w-28"
+                                                            />
+                                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10" onClick={async () => {
+                                                                const res = await safe(updateCardPoolExpiry)(pool.id, editingPoolDate);
+                                                                if (res.success) { toast.success(res.message); setEditingPoolId(null); router.refresh(); }
+                                                                else toast.error(res.message);
+                                                            }}>✓</Button>
+                                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/10" onClick={() => setEditingPoolId(null)}>✕</Button>
+                                                        </div>
+                                                    ) : (
+                                                        <span
+                                                            className={cn("font-bold cursor-pointer hover:underline flex items-center gap-1.5", isExpired ? "text-rose-400" : "text-muted-foreground/60")}
+                                                            onClick={() => { setEditingPoolId(pool.id); setEditingPoolDate(pool.expires_at || ''); }}
+                                                        >
+                                                            {isExpired ? '已過期' : `到期 ${pool.expires_at}`}
+                                                            <Pencil className="h-2.5 w-2.5 opacity-40 shrink-0" />
+                                                        </span>
+                                                    )}
                                                 </div>
                                             );
                                         })}
@@ -533,57 +560,65 @@ export function MembersClient({ members, memberGroups }: MembersClientProps) {
                                     <p className="text-xs text-muted-foreground/40 italic text-center py-1">無堂卡紀錄</p>
                                 )}
 
-                                <p className="text-[10px] text-muted-foreground/40 font-medium">* 到期日後的課程堂次無法使用該批堂卡報名</p>
+                                <p className="text-[11px] text-muted-foreground/50 font-medium leading-normal bg-muted/5 p-2.5 rounded-xl">* 到期日後的課程堂次無法使用該批堂卡報名</p>
 
                                 {/* Add cards inline form */}
-                                <div className="flex gap-1.5 items-end pt-0.5 border-t border-muted/10">
-                                    <div className="w-16">
-                                        <label className="text-[10px] font-bold text-muted-foreground/40 ml-0.5">數量</label>
-                                        <Input
-                                            type="number"
-                                            placeholder="0"
-                                            value={addCardQty}
-                                            onChange={(e) => setAddCardQty(e.target.value)}
-                                            min={1}
-                                            className="h-8 text-xs font-bold rounded-md px-2"
-                                            inputMode="numeric"
-                                        />
+                                <div className="pt-4 border-t border-muted/20">
+                                    <div className="grid grid-cols-2 sm:flex sm:items-end gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <label className="text-[11px] font-black text-muted-foreground/60 ml-0.5 mb-1.5 block uppercase tracking-wider">數量</label>
+                                            <Input
+                                                type="number"
+                                                placeholder="0"
+                                                value={addCardQty}
+                                                onChange={(e) => setAddCardQty(e.target.value)}
+                                                min={1}
+                                                className="h-11 text-sm font-black rounded-xl border-muted/30 px-3 bg-background"
+                                                inputMode="numeric"
+                                            />
+                                        </div>
+                                        <div className="flex-[1.5] min-w-0">
+                                            <label className="text-[11px] font-black text-muted-foreground/60 ml-0.5 mb-1.5 block uppercase tracking-wider">到期日</label>
+                                            <Input
+                                                type="date"
+                                                value={addCardExpiry}
+                                                onChange={(e) => setAddCardExpiry(e.target.value)}
+                                                className="h-11 text-sm font-black rounded-xl border-muted/30 px-3 bg-background appearance-none"
+                                            />
+                                        </div>
+                                        <Button
+                                            className="h-11 px-6 text-sm font-black rounded-xl shrink-0 col-span-2 sm:col-span-1 shadow-lg shadow-primary/10 transition-all active:scale-95"
+                                            onClick={handleAddCards}
+                                            disabled={!addCardQty || !addCardExpiry}
+                                        >
+                                            新增堂卡
+                                        </Button>
                                     </div>
-                                    <div className="flex-1">
-                                        <label className="text-[10px] font-bold text-muted-foreground/40 ml-0.5">到期日</label>
-                                        <Input
-                                            type="date"
-                                            value={addCardExpiry}
-                                            onChange={(e) => setAddCardExpiry(e.target.value)}
-                                            className="h-8 text-xs font-bold rounded-md px-2"
-                                        />
-                                    </div>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 px-3 text-xs font-black rounded-md shrink-0"
-                                        onClick={handleAddCards}
-                                        disabled={!addCardQty || !addCardExpiry}
-                                    >
-                                        新增
-                                    </Button>
                                 </div>
                             </div>
 
+
                             {/* Makeup Quota */}
-                            <div className="p-3 bg-[#FF6B00]/5 rounded-xl border border-[#FF6B00]/10 space-y-1.5">
-                                <label className="text-[10px] font-black uppercase text-[#FF6B00]/60 tracking-widest">總補課額度</label>
-                                <Input
-                                    type="number"
-                                    value={editMakeupAdj === 0 ? '' : editMakeupAdj}
-                                    onChange={(e) => setEditMakeupAdj(e.target.value === '' ? 0 : parseInt(e.target.value))}
-                                    className="h-9 bg-background border-[#FF6B00]/20 text-[13px] font-black text-[#FF6B00] rounded-lg focus-visible:ring-0 placeholder:text-[#FF6B00]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    placeholder="0"
-                                    inputMode="numeric"
-                                />
-                                <p className="text-[10px] text-[#FF6B00]/40 font-medium leading-relaxed">
-                                    系統 {editMember ? editMember.makeup_quota - editMember.makeup_adj : 0} + 手動 {editMember ? editMakeupAdj - (editMember.makeup_quota - editMember.makeup_adj) : 0}。手動部分不受 1/4 限制。
-                                </p>
+                            <div className="p-4 bg-orange-500/5 rounded-2xl border border-orange-500/10 space-y-3">
+                                <label className="text-[11px] font-black uppercase text-orange-500/60 tracking-widest">總補課額度</label>
+                                <div className="relative">
+                                    <Input
+                                        type="number"
+                                        value={editMakeupAdj === 0 ? '' : editMakeupAdj}
+                                        onChange={(e) => setEditMakeupAdj(e.target.value === '' ? 0 : parseInt(e.target.value))}
+                                        className="h-11 bg-background border-orange-500/20 text-base font-black text-orange-500 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500/30 placeholder:text-orange-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none pl-4"
+                                        placeholder="0"
+                                        inputMode="numeric"
+                                    />
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-orange-500/40">堂</div>
+                                </div>
+                                <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/5">
+                                    <p className="text-[11px] text-orange-600/70 font-bold leading-relaxed">
+                                        系統 <span className="text-orange-600">{editMember ? editMember.makeup_quota - editMember.makeup_adj : 0}</span> + 手動 <span className="text-orange-600">{editMember ? editMakeupAdj - (editMember.makeup_quota - editMember.makeup_adj) : 0}</span>。
+                                        <br />
+                                        手動部分不受每 4 堂送 1 堂之限制。
+                                    </p>
+                                </div>
                             </div>
 
                             {/* Enrollments */}

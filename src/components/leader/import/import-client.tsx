@@ -40,19 +40,19 @@ const templates = {
     members: {
         title: '成員名單',
         filename: 'ezd_members_template.csv',
-        content: '電子郵件 (email),姓名 (name),工號 (employee_id),是否為社員 (is_member)\nexample_member@mediatek.com,王小明,12345,1\nexample_guest@mediatek.com,李小華,67890,0',
+        content: '電子郵件 (email),姓名 (name),工號 (employee_id),是否為社員 (is_member)\nexample_member@mediatek.com,王小明,mtk12345,1\nexample_guest@mediatek.com,李小華,mtk67890,0',
         headers: ['電子郵件 (email)', '姓名 (name)', '工號 (employee_id)', '是否為社員 (is_member)']
     },
     card_orders: {
         title: '堂卡紀錄',
         filename: 'ezd_card_orders_template.csv',
-        content: '工號 (employee_id),堂數 (cards)\n12345,10\n67890,5',
+        content: '工號 (employee_id),堂數 (cards)\nmtk12345,10\nmtk67890,5',
         headers: ['工號 (employee_id)', '堂數 (cards)']
     },
     rosters: {
         title: '學員名單',
         filename: 'ezd_course_roster_template.csv',
-        content: '檔期名稱 (group_title),課程名稱 (course_name),工號 (employee_id)\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,12345\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,67890',
+        content: '檔期名稱 (group_title),課程名稱 (course_name),工號 (employee_id)\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,mtk12345\nHQ 2026 1~2月 風格體驗,HQ 2026 1~2月 風格體驗,mtk67890',
         headers: ['檔期名稱 (group_title)', '課程名稱 (course_name)', '工號 (employee_id)']
     },
     course_groups: {

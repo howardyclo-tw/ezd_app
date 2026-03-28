@@ -34,12 +34,13 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
     // Helper: Lookup user_id by employee_id or email
     const resolveUserId = async (identifier: string) => {
         if (!identifier) return null;
-        
-        // 1. Precise employee_id match
+        const normalizedId = identifier.toLowerCase().trim();
+
+        // 1. Precise employee_id match (lowercase)
         const { data: byEmpId } = await adminClient
             .from('profiles')
             .select('id')
-            .eq('employee_id', identifier)
+            .eq('employee_id', normalizedId)
             .maybeSingle();
         
         if (byEmpId) return byEmpId.id;
@@ -80,20 +81,28 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
     };
 
     if (type === 'members') {
-        // Pre-fetch all existing auth users once (avoid repeated listUsers per row)
+        // Pre-fetch all existing auth users once (case-insensitive email map)
         const { data: existingAuthUsers } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
         const authUsersByEmail = new Map(
-            existingAuthUsers?.users?.map(u => [u.email, u.id]) || []
+            existingAuthUsers?.users?.map(u => [u.email?.toLowerCase(), u.id]) || []
         );
+
+        // Pre-fetch latest member group once (avoid per-user query)
+        const { data: latestGroupData } = await adminClient
+            .from('member_groups')
+            .select('id')
+            .order('valid_until', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        const latestGroupId = latestGroupData?.id || null;
 
         const BATCH_SIZE = 10;
         const processOne = async (item: any) => {
-            const { email, name, employee_id, is_member } = item;
-            if (!email) return;
+            const { email: rawEmail, name, employee_id, is_member } = item;
+            if (!rawEmail) return;
+            const email = rawEmail.toLowerCase().trim();
 
             // 1. Create or get auth user
-            // Note: a DB trigger (handle_new_user) auto-creates a profiles row on auth.users INSERT.
-            // We pass user_metadata.name so the trigger uses it instead of falling back to email.
             const defaultPassword = 'mediatek';
             let userId: string | undefined;
 
@@ -123,29 +132,17 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
 
             if (!userId) throw new Error('無法獲取 User ID');
 
-            // 2. Upsert profile (updates the row the trigger already created, or inserts for existing users)
+            // 2. Upsert profile
             const isActualMember = is_member === '1' || is_member === 1;
-
-            // Get latest member group for assignment
-            let latestGroupId = null;
-            if (isActualMember) {
-                const { data: latestGroup } = await adminClient
-                    .from('member_groups')
-                    .select('id')
-                    .order('valid_until', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-                latestGroupId = latestGroup?.id || null;
-            }
 
             const { error: profileError } = await adminClient
                 .from('profiles')
                 .upsert({
                     id: userId,
                     name: name || email.split('@')[0],
-                    employee_id: employee_id || null,
+                    employee_id: employee_id ? employee_id.toLowerCase().trim() : null,
                     role: isActualMember ? 'member' : 'guest',
-                    member_group_id: latestGroupId,
+                    member_group_id: isActualMember ? latestGroupId : null,
                     updated_at: new Date().toISOString()
                 });
 
@@ -196,7 +193,15 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                 const totalAmount = amount ? parseInt(amount) : unitPrice * cardCount;
 
                 const purchaseTs = purchase_date ? new Date(purchase_date).toISOString() : new Date().toISOString();
-                const expiresAt = `${new Date(purchaseTs).getFullYear()}-12-31`;
+
+                // Use latest member group's valid_until as default expiry
+                const { data: latestGroup } = await adminClient
+                    .from('member_groups')
+                    .select('valid_until')
+                    .order('valid_until', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                const expiresAt = latestGroup?.valid_until || `${new Date(purchaseTs).getFullYear()}-12-31`;
 
                 const { data: order, error: orderError } = await adminClient
                     .from('card_orders')

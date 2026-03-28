@@ -81,12 +81,12 @@ export function RegisterForm() {
             <Input
               id="employeeId"
               type="text"
-              placeholder="例：12345"
+              placeholder="例：mtk12345"
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
               disabled={loading}
             />
-            <p className="text-xs text-muted-foreground">mtk 開頭請寫數字即可，例：mtkxxxxx → xxxxx</p>
+            <p className="text-xs text-muted-foreground">請輸入完整工號（含前綴），例：mtk12345、DS901402</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">電子郵件</Label>
