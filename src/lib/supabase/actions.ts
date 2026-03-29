@@ -1051,7 +1051,7 @@ export async function reviewLeaveRequest(
             .maybeSingle();
 
         if (dependentMakeup) {
-            throw new Error('此堂次的缺席紀錄已被用於補課申請，請先至「補課紀錄」駁回相關補課後再駁回此請假。');
+            return { success: false, message: '此堂次的缺席紀錄已被用於補課申請，請先至「補課紀錄」駁回相關補課後再駁回此請假。' };
         }
     }
 
