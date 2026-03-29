@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     Dialog,
@@ -85,7 +85,10 @@ export function SessionEnrollmentDialog({
     excludeSessionIds = [],
 }: SessionEnrollmentDialogProps) {
     const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+    const [mounted, setMounted] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => { setMounted(true); }, []);
     const [mode, setMode] = useState<'selection' | 'enroll' | 'makeup'>('selection');
     const [selectedTargetSessionIds, setSelectedTargetSessionIds] = useState<Set<string>>(new Set());
     const [selectedOriginalSessionId, setSelectedOriginalSessionId] = useState<string | null>(null);
@@ -168,6 +171,23 @@ export function SessionEnrollmentDialog({
         setSelectedTargetSessionIds(new Set());
         setSelectedOriginalSessionId(null);
     };
+
+    if (!mounted) {
+        return (
+            <Button
+                variant="ghost"
+                className={cn(
+                    "w-full h-11 text-sm font-black rounded-xl border transition-all",
+                    "bg-orange-500/10 border-orange-500/30 text-orange-500",
+                    isFull && "opacity-90"
+                )}
+                disabled
+            >
+                <UserPlus className="h-4 w-4 mr-2" />
+                單堂報名 / 補課
+            </Button>
+        );
+    }
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { reset(); setIsOpen(open); }}>

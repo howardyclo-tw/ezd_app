@@ -1024,7 +1024,7 @@ export async function reviewLeaveRequest(
 
     if (!req) throw new Error('找不到申請記錄');
 
-    // 1. Guard check if approving
+    // 1. Guard checks
     if (decision === 'approved') {
         const { data: current } = await supabase
             .from('attendance_records')
@@ -1036,6 +1036,22 @@ export async function reviewLeaveRequest(
         if (current?.status && !['unmarked', 'present', 'absent', 'leave'].includes(current.status)) {
             const label = ATTENDANCE_LABELS[current.status] || current.status;
             throw new Error(`此堂課已有其他生效中的記錄 (${label})，無法重新核准。請先處理現有記錄。`);
+        }
+    }
+
+    if (decision === 'rejected') {
+        // Block rejection if the absence from this session is being used as a makeup source
+        const { data: dependentMakeup } = await supabase
+            .from('makeup_requests')
+            .select('id')
+            .eq('original_session_id', req.session_id)
+            .eq('user_id', req.user_id)
+            .in('status', ['pending', 'approved'])
+            .limit(1)
+            .maybeSingle();
+
+        if (dependentMakeup) {
+            throw new Error('此堂次的缺席紀錄已被用於補課申請，請先至「補課紀錄」駁回相關補課後再駁回此請假。');
         }
     }
 
@@ -1549,17 +1565,21 @@ export async function reviewMakeupRequest(
             .eq('session_id', req.target_session_id)
             .eq('user_id', req.user_id);
 
-        // Refund 1 makeup_quota on rejection (both quota-only and absence-based)
-        const { data: profile } = await adminClient
-            .from('profiles')
-            .select('makeup_quota')
-            .eq('id', req.user_id)
-            .maybeSingle();
-        if (profile) {
-            await adminClient
+        // Refund makeup_quota only for quota-only (幹部贈予) makeups
+        // Absence-based makeups don't need refund — the rejected status automatically
+        // excludes them from the "used" count, naturally restoring the quota
+        if (!req.original_session_id) {
+            const { data: profile } = await adminClient
                 .from('profiles')
-                .update({ makeup_quota: (profile.makeup_quota ?? 0) + 1 })
-                .eq('id', req.user_id);
+                .select('makeup_quota')
+                .eq('id', req.user_id)
+                .maybeSingle();
+            if (profile) {
+                await adminClient
+                    .from('profiles')
+                    .update({ makeup_quota: (profile.makeup_quota ?? 0) + 1 })
+                    .eq('id', req.user_id);
+            }
         }
     }
 
