@@ -132,8 +132,16 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
             enrolledCount: enrolledCount,
             startDate: firstSession?.session_date ?? '',
             endDate: lastSession?.session_date ?? '',
+            startTime: course.start_time ?? '',
         };
-    }).sort((a, b) => a.startDate.localeCompare(b.startDate) || a.name.localeCompare(b.name));
+    }).sort((a, b) => {
+        // Sort by day-of-week (Mon=1 ... Sun=7), then by start time, then by name
+        const dayA = a.startDate ? (new Date(a.startDate + 'T00:00:00').getDay() || 7) : 8;
+        const dayB = b.startDate ? (new Date(b.startDate + 'T00:00:00').getDay() || 7) : 8;
+        if (dayA !== dayB) return dayA - dayB;
+        if (a.startTime !== b.startTime) return a.startTime.localeCompare(b.startTime);
+        return a.name.localeCompare(b.name);
+    });
 
     // Final Period string calculation: fallback to groupData if courses are missing or don't have dates
     const finalMin = minDate || groupData.period_start;

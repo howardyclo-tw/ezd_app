@@ -558,9 +558,14 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                 name="description"
                                 render={({ field }) => (
                                     <FormItem className="sm:col-span-2">
-                                        <FormLabel>課程描述</FormLabel>
+                                        <FormLabel>課程描述 <span className="text-muted-foreground font-normal text-xs">(可使用 Markdown 語法)</span></FormLabel>
                                         <FormControl>
-                                            <Input placeholder="請輸入課程簡介與目標" className="h-11" {...field} />
+                                            <textarea
+                                                placeholder="請輸入課程簡介與目標"
+                                                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px] resize-y [field-sizing:content]"
+                                                rows={3}
+                                                {...field}
+                                            />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

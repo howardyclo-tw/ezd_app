@@ -5,13 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-    Download, 
-    Upload, 
-    FileText, 
-    CheckCircle2, 
-    AlertCircle, 
-    Loader2, 
+import {
+    Download,
+    Upload,
+    FileText,
+    CheckCircle2,
+    AlertCircle,
+    Loader2,
     ArrowRight,
     Users,
     CreditCard,
@@ -42,28 +42,28 @@ const templates = {
         filename: 'ezd_members_template.csv',
         content: '電子郵件 (email),姓名 (name),工號 (employee_id),是否為社員 (is_member)\nexample_member@mediatek.com,王小明,mtk12345,1\nexample_guest@mediatek.com,李小華,mtk67890,0',
         headers: ['電子郵件 (email)', '姓名 (name)', '工號 (employee_id)', '是否為社員 (is_member)'],
-        hint: '必填：電子郵件、姓名、是否為社員（1=社員, 0=非社員）｜選填：工號（含前綴，如 mtk12345、ds901402）\n\n• 社員自動加入最新年度群組，非社員不加入群組\n• 已存在的 email 會更新姓名與工號（不會重複建帳）\n• 新帳號預設密碼為 mediatek\n• Email 與工號會自動轉為小寫儲存'
+        hint: '必填：\n• 電子郵件\n• 姓名\n• 是否為社員（1=社員, 0=非社員）\n\n選填：\n• 工號（含前綴，如 mtk12345、ds901402）\n\n注意事項：\n• 社員自動加入最新年度群組，非社員不加入群組\n• 已存在的 email 會更新姓名與工號（不會重複建帳）\n• 新帳號預設密碼為 mediatek\n• Email 與工號會自動轉為小寫儲存'
     },
     card_orders: {
         title: '堂卡紀錄',
         filename: 'ezd_card_orders_template.csv',
         content: '工號 (employee_id),堂數 (cards)\nmtk12345,10\nmtk67890,5',
         headers: ['工號 (employee_id)', '堂數 (cards)'],
-        hint: '必填：工號、堂數\n\n• 工號須已存在於系統（需先匯入成員名單）\n• 金額依成員目前的社員/非社員身份自動計算\n• 到期日為系統最新年度群組的到期日\n• 發放後立即生效，無需審核'
+        hint: '⚠️ 重複匯入會重複新增堂卡，請勿重複送出！\n\n必填：\n• 工號\n• 堂數\n\n注意事項：\n• 工號須已存在於系統（需先匯入成員名單）\n• 金額依成員目前的社員/非社員身份自動計算\n• 到期日為系統最新年度群組的到期日\n• 發放後立即生效，無需審核'
     },
     rosters: {
         title: '學員名單',
         filename: 'ezd_course_roster_template.csv',
         content: '姓名 (name),工號 (employee_id),檔期名稱 (group_title),課程名稱 (course_name),報名類型 (enroll_type),堂次日期 (session_dates)\n王小明,,HQ 2026 H1 常態課程,週一舞感養成,整期,\n李小華,mtk12345,HQ 2026 H1 常態課程,週一舞感養成,單堂,2026-04-12;2026-05-03',
         headers: ['姓名 (name)', '工號 (employee_id)', '檔期名稱 (group_title)', '課程名稱 (course_name)', '報名類型 (enroll_type)', '堂次日期 (session_dates)'],
-        hint: '必填：姓名、檔期名稱、課程名稱、報名類型（僅接受「整期」或「單堂」）｜條件必填：單堂須填堂次日期（YYYY-MM-DD，多堂用分號分隔）｜選填：工號（同名成員時必填）\n\n• 成員須已存在於系統，如有尚未加入的非社員，請先用「成員名單」匯入（is_member=0）建立帳號\n• 檔期與課程名稱須與系統完全一致（含空格與符號），不一致會匯入失敗\n• 單堂日期須與課程已建立的堂次日期一致，不一致會匯入失敗\n• 此匯入不扣堂卡（由幹部代為報名）\n• 整期報名會加入該課程所有堂次'
+        hint: '必填：\n• 姓名\n• 檔期名稱\n• 課程名稱\n• 報名類型（僅接受「整期」或「單堂」）\n\n條件必填：\n• 單堂須填堂次日期（YYYY-MM-DD，多堂用分號分隔）\n\n選填：\n• 工號（同名成員時必填）\n\n注意事項：\n• 成員須已存在於系統，如有尚未加入的非社員，請先用「成員名單」匯入（is_member=0）建立帳號\n• 檔期與課程名稱須與系統完全一致（含空格與符號），不一致會匯入失敗\n• 單堂日期須與課程已建立的堂次日期一致，不一致會匯入失敗\n• 此匯入不扣堂卡（由幹部代為報名）\n• 整期報名會加入該課程所有堂次'
     },
     course_groups: {
         title: '課程資訊',
         filename: 'ezd_course_info_template.csv',
-        content: '檔期名稱 (group_title),課程名稱 (name),類型 (type),老師 (teacher),教室 (room),第一堂日期 (first_date),堂數 (sessions_count),開始時間 (start_time),結束時間 (end_time),人數上限 (capacity),堂卡扣除 (cards_per_session),備註 (description)\n2026 HQ 3月 常態試跳,Krump 體驗,trial,小Joy,E棟有氧教室,2026-03-16,1,19:00,20:30,18,0,\nHQ 2026 H1 常態課程,週一舞感養成,normal,小joy,E棟有氧教室,2026-04-12,13,19:00,20:30,18,1,\n2026 暑假專攻,Jazz進階 (特定日期),workshop,Ana,AB韻律教室,"2026-07-01;2026-07-03;2026-07-05",3,14:00,16:00,20,3,特定日期排課範例',
+        content: '檔期名稱 (group_title),課程名稱 (name),類型 (type),老師 (teacher),教室 (room),第一堂日期 (first_date),堂數 (sessions_count),開始時間 (start_time),結束時間 (end_time),人數上限 (capacity),堂卡扣除 (cards_per_session),備註 (description)\n2026 3-8月 常態課程,舞感養成,常態,小Joy,E棟有氧教室,2026-04-13;2026-04-20;2026-04-27;2026-05-04;2026-05-11;2026-05-18;2026-05-25;2026-06-01;2026-06-08;2026-06-22;2026-06-29;2026-07-06;2026-07-13;2026-07-27;2026-08-03,15,19:00,20:30,18,1,• 沒有接觸過街舞者可報名。\\n• 律動訓練，幫助提升身體協調，並會帶一小段排舞。\n2026 3-8月 常態課程,Popping,常態,可明,E棟有氧教室,2026-03-31;2026-04-07;2026-04-14;2026-04-21;2026-05-05;2026-05-12;2026-05-19;2026-05-26;2026-06-09;2026-06-16;2026-06-23;2026-06-30;2026-07-14;2026-07-21;2026-07-28,15,19:15,20:45,18,1,• 沒有接觸過街舞者可報名。\\n• 前10堂入門+後5堂進階，讓同學們把這5堂進階的課程當作一個短期目標，也可以了解Popping到進階的樣子。更歡迎原本就是進階的同學們來報名上課。\n2026 3-8月 常態課程,韓風 MV 女團,常態,小可,AB韻律教室,2026-03-31;2026-04-07;2026-04-14;2026-04-21;2026-04-28;2026-05-05;2026-05-19;2026-06-02;2026-06-09;2026-06-16;2026-06-23;2026-06-30;2026-07-14;2026-07-21;2026-07-28,15,19:10,20:40,25,1,• 沒有接觸過街舞者可報名。\\n• 投票歌單/規則請看 table 下方。\n2026 3-8月 常態課程,Jazz 入門,常態,Ana,AB韻律教室,2026-04-01;2026-04-08;2026-04-15;2026-04-29;2026-05-13;2026-05-20;2026-06-03;2026-06-10;2026-06-17;2026-06-24;2026-07-01;2026-07-15;2026-07-22;2026-07-29;2026-08-05,15,18:30,19:40,25,1,• 沒有接觸過街舞者可報名。\n2026 3-8月 常態課程,Hip-Hop Jazz 進階 x Jazz Funk 進階,常態,Ana / 米其林,AB韻律教室,2026-04-01;2026-04-08;2026-04-15;2026-04-29;2026-05-13;2026-05-20;2026-06-03;2026-06-10;2026-06-17;2026-06-24;2026-07-01;2026-07-15;2026-07-22;2026-07-29;2026-08-05,15,19:50,21:00,25,1,"• 建議有上過2期以上公司熱舞社社課同仁或有街舞課課程經驗者參與。\\n• 課程採取雙師資方式進行會由Ana & 米其林兩位老師接替上課。\\n• 課程同屬於週二晚間Jazz進階課程，無法拆開報名。"\n2026 3-8月 常態課程,Hip-Hop 進階,常態,小安,E棟有氧教室,2026-04-02;2026-04-09;2026-04-16;2026-04-23;2026-05-07;2026-05-14;2026-05-21;2026-05-28;2026-06-11;2026-06-18;2026-06-25;2026-07-02;2026-07-16;2026-07-23;2026-07-30,15,19:15,20:45,18,1,• 建議上過一到兩期熱舞社課程者報名。\n2026 3-8月 常態課程,House 入門,常態,陳顯,E棟韻律教室,2026-04-02;2026-04-09;2026-04-16;2026-04-23;2026-05-07;2026-05-14;2026-05-21;2026-05-28;2026-06-11;2026-06-18,10,19:30,21:00,18,1,• 沒有接觸過街舞者可報名。\n2026 3-8月 常態課程,Hip-Hop 入門,常態,兆駒,AB韻律教室,2026-04-10;2026-05-08;2026-05-15;2026-05-22;2026-05-29;2026-06-05;2026-06-12;2026-06-26;2026-07-03;2026-07-17;2026-07-24;2026-07-31,12,19:15,20:45,25,1,• 沒有接觸過街舞者可報名。\\n• 著重於HipHop基礎動作的練習和培養。',
         headers: ['檔期名稱 (group_title)', '課程名稱 (name)', '類型 (type)', '老師 (teacher)', '教室 (room)', '第一堂日期 (first_date)', '堂數 (sessions_count)', '開始時間 (start_time)', '結束時間 (end_time)', '人數上限 (capacity)', '堂卡扣除 (cards_per_session)', '備註 (description)'],
-        hint: '必填：檔期名稱、課程名稱、類型、老師、教室、第一堂日期、開始/結束時間｜選填：堂數（預設 1）、人數上限（預設 30）、堂卡扣除（預設 1，填 0=免費）、備註\n\n• 類型僅接受：normal（常態）/ trial（試跳）/ style（風格）/ workshop（專攻）\n• 「第一堂日期 (first_date)」亦可填入多個日期（以分號「;」分隔，如：2026-04-13;2026-04-20;2026-05-04），此時「堂數」應為空或與日期數一致。\n• 堂數 > 1 且未填多個日期時，系統從第一堂起每週自動排一堂。\n• 同一檔期下課程名稱不可重複，重複會跳過。'
+        hint: '若資料複雜，實務上建議手動新增課程較快。\n\n必填：\n• 檔期名稱\n• 課程名稱\n• 類型（僅接受：常態 / 試跳 / 風格 / 專攻）\n• 老師\n• 教室\n• 第一堂日期\n• 開始 / 結束時間\n\n選填：\n• 堂數（預設 1）\n• 人數上限（預設 30）\n• 堂卡扣除（預設 1，填 0=免費）\n• 備註（可用 \\\\n 表示換行）\n\n注意事項：\n• 第一堂日期可填入多個日期（以分號「;」分隔），此時堂數應為空或與日期數一致\n• 堂數 > 1 且未填多個日期時，系統從第一堂起每週自動排一堂\n• 同一檔期下課程名稱重複時，會更新該課程資訊與堂次'
     }
 };
 
@@ -73,6 +73,7 @@ export function ImportClient() {
     const [preview, setPreview] = useState<PreviewData | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [cellDetail, setCellDetail] = useState<{ header: string; value: string } | null>(null);
 
     // Initial parse on mount
     useEffect(() => {
@@ -167,7 +168,13 @@ export function ImportClient() {
                 errors.push(`第 ${index + 2} 行欄位數量不正確 (預期 ${headers.length} 欄，實際讀到 ${values.length} 欄)`);
             }
 
-            const VALID_COURSE_TYPES = ['normal', 'trial', 'special', 'style', 'workshop'];
+            const CHINESE_TO_COURSE_TYPE: Record<string, string> = {
+                '常態': 'normal', '一般常態': 'normal',
+                '試跳': 'trial', '試跳課程': 'trial',
+                '風格': 'style', '風格體驗': 'style',
+                '專攻': 'workshop', '專攻班': 'workshop',
+                '特殊常態': 'special',
+            };
 
             headers.forEach((header, i) => {
                 const val = values[i];
@@ -177,8 +184,14 @@ export function ImportClient() {
                     errors.push(`第 ${index + 2} 行資料錯誤: [${header}] 為必填欄位於此匯人類型`);
                 }
 
-                if (currentType === 'course_groups' && header === '類型 (type)' && val && !VALID_COURSE_TYPES.includes(val.trim())) {
-                    errors.push(`第 ${index + 2} 行 [類型] 值 "${val}" 無效，可用值: ${VALID_COURSE_TYPES.join(', ')}`);
+                if (currentType === 'course_groups' && header === '類型 (type)' && val) {
+                    const trimmed = val.trim();
+                    const mapped = CHINESE_TO_COURSE_TYPE[trimmed];
+                    if (mapped) {
+                        obj[header] = mapped;
+                    } else {
+                        errors.push(`第 ${index + 2} 行 [類型] 值 "${val}" 無效，僅接受：常態 / 試跳 / 風格 / 專攻`);
+                    }
                 }
 
                 if (currentType === 'rosters' && header === '報名類型 (enroll_type)' && val && !['整期', '單堂'].includes(val.trim())) {
@@ -188,11 +201,11 @@ export function ImportClient() {
                 // Multi-date Validation: check if date list count matches sessions_count (if both provided)
                 if (currentType === 'course_groups' && header === '第一堂日期 (first_date)' && val && val.includes(';')) {
                     const dateCount = val.split(';').filter((v: string) => v.trim()).length;
-                    
+
                     // In course_groups template, we use exact header keys
                     const sessionsCountHeader = '堂數 (sessions_count)';
                     const sessionsCountIdx = headers.indexOf(sessionsCountHeader);
-                    
+
                     if (sessionsCountIdx !== -1) {
                         const sessionsCountStr = values[sessionsCountIdx];
                         if (sessionsCountStr && sessionsCountStr.trim()) {
@@ -221,11 +234,11 @@ export function ImportClient() {
             setPreview(null);
             return;
         }
-        
+
         setIsParsing(true);
         const parsed = parseCSV(text, importType);
         setPreview(parsed);
-        
+
         // Brief timeout to simulate the 'thinking' pulse
         setTimeout(() => setIsParsing(false), 200);
     };
@@ -242,7 +255,7 @@ export function ImportClient() {
         setIsSubmitting(true);
         try {
             const result = await importDataAction(importType, preview.rows);
-            
+
             if (result.success > 0) {
                 toast.success(`匯入完成！成功：${result.success} 筆${result.failed > 0 ? `，失敗：${result.failed} 筆` : ''}`);
             }
@@ -316,31 +329,31 @@ export function ImportClient() {
                     <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl group/editor relative h-[380px]">
                         {/* Status bar top glow - SYNCED */}
                         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-                        
+
                         <CardHeader className="py-5 px-6 flex flex-row items-center justify-between bg-transparent relative z-10">
                             <div className="flex items-center gap-3">
                                 <div className="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.6)]" />
                                 <span className="text-[13px] font-bold uppercase tracking-widest text-white/50">資料編輯窗口</span>
                             </div>
-                            <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={handleReset} 
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={handleReset}
                                 className="h-8 w-8 rounded-lg text-white/20 hover:text-rose-400 hover:bg-rose-400/10 transition-all"
                             >
                                 <Trash2 className="h-4 w-4" />
                             </Button>
                         </CardHeader>
                         <div className="flex-1 p-0 relative flex overflow-hidden">
-                            <div 
+                            <div
                                 ref={lineNumbersRef}
                                 className="w-12 bg-black/5 flex flex-col items-center py-7 overflow-hidden select-none"
                             >
                                 {Array.from({ length: Math.max(lineCount, 15) }).map((_, i) => {
                                     const n = i + 1;
                                     return (
-                                        <span 
-                                            key={i} 
+                                        <span
+                                            key={i}
                                             className={`text-[11px] font-mono font-bold leading-8 h-8 transition-colors ${n <= lineCount ? 'text-white/20' : 'text-white/5'}`}
                                         >
                                             {n < 10 ? `0${n}` : n}
@@ -348,7 +361,7 @@ export function ImportClient() {
                                     );
                                 })}
                             </div>
-                            <textarea 
+                            <textarea
                                 ref={textareaRef}
                                 onScroll={handleScroll}
                                 value={rawText}
@@ -365,7 +378,7 @@ export function ImportClient() {
                     <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl relative min-h-[600px]">
                         {/* Status bar top glow - SYNCED */}
                         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-                        
+
                         <CardHeader className="py-5 px-6 bg-transparent relative z-10">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
@@ -374,19 +387,18 @@ export function ImportClient() {
                                         <span className="text-[11px] font-bold uppercase tracking-wider text-primary">解析預覽結果</span>
                                     </div>
                                     <CardDescription className="text-[12px] font-semibold text-white/30 italic">
-                                        共有 {preview?.rows.length || 0} 筆資料待處理
+                                        共有 <span className="text-white font-bold">{preview?.rows.length || 0}</span> 筆資料待處理 · 點擊欄位可查看完整內容
                                     </CardDescription>
                                 </div>
                                 {preview && (
-                                    <Badge 
-                                        variant="outline" 
-                                        className={`font-black text-[11px] tracking-tight px-3 py-1 border-none shadow-sm transition-all duration-300 ${
-                                            isParsing 
-                                                ? 'text-white/40 bg-white/5 animate-pulse' 
-                                                : preview.isValid 
-                                                    ? 'text-emerald-400 bg-emerald-400/10 scale-100' 
+                                    <Badge
+                                        variant="outline"
+                                        className={`font-black text-[11px] tracking-tight px-3 py-1 border-none shadow-sm transition-all duration-300 ${isParsing
+                                                ? 'text-white/40 bg-white/5 animate-pulse'
+                                                : preview.isValid
+                                                    ? 'text-emerald-400 bg-emerald-400/10 scale-100'
                                                     : 'text-rose-400 bg-rose-400/10 scale-100'
-                                        }`}
+                                            }`}
                                     >
                                         {isParsing ? '正在驗證...' : preview.isValid ? '驗證通過' : '格式錯誤'}
                                     </Badge>
@@ -439,11 +451,20 @@ export function ImportClient() {
                                                         {(i + 1).toString().padStart(2, '0')}
                                                     </td>
                                                     {preview.headers.map(h => {
-                                                        const val = row[h] || '---';
-                                                        const isLong = val.length > 30;
+                                                        const COURSE_TYPE_DISPLAY: Record<string, string> = { normal: '常態', trial: '試跳', style: '風格', workshop: '專攻', special: '特殊常態' };
+                                                        const rawVal = row[h] || '---';
+                                                        const val = h === '類型 (type)' && COURSE_TYPE_DISPLAY[rawVal] ? COURSE_TYPE_DISPLAY[rawVal] : rawVal;
+                                                        const isOverflow = val.length > 20;
                                                         return (
-                                                            <td key={h} className={`px-6 py-5 text-[14px] font-semibold text-white/70 tracking-tight group-hover/row:text-white transition-colors border-l border-white/[0.01] ${isLong ? 'max-w-[200px] truncate' : 'whitespace-nowrap'}`} title={isLong ? val : undefined}>
-                                                                {val}
+                                                            <td
+                                                                key={h}
+                                                                className={cn(
+                                                                    "px-6 py-5 text-[14px] font-semibold text-white/70 tracking-tight group-hover/row:text-white transition-colors border-l border-white/[0.01] whitespace-nowrap max-w-[200px]",
+                                                                    isOverflow && "cursor-pointer hover:text-blue-400"
+                                                                )}
+                                                                onClick={() => isOverflow && setCellDetail({ header: h, value: val })}
+                                                            >
+                                                                <span className="block truncate">{val}</span>
                                                             </td>
                                                         );
                                                     })}
@@ -460,7 +481,7 @@ export function ImportClient() {
                                 <span className="text-[12px] font-bold text-white/50 uppercase tracking-[0.1em] hidden sm:block">
                                     {importType === 'members' ? '' : '資料已備妥，請確認預覽結果'}
                                 </span>
-                                <Button 
+                                <Button
                                     className="rounded-2xl px-12 h-12 font-black bg-white text-black hover:bg-white/90 shadow-[0_10px_40px_-10px_rgba(255,255,255,0.3)] transition-all active:scale-95 group text-sm"
                                     onClick={handleImportSubmit}
                                     disabled={isSubmitting}
@@ -482,6 +503,16 @@ export function ImportClient() {
                     </Card>
                 </div>
             </Tabs>
+            {/* Cell detail modal */}
+            {cellDetail && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setCellDetail(null)}>
+                    <div className="bg-[#1A1A1C] border border-white/10 rounded-2xl p-6 max-w-md w-[90vw] shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-white/40 mb-2">{cellDetail.header}</p>
+                        <p className="text-sm font-medium text-white/80 leading-relaxed whitespace-pre-wrap break-all">{cellDetail.value.replace(/\\n/g, '\n')}</p>
+                        <Button variant="ghost" onClick={() => setCellDetail(null)} className="mt-4 w-full font-bold text-white/50 hover:text-white">關閉</Button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
