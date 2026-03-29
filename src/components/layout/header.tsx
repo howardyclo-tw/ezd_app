@@ -31,6 +31,7 @@ export async function Header() {
           {/* Desktop Navigation - Server-side user check, client-side active state */}
           {user && <NavLinks />}
         </div>
+
       </div>
     </header>
   );

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Calendar, Crown, User as UserIcon } from 'lucide-react';
+import { LayoutDashboard, Calendar, Crown, User as UserIcon, BookOpen } from 'lucide-react';
 
 interface NavItem {
     href: string;
@@ -14,6 +14,7 @@ interface NavItem {
 const navItems: NavItem[] = [
     { href: '/dashboard', label: '個人中心' },
     { href: '/courses', label: '課程檔期', icon: Calendar },
+    { href: '/guide', label: '使用說明', icon: BookOpen },
 ];
 
 import { useUserRole } from '@/components/providers/role-provider';

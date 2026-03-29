@@ -352,6 +352,17 @@ export async function getPendingCardOrders() {
 // System Config
 // ------------------------------------------------------------------
 
+export async function getSystemConfigValue(key: string): Promise<string | null> {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('system_config')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
+    if (error) throw new Error(`getSystemConfigValue(${key}): ${error.message}`);
+    return data?.value ?? null;
+}
+
 export async function getSystemConfig(): Promise<Record<string, string>> {
     const supabase = await createClient();
     const { data, error } = await supabase

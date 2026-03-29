@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Calendar, Crown, User as UserIcon, LayoutDashboard } from 'lucide-react';
+import { Calendar, Crown, User as UserIcon, LayoutDashboard, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserRole } from '@/components/providers/role-provider';
 
 const navItems = [
   { href: '/dashboard', label: '個人中心' },
   { href: '/courses', label: '課程檔期', icon: Calendar },
+  { href: '/guide', label: '使用說明', icon: BookOpen },
 ];
 
 export function MobileNav() {

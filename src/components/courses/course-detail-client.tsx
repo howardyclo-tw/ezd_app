@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -674,7 +675,7 @@ export function CourseDetailClient({
                             課程描述
                         </h3>
                         <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:mt-3 prose-headings:mb-1 text-muted-foreground">
-                            <ReactMarkdown>{course.description}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{course.description}</ReactMarkdown>
                         </div>
                     </div>
                 )}
