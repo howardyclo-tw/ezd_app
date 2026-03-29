@@ -126,13 +126,14 @@ interface CourseDetailClientProps {
     };
     cardBalance: number;
     missedSessions: any[];
-    makeupQuota?: { total: number, used: number, remaining: number };
+    makeupQuota?: { total: number, used: number, remaining: number, manualQuota?: number };
     courseQuota?: { total: number, used: number, remaining: number };
     canManageAttendance: boolean;
     currentUserRole: string;
     transferMetadata?: Record<string, Record<string, { type: 'transfer_out' | 'transfer_in'; fromName: string; toName: string }>>;
     makeupSessionMap?: Record<string, string[]>;
     sessionOccupancy?: Record<string, number>;
+    userOccupiedSessionIds?: string[];
 }
 
 // Status display map — derived from shared constants with icon overrides for attendance grid
@@ -161,6 +162,7 @@ export function CourseDetailClient({
     transferMetadata = {},
     makeupSessionMap = {},
     sessionOccupancy = {},
+    userOccupiedSessionIds = [],
 }: CourseDetailClientProps) {
     const router = useRouter();
     const isAdminOrLeader = currentUserRole === 'admin' || currentUserRole === 'leader';
@@ -658,7 +660,7 @@ export function CourseDetailClient({
                                     courseType={course.type}
                                     cardsPerSession={course.cardsPerSession}
                                     sessionOccupancy={sessionOccupancy}
-                                    excludeSessionIds={userEnrollment.enrollmentStatus.enrolledSessionIds}
+                                    excludeSessionIds={[...(userEnrollment.enrollmentStatus.enrolledSessionIds ?? []), ...userOccupiedSessionIds]}
                                 />
                         )}
                     </div>

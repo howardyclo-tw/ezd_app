@@ -79,7 +79,6 @@ export interface Course {
   end_time: string;   // "HH:MM"
   capacity: number;
   cards_per_session: number;
-  status: 'draft' | 'published' | 'closed';
   enrollment_start_at: string | null;
   enrollment_end_at: string | null;
   wiki_url: string | null;

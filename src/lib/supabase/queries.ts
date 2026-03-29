@@ -278,11 +278,13 @@ export async function getUserPendingRequests(userId: string) {
 /** Compute used makeup quota for a user in a course (current + next period) */
 export async function getUserMakeupQuotaUsed(userId: string, courseId: string) {
     const supabase = await createClient();
+    // Exclude quota-only (幹部贈予) — those don't consume per-course 1/4 cap
     const { data, error } = await supabase
         .from('makeup_requests')
         .select('quota_used')
         .eq('user_id', userId)
         .eq('original_course_id', courseId)
+        .not('original_session_id', 'is', null)
         .eq('status', 'approved');
 
     if (error) throw new Error(`getUserMakeupQuotaUsed: ${error.message}`);
@@ -459,11 +461,11 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
 
     if (validAttendance.length === 0) return { sessions: [], manualQuota };
 
-    // Construct lookup maps locally in memory from the initial Promise.all results
+    // Only count absence-based makeups toward per-course 1/4 cap (exclude quota-only where original_session_id is null)
     const usedMakeupByCourse: Record<string, number> = {};
-    (requested ?? []).forEach((mr: any) => { 
-        if (mr.original_course_id) {
-            usedMakeupByCourse[mr.original_course_id] = (usedMakeupByCourse[mr.original_course_id] ?? 0) + Number(mr.quota_used); 
+    (requested ?? []).forEach((mr: any) => {
+        if (mr.original_course_id && mr.original_session_id) {
+            usedMakeupByCourse[mr.original_course_id] = (usedMakeupByCourse[mr.original_course_id] ?? 0) + Number(mr.quota_used);
         }
     });
 
@@ -508,7 +510,7 @@ export async function getAvailableMakeupQuotaSessions(userId: string) {
  * Returns: sum of (computeMakeupQuota(sessionsCount) - usedMakeup - usedTransfer)
  * capped at 0 from below.
  */
-export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: string): Promise<{ total: number, used: number, remaining: number }> {
+export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: string): Promise<{ total: number, used: number, remaining: number, manualQuota: number }> {
     const supabase = await createClient();
 
     const [
@@ -563,12 +565,15 @@ export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: s
 
     const manualAdj = profile?.makeup_quota || 0;
 
-    if (!enrollments || enrollments.length === 0) return { total: manualAdj, used: 0, remaining: manualAdj };
+    if (!enrollments || enrollments.length === 0) return { total: manualAdj, used: 0, remaining: manualAdj, manualQuota: manualAdj };
 
     const courseIds = new Set(enrollments.map((e: any) => e.course_id));
 
+    // Only count absence-based makeups toward per-course 1/4 cap (exclude quota-only where original_session_id is null)
+    const absenceBasedMakeups = (makeupRequests ?? []).filter((mr: any) => mr.original_session_id);
+
     const usedMakeupByCourse: Record<string, number> = {};
-    (makeupRequests ?? []).forEach((mr: any) => {
+    absenceBasedMakeups.forEach((mr: any) => {
         if (courseIds.has(mr.original_course_id)) {
             usedMakeupByCourse[mr.original_course_id] = (usedMakeupByCourse[mr.original_course_id] ?? 0) + Number(mr.quota_used);
         }
@@ -583,7 +588,7 @@ export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: s
 
     // Build set of already-consumed absence session IDs
     const usedAbsenceIds = new Set(
-        (makeupRequests ?? []).map((mr: any) => mr.original_session_id).filter(Boolean)
+        absenceBasedMakeups.map((mr: any) => mr.original_session_id)
     );
 
     // Count unused absences per course
@@ -624,7 +629,8 @@ export async function getMakeupRemainingQuotaForGroup(userId: string, groupId: s
     return {
         total: totalAvailable + totalUsedSum,
         used: totalUsedSum,
-        remaining: totalAvailable
+        remaining: totalAvailable,
+        manualQuota: manualAdj,
     };
 }
 

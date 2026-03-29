@@ -37,6 +37,7 @@ interface CardOrder {
     expires_at: string | null;
     created_at: string;
     confirmed_at: string | null;
+    used: number;
 }
 
 interface CardPoolInfo {
@@ -241,42 +242,49 @@ export function MyCardsClient({
                                 </div>
                             ) : (
                                 <div className="space-y-6">
-                                    <Card className="bg-card border border-muted/60 shadow-sm rounded-3xl p-6 sm:p-8 space-y-6 sm:space-y-8 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-6 sm:p-8 opacity-5">
-                                            <CreditCard className="h-24 w-24 sm:h-32 sm:w-32 -rotate-12 translate-x-4 translate-y-4 sm:translate-x-8 sm:translate-y-8 text-foreground" />
+                                    <Card className="bg-gradient-to-br from-card to-background border border-muted/40 shadow-2xl rounded-[2.5rem] p-8 sm:p-10 space-y-6 relative overflow-hidden group/card hover:border-orange-500/20 transition-colors duration-500 min-h-[220px] flex flex-col justify-center">
+                                        {/* Premium background hint */}
+                                        <div className="absolute -top-24 -left-24 w-64 h-64 bg-orange-500/5 blur-[100px] pointer-events-none" />
+                                        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-orange-500/[0.01] to-transparent pointer-events-none" />
+                                        
+                                        {/* Large artful icon with dynamic hover */}
+                                        <div className="absolute top-1/2 -right-16 -translate-y-[55%] opacity-[0.03] pointer-events-none group-hover/card:opacity-[0.06] transition-all duration-700">
+                                            <CreditCard className="h-80 w-80 sm:h-[28rem] sm:w-[28rem] -rotate-[15deg] text-foreground" />
                                         </div>
+                                        
                                         <div className="space-y-1 relative">
-                                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Total Running Balance</p>
-                                            <h2 className="text-xl sm:text-2xl font-black">目前的總剩餘堂數</h2>
+                                            <h2 className="text-xl sm:text-2xl font-black tracking-tight opacity-90">目前的總剩餘堂數</h2>
                                         </div>
-                                        <div className="flex items-end justify-between relative">
-                                            <p className="text-6xl sm:text-7xl font-black tracking-tighter">
-                                                {balance} <span className="text-lg sm:text-xl opacity-40 font-bold ml-1">堂卡</span>
+                                        
+                                        <div className="flex items-baseline gap-3 relative">
+                                            <p className="text-7xl sm:text-8xl font-black tracking-tighter bg-gradient-to-b from-foreground to-foreground/80 bg-clip-text">
+                                                {balance}
                                             </p>
+                                            <span className="text-xl sm:text-2xl opacity-20 font-bold tracking-widest">堂卡</span>
                                         </div>
-                                        {/* Card pools breakdown by expiry */}
+                                        
                                         {cardPools.length > 0 && (
-                                            <div className="space-y-2 mt-2">
-                                                <div className="flex flex-wrap gap-2">
-                                                    {cardPools.map((pool, i) => {
-                                                        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
-                                                        const isExpired = pool.expires_at && pool.expires_at < today;
+                                            <div className="pt-6 border-t border-muted/10 space-y-2 relative">
+                                                {(() => {
+                                                    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+                                                    const availableBalance = cardPools
+                                                        .filter(pool => !pool.expires_at || pool.expires_at >= today)
+                                                        .reduce((sum, pool) => sum + pool.remaining, 0);
+                                                    const expiredCount = balance - availableBalance;
+                                                    
+                                                    if (expiredCount > 0) {
                                                         return (
-                                                            <div key={i} className={cn(
-                                                                "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border",
-                                                                isExpired
-                                                                    ? "bg-red-500/5 border-red-500/20 text-red-400 line-through"
-                                                                    : "bg-muted/30 border-muted/40 text-muted-foreground"
-                                                            )}>
-                                                                <span className="font-black">{pool.remaining}</span>
-                                                                <span className="opacity-60">張</span>
-                                                                <span className="opacity-40">|</span>
-                                                                <span>{isExpired ? '已過期' : `${pool.expires_at} 到期`}</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />
+                                                                <p className="text-[11px] text-orange-600/90 font-black tracking-wide">
+                                                                    扣除已過期後可用於報名：{availableBalance} 堂 ({expiredCount} 堂已過期)
+                                                                </p>
                                                             </div>
                                                         );
-                                                    })}
-                                                </div>
-                                                <p className="text-[10px] text-muted-foreground/40 font-medium leading-relaxed">
+                                                    }
+                                                    return null;
+                                                })()}
+                                                <p className="text-[11px] text-foreground/20 font-bold leading-relaxed max-w-[90%] tracking-tight">
                                                     * 到期日後的課程堂次無法使用該批堂卡報名
                                                 </p>
                                             </div>
@@ -287,11 +295,33 @@ export function MyCardsClient({
                                         <Card key={order.id} className="border-muted/60 bg-muted/5 shadow-sm overflow-hidden relative group hover:border-orange-600/30 transition-all rounded-xl p-5 sm:p-6 flex flex-row items-center justify-between gap-4">
                                             <div className="space-y-1 min-w-0 flex-1">
                                                 <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600/60 truncate">Purchase ID: {order.id.slice(0, 8)}</p>
-                                                <h3 className="text-sm sm:text-base font-bold truncate">已開通: {order.quantity} 堂課卡</h3>
-                                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium tracking-wider truncate">
-                                                    購於 {order.confirmed_at?.slice(0, 10) || order.created_at.slice(0, 10)}
-                                                    {order.expires_at && <span className="ml-2 opacity-60">| 到期 {order.expires_at}</span>}
+                                                <h3 className="text-sm sm:text-base font-bold">
+                                                    已開通: {order.quantity} 堂課卡
+                                                </h3>
+                                                <p className="text-[11px] sm:text-xs text-muted-foreground font-medium">
+                                                    已使用 {order.used} 堂 | 剩餘 {order.quantity - order.used} 堂
                                                 </p>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-[10px] sm:text-[11px] text-muted-foreground font-medium tracking-wider">
+                                                    <span className="whitespace-nowrap">購於 {order.confirmed_at?.slice(0, 10) || order.created_at.slice(0, 10)}</span>
+                                                    {(() => {
+                                                        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+                                                        const isExpired = order.expires_at && order.expires_at < today;
+                                                        
+                                                        if (!order.expires_at) return null;
+                                                        
+                                                        return (
+                                                            <>
+                                                                <span className="hidden sm:inline opacity-30">|</span>
+                                                                <span className={cn(
+                                                                    "whitespace-nowrap",
+                                                                    isExpired ? "text-red-500/90 font-black" : "opacity-60"
+                                                                )}>
+                                                                    {isExpired ? '已過期' : '到期'} {order.expires_at}
+                                                                </span>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </div>
                                             <div className="text-right shrink-0">
                                                 <Badge variant="outline" className="border-green-500/30 text-green-600 bg-green-500/5 font-bold mb-1 border-none px-1.5 h-5 text-[10px] uppercase tracking-widest">
