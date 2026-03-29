@@ -1043,7 +1043,7 @@ export async function reviewLeaveRequest(
         // Block rejection if the absence from this session is being used as a makeup source
         const { data: dependentMakeup } = await supabase
             .from('makeup_requests')
-            .select('id')
+            .select('id, target_course_id, target_session_id, target_sessions:target_session_id(session_date, session_number), target_courses:target_course_id(name)')
             .eq('original_session_id', req.session_id)
             .eq('user_id', req.user_id)
             .in('status', ['pending', 'approved'])
@@ -1051,7 +1051,10 @@ export async function reviewLeaveRequest(
             .maybeSingle();
 
         if (dependentMakeup) {
-            return { success: false, message: '此堂次的缺席紀錄已被用於補課申請，請先至「補課紀錄」駁回相關補課後再駁回此請假。' };
+            const targetCourse = (dependentMakeup.target_courses as any)?.name ?? '未知課程';
+            const targetSession = dependentMakeup.target_sessions as any;
+            const targetInfo = targetSession ? `${targetCourse} 第 ${targetSession.session_number} 堂 (${targetSession.session_date})` : targetCourse;
+            return { success: false, message: `此堂次的缺席紀錄已被用於補課至「${targetInfo}」，請先至「補課紀錄」駁回該筆補課後再駁回此請假。` };
         }
     }
 
