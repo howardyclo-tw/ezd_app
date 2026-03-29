@@ -118,7 +118,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
         },
         makeups: {
             title: '補課審核說明',
-            hint: '系統自動核准，通常不需手動操作\n駁回：清除目標堂次出席紀錄，歸還 1 點補課額度\n若駁回後重新審核：恢復出席紀錄，幹部贈予的補課會再扣 1 點額度',
+            hint: '系統自動核准，通常不需手動操作\n駁回：清除目標堂次出席紀錄（幹部贈予的補課會歸還 1 點額度，缺席來源的補課不歸還）\n若駁回後重新審核：恢復出席紀錄，幹部贈予的補課會再扣 1 點額度',
         },
         transfers: {
             title: '轉讓審核說明',
