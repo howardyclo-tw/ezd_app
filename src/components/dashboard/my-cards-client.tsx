@@ -232,13 +232,6 @@ export function MyCardsClient({
                                 <div className="text-center py-24 bg-muted/10 rounded-3xl border border-dashed border-muted">
                                     <CreditCard className="h-10 w-10 mx-auto mb-4 opacity-10" />
                                     <p className="text-muted-foreground font-bold">目前沒有可用的堂卡</p>
-                                    <Button
-                                        variant="outline"
-                                        className="mt-4 font-bold text-orange-600 border-orange-500/30"
-                                        onClick={() => setIsPurchaseDialogOpen(true)}
-                                    >
-                                        購買堂卡
-                                    </Button>
                                 </div>
                             ) : (
                                 <div className="space-y-6">
