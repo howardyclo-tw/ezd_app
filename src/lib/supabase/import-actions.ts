@@ -334,11 +334,11 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
         (existingGroups ?? []).forEach(g => groupCache.set(g.title, g.id));
 
         // Pre-fetch existing courses: "groupId::courseName" -> course id
-        const existingCourseSet = new Set<string>();
+        const existingCourseMap = new Map<string, string>(); // key -> course id
         const { data: existingCourses } = await adminClient
             .from('courses')
             .select('id, group_id, name');
-        (existingCourses ?? []).forEach(c => existingCourseSet.add(`${c.group_id}::${c.name}`));
+        (existingCourses ?? []).forEach(c => existingCourseMap.set(`${c.group_id}::${c.name}`, c.id));
 
         for (const item of normalizedData) {
             try {
@@ -361,54 +361,66 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                     groupCache.set(group_title, groupId);
                 }
 
-                // 2. Duplicate check: skip if course with same name already exists in this group
+                const coursePayload = {
+                    group_id: groupId,
+                    name,
+                    description: description ? description.replace(/\\n/g, '\n') : null,
+                    type: courseType || 'normal',
+                    teacher,
+                    room,
+                    start_time,
+                    end_time,
+                    capacity: parseInt(capacity) || 30,
+                    cards_per_session: cards_per_session !== undefined && cards_per_session !== '' ? parseInt(cards_per_session) : 1,
+                };
+
+                // 2. Check if course already exists → update; otherwise → insert
                 const courseKey = `${groupId}::${name}`;
-                if (existingCourseSet.has(courseKey)) {
-                    throw new Error(`課程「${name}」在檔期「${group_title}」下已存在，跳過重複匯入`);
+                let courseId: string;
+                const existingId = existingCourseMap.get(courseKey);
+
+                if (existingId) {
+                    // Update existing course
+                    const { error: updateError } = await adminClient
+                        .from('courses')
+                        .update(coursePayload)
+                        .eq('id', existingId);
+                    if (updateError) throw updateError;
+                    courseId = existingId;
+
+                    // Delete old sessions (will be re-created below)
+                    await adminClient.from('course_sessions').delete().eq('course_id', courseId);
+                } else {
+                    // Create new course
+                    const { data: newCourse, error: courseError } = await adminClient
+                        .from('courses')
+                        .insert(coursePayload)
+                        .select()
+                        .single();
+                    if (courseError) throw courseError;
+                    courseId = newCourse.id;
+                    existingCourseMap.set(courseKey, courseId);
                 }
 
-                // 3. Create course
-                const { data: newCourse, error: courseError } = await adminClient
-                    .from('courses')
-                    .insert({
-                        group_id: groupId,
-                        name,
-                        description: description || null,
-                        type: courseType || 'normal',
-                        teacher,
-                        room,
-                        start_time,
-                        end_time,
-                        capacity: parseInt(capacity) || 30,
-                        cards_per_session: cards_per_session !== undefined && cards_per_session !== '' ? parseInt(cards_per_session) : 1,
-                    })
-                    .select()
-                    .single();
-                if (courseError) throw courseError;
-                existingCourseSet.add(courseKey);
-
                 // 3. Create session(s)
-                // Priority: first_date + sessions_count (auto-generate weekly) > session_date (manual semicolon-separated)
                 const startDate = first_date || session_date;
                 const numSessions = parseInt(sessions_count) || 1;
                 let sessions: { course_id: string; session_date: string; session_number: number }[] = [];
 
                 if (startDate && startDate.includes(';')) {
-                    // Manual: semicolon-separated dates
                     const dates = startDate.split(';').map((d: string) => d.trim()).filter(Boolean);
                     sessions = dates.map((d: string, idx: number) => ({
-                        course_id: newCourse.id,
+                        course_id: courseId,
                         session_date: d,
                         session_number: idx + 1,
                     }));
                 } else if (startDate) {
-                    // Auto-generate: first_date + sessions_count (weekly intervals)
                     const base = new Date(startDate + 'T00:00:00');
                     for (let i = 0; i < numSessions; i++) {
                         const d = new Date(base);
                         d.setDate(d.getDate() + i * 7);
                         sessions.push({
-                            course_id: newCourse.id,
+                            course_id: courseId,
                             session_date: d.toISOString().split('T')[0],
                             session_number: i + 1,
                         });
