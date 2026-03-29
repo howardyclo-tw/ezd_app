@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
-import { Check, Calendar, Loader2, Star, ClipboardList, X, CreditCard, User, Clock } from "lucide-react";
+import { Check, Calendar, Loader2, Star, ClipboardList, X, CreditCard, User, Clock, Info, Ban } from "lucide-react";
 import { confirmCardOrder as _confirmCardOrder, rejectCardOrder as _rejectCardOrder, reviewLeaveRequest as _reviewLeaveRequest, reviewMakeupRequest as _reviewMakeupRequest, reviewTransferRequest as _reviewTransferRequest } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 const confirmCardOrder = safe(_confirmCardOrder);
@@ -105,6 +105,27 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
         });
     };
 
+    const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+
+    const tabHints: Record<string, { title: string; hint: string }> = {
+        card_orders: {
+            title: '堂卡審核說明',
+            hint: '核准：核發堂卡並更新餘額\n駁回：取消訂單，已核發的堂卡會扣回餘額（不影響已報名的課程紀錄）\n駁回後可重新核准，堂卡會重新核發',
+        },
+        leaves: {
+            title: '請假審核說明',
+            hint: '系統自動核准，通常不需手動操作\n駁回：撤銷請假，學員在點名單上恢復為原本的出席身份（補課學員的請假被駁回不歸還補課額度）\n駁回後可重新核准',
+        },
+        makeups: {
+            title: '補課審核說明',
+            hint: '系統自動核准，通常不需手動操作\n駁回：清除目標堂次出席紀錄，歸還 1 點補課額度\n若駁回後重新審核：恢復出席紀錄，幹部贈予的補課會再扣 1 點額度',
+        },
+        transfers: {
+            title: '轉讓審核說明',
+            hint: '系統自動核准，通常不需手動操作\n駁回：清除轉出/轉入出席紀錄，雙方恢復原狀\n駁回後可重新核准',
+        },
+    };
+
     const emptyMessages: Record<string, { title: string; desc: string }> = {
         card_orders: { title: '沒有待對帳的堂卡訂單', desc: '太棒了！所有的訂單都已處理完畢。' },
         leaves: { title: '尚無近期請假紀錄', desc: '最近 30 天內沒有請假紀錄。' },
@@ -134,6 +155,19 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                 </Tabs>
             </div>
 
+            {/* Tab Hint */}
+            <div className="bg-blue-500/10 border border-blue-500/20 backdrop-blur-md rounded-2xl p-4 flex items-start gap-4 shadow-xl">
+                <div className="h-10 w-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0 border border-blue-500/30">
+                    <Info className="h-5 w-5 text-blue-400" />
+                </div>
+                <div className="flex-1">
+                    <p className="text-sm font-black text-blue-100 uppercase tracking-widest mb-1.5 opacity-80">{tabHints[tab].title}</p>
+                    <div className="text-sm font-bold text-white/70 leading-relaxed whitespace-pre-line">
+                        {tabHints[tab].hint}
+                    </div>
+                </div>
+            </div>
+
             {/* Content */}
             {currentList.length === 0 ? (
                 <Card className="border-dashed border-muted/50 bg-muted/5 mt-6">
@@ -155,6 +189,11 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                 <div className="space-y-4 mt-6">
                     {currentList.map((req) => {
                         const isCardOrder = tab === 'card_orders';
+                        // Determine session date for expiry check
+                        const sessionDate = tab === 'makeups'
+                            ? req.target_sessions?.session_date
+                            : req.course_sessions?.session_date;
+                        const isPast = !isCardOrder && sessionDate && sessionDate < todayStr;
 
                         return (
                             <Card key={req.id} className="relative overflow-hidden border-muted/50 bg-card/40 backdrop-blur-md shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
@@ -322,7 +361,16 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                                         )}
 
                                         {/* Other requests specific actions */}
-                                        {!isCardOrder && req.status !== 'rejected' && (
+                                        {!isCardOrder && isPast && (
+                                            <button
+                                                disabled
+                                                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-bold transition-all bg-muted/50 text-muted-foreground shadow-sm border border-transparent cursor-not-allowed min-w-[76px]"
+                                            >
+                                                <Ban className="h-4 w-4" />
+                                                已過期無法操作
+                                            </button>
+                                        )}
+                                        {!isCardOrder && !isPast && req.status !== 'rejected' && (
                                             <button
                                                 disabled={isPending}
                                                 onClick={() => handleToggleStatus(req.id, tab as any, req.status)}
@@ -332,7 +380,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                                                 駁回
                                             </button>
                                         )}
-                                        {!isCardOrder && req.status === 'rejected' && (
+                                        {!isCardOrder && !isPast && req.status === 'rejected' && (
                                             <button
                                                 disabled={isPending}
                                                 onClick={() => handleToggleStatus(req.id, tab as any, req.status)}

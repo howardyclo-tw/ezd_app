@@ -61,9 +61,9 @@ const templates = {
     course_groups: {
         title: '課程資訊',
         filename: 'ezd_course_info_template.csv',
-        content: '檔期名稱 (group_title),課程名稱 (name),類型 (type),老師 (teacher),教室 (room),第一堂日期 (first_date),堂數 (sessions_count),開始時間 (start_time),結束時間 (end_time),人數上限 (capacity),堂卡扣除 (cards_per_session),備註 (description)\n2026 HQ 3月 常態試跳,Krump 體驗,trial,小Joy,E棟有氧教室,2026-03-16,1,19:00,20:30,18,0,\nHQ 2026 H1 常態課程,週一舞感養成,normal,小joy,E棟有氧教室,2026-04-12,13,19:00,20:30,18,1,',
+        content: '檔期名稱 (group_title),課程名稱 (name),類型 (type),老師 (teacher),教室 (room),第一堂日期 (first_date),堂數 (sessions_count),開始時間 (start_time),結束時間 (end_time),人數上限 (capacity),堂卡扣除 (cards_per_session),備註 (description)\n2026 HQ 3月 常態試跳,Krump 體驗,trial,小Joy,E棟有氧教室,2026-03-16,1,19:00,20:30,18,0,\nHQ 2026 H1 常態課程,週一舞感養成,normal,小joy,E棟有氧教室,2026-04-12,13,19:00,20:30,18,1,\n2026 暑假專攻,Jazz進階 (特定日期),workshop,Ana,AB韻律教室,"2026-07-01;2026-07-03;2026-07-05",3,14:00,16:00,20,3,特定日期排課範例',
         headers: ['檔期名稱 (group_title)', '課程名稱 (name)', '類型 (type)', '老師 (teacher)', '教室 (room)', '第一堂日期 (first_date)', '堂數 (sessions_count)', '開始時間 (start_time)', '結束時間 (end_time)', '人數上限 (capacity)', '堂卡扣除 (cards_per_session)', '備註 (description)'],
-        hint: '必填：檔期名稱、課程名稱、類型、老師、教室、第一堂日期、開始/結束時間｜選填：堂數（預設 1）、人數上限（預設 30）、堂卡扣除（預設 1，填 0=免費）、備註\n\n• 類型僅接受：normal（常態）/ trial（試跳）/ style（風格）/ workshop（專攻）\n• 堂數 > 1 時系統從第一堂起每週自動排一堂\n• 個別堂次日期調整請匯入後至「編輯課程」頁面設定\n• 同一檔期下課程名稱不可重複，重複會跳過\n• 檔期名稱須完全一致（含空格與符號），不一致會自動建立新檔期，請仔細核對避免誤建'
+        hint: '必填：檔期名稱、課程名稱、類型、老師、教室、第一堂日期、開始/結束時間｜選填：堂數（預設 1）、人數上限（預設 30）、堂卡扣除（預設 1，填 0=免費）、備註\n\n• 類型僅接受：normal（常態）/ trial（試跳）/ style（風格）/ workshop（專攻）\n• 「第一堂日期 (first_date)」亦可填入多個日期（以分號「;」分隔，如：2026-04-13;2026-04-20;2026-05-04），此時「堂數」應為空或與日期數一致。\n• 堂數 > 1 且未填多個日期時，系統從第一堂起每週自動排一堂。\n• 同一檔期下課程名稱不可重複，重複會跳過。'
     }
 };
 
@@ -184,6 +184,25 @@ export function ImportClient() {
                 if (currentType === 'rosters' && header === '報名類型 (enroll_type)' && val && !['整期', '單堂'].includes(val.trim())) {
                     errors.push(`第 ${index + 2} 行 [報名類型] 值 "${val}" 無效，僅接受「整期」或「單堂」`);
                 }
+
+                // Multi-date Validation: check if date list count matches sessions_count (if both provided)
+                if (currentType === 'course_groups' && header === '第一堂日期 (first_date)' && val && val.includes(';')) {
+                    const dateCount = val.split(';').filter((v: string) => v.trim()).length;
+                    
+                    // In course_groups template, we use exact header keys
+                    const sessionsCountHeader = '堂數 (sessions_count)';
+                    const sessionsCountIdx = headers.indexOf(sessionsCountHeader);
+                    
+                    if (sessionsCountIdx !== -1) {
+                        const sessionsCountStr = values[sessionsCountIdx];
+                        if (sessionsCountStr && sessionsCountStr.trim()) {
+                            const sessionsCount = parseInt(sessionsCountStr);
+                            if (sessionsCount !== dateCount) {
+                                errors.push(`第 ${index + 2} 行 [日期清單] 有 ${dateCount} 筆，但 [堂數] 填寫 ${sessionsCount}，兩者必須一致。`);
+                            }
+                        }
+                    }
+                }
             });
             return obj;
         });
@@ -292,9 +311,9 @@ export function ImportClient() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+                <div className="flex flex-col gap-10 items-stretch">
                     {/* Editor Section */}
-                    <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl group/editor relative h-[700px]">
+                    <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl group/editor relative h-[380px]">
                         {/* Status bar top glow - SYNCED */}
                         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
                         
@@ -343,7 +362,7 @@ export function ImportClient() {
                     </Card>
 
                     {/* Preview Section */}
-                    <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl relative h-[700px]">
+                    <Card className="border-white/10 bg-[#1A1A1C]/90 backdrop-blur-xl overflow-hidden flex flex-col shadow-2xl relative min-h-[600px]">
                         {/* Status bar top glow - SYNCED */}
                         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
                         

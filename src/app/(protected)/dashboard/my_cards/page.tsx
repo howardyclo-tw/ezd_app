@@ -81,6 +81,7 @@ export default async function MyCardsPage() {
                     expires_at: o.expires_at,
                     created_at: o.created_at,
                     confirmed_at: o.confirmed_at,
+                    used: o.used ?? 0,
                 }))}
                 isPurchaseOpen={isPurchaseOpen}
                 priceMember={priceMember}

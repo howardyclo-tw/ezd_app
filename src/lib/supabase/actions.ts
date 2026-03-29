@@ -116,10 +116,11 @@ export async function enrollInCourse(
     const { getAvailableCardBalance } = await import('./card-utils');
     const cardInfo = await getAvailableCardBalance(user.id, courseEndDate);
     if (cardInfo.available < cardsToDeduct) {
+        const expiredHint = cardInfo.expired > 0 ? `，其中 ${cardInfo.expired} 張已過期無法使用` : '';
         return {
             success: false,
             status: 'enrolled',
-            message: `堂卡餘額不足（可用: ${cardInfo.available}, 需扣除: ${cardsToDeduct}）`,
+            message: `堂卡餘額不足（可用: ${cardInfo.available}, 需扣除: ${cardsToDeduct}${expiredHint}）`,
         };
     }
 
@@ -258,7 +259,8 @@ export async function batchEnrollInCourses(
     const { getAvailableCardBalance } = await import('./card-utils');
     const cardInfo = await getAvailableCardBalance(user.id, latestEndDate);
     if (cardInfo.available < totalCost) {
-        return { success: false, message: `堂卡餘額不足（可用: ${cardInfo.available}, 需扣除: ${totalCost}）` };
+        const expiredHint = cardInfo.expired > 0 ? `，其中 ${cardInfo.expired} 張已過期無法使用` : '';
+        return { success: false, message: `堂卡餘額不足（可用: ${cardInfo.available}, 需扣除: ${totalCost}${expiredHint}）` };
     }
 
     // 4. Create enrollments
@@ -336,14 +338,43 @@ export async function batchEnrollInSessions(
     const sessionDateMap = new Map<string, string>();
     (sessionDateRows ?? []).forEach(s => sessionDateMap.set(s.id, s.session_date));
 
-    // Quick check: use the latest session date for total available balance check
-    const latestSessionDate = sessionDateRows?.[sessionDateRows.length - 1]?.session_date
-        || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
-
+    // Simulate per-session FIFO to accurately check availability
     const { getAvailableCardBalance } = await import('./card-utils');
-    const cardInfo = await getAvailableCardBalance(user.id, latestSessionDate);
-    if (cardInfo.available < totalCost) {
-        return { success: false, message: `堂卡餘額不足（可用: ${cardInfo.available}, 需扣除: ${totalCost}）` };
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+    const cardInfo = await getAvailableCardBalance(user.id, today);
+    // Copy pools for simulation
+    const simPools = cardInfo.pools
+        .filter(p => p.remaining > 0)
+        .map(p => ({ ...p, simRemaining: p.remaining }));
+
+    const sortedSessionIds = [...toEnrollSessionIds].sort((a, b) =>
+        (sessionDateMap.get(a) ?? '').localeCompare(sessionDateMap.get(b) ?? ''));
+
+    let canCover = 0;
+    for (const sid of sortedSessionIds) {
+        const sessionDate = sessionDateMap.get(sid)!;
+        let need = course.cards_per_session;
+        for (const pool of simPools) {
+            if (pool.simRemaining <= 0) continue;
+            if (pool.expires_at && pool.expires_at < sessionDate) continue;
+            const take = Math.min(pool.simRemaining, need);
+            pool.simRemaining -= take;
+            need -= take;
+            if (need <= 0) break;
+        }
+        if (need <= 0) canCover++;
+    }
+
+    if (canCover < toEnrollSessionIds.length) {
+        const expiredTotal = simPools.reduce((sum, p) => {
+            // Cards that still have remaining but are expired for at least one uncovered session
+            if (p.simRemaining > 0 && p.expires_at && p.expires_at < (sessionDateMap.get(sortedSessionIds[sortedSessionIds.length - 1]) ?? '')) {
+                return sum + p.simRemaining;
+            }
+            return sum;
+        }, 0);
+        const expiredHint = expiredTotal > 0 ? `，有堂卡在部分堂次前到期無法使用` : '';
+        return { success: false, message: `堂卡餘額不足（可報 ${canCover} 堂，需報 ${toEnrollSessionIds.length} 堂${expiredHint}）` };
     }
 
     // 4. Capacity guard: check each session's real-time occupancy
@@ -392,7 +423,7 @@ export async function batchEnrollInSessions(
     // FIFO deduct cards per session (each session uses its own date for expiry check)
     const { deductCardsFIFO } = await import('./card-utils');
     for (const sid of toEnrollSessionIds) {
-        const sessionDate = sessionDateMap.get(sid) || latestSessionDate;
+        const sessionDate = sessionDateMap.get(sid) || today;
         const enrollmentId = inserted?.find((i: any) => i.session_id === sid)?.id;
         await deductCardsFIFO(
             user.id,
@@ -1108,7 +1139,7 @@ async function internalSubmitMakeupRequest(
     user: { id: string },
     originalCourseId: string,
     originalSessionId: string | null,
-    targetCourseId: string,
+    _targetCourseId: string,
     targetSessionId: string
 ): Promise<{ success: boolean; message: string }> {
     // Check original/target courses
@@ -1121,7 +1152,7 @@ async function internalSubmitMakeupRequest(
     let originalCourse = originalCourseRes.data;
     const target = targetRes.data;
     let enrollments = enrollmentsRes.data || [];
-    let userEnrollment = enrollments.find((e: any) => e.type === 'full') || enrollments[0];
+    let userEnrollment = enrollments.find((e: any) => e.type === 'full');
     let effectiveOriginalCourseId = originalCourseId;
 
     if (!target) throw new Error('目標堂次不存在');
@@ -1139,8 +1170,8 @@ async function internalSubmitMakeupRequest(
         .single();
     const manualAdj = userProfile?.makeup_quota || 0;
 
-    // Quota-only mode: no specific original session, originalCourseId may be wrong (defaulted to target)
-    // Find the user's actual full-enrolled normal/special course in the same group that has remaining quota
+    // Quota-only mode: no specific original session, or no full enrollment in original course
+    // Find the user's actual full-enrolled normal/special course in the same group
     const isQuotaOnlyMode = !originalSessionId && !userEnrollment;
     if (isQuotaOnlyMode) {
         const tGroup = (target.courses as any)?.group_id;
@@ -1161,7 +1192,7 @@ async function internalSubmitMakeupRequest(
         const courseIds = groupEnrollments.map((e: any) => e.course_id);
         const [sessionsRes, makeupReqRes, transferReqRes] = await Promise.all([
             supabase.from('course_sessions').select('course_id').in('course_id', courseIds),
-            supabase.from('makeup_requests').select('original_course_id, quota_used').eq('user_id', user.id).in('original_course_id', courseIds).in('status', ['pending', 'approved']),
+            supabase.from('makeup_requests').select('original_course_id, original_session_id, quota_used').eq('user_id', user.id).in('original_course_id', courseIds).not('original_session_id', 'is', null).in('status', ['pending', 'approved']),
             supabase.from('transfer_requests').select('course_id').eq('from_user_id', user.id).in('course_id', courseIds).eq('status', 'approved'),
         ]);
 
@@ -1355,6 +1386,15 @@ async function internalSubmitMakeupRequest(
         marked_at: new Date().toISOString(),
     }, { onConflict: 'session_id,user_id' });
 
+    // If using manual quota (no original session = no absence source), decrement profiles.makeup_quota
+    if (!originalSessionId && manualAdj > 0) {
+        const adminClient = createAdminClient();
+        await adminClient
+            .from('profiles')
+            .update({ makeup_quota: Math.max(0, manualAdj - 1) })
+            .eq('id', user.id);
+    }
+
     return { success: true, message: '成功' };
 }
 
@@ -1383,37 +1423,41 @@ export async function batchSubmitMakeupRequests(
     targetSessionIds: string[]
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
-    
-    // 1. Get available missed sessions (sorted by date)
+
+    // 1. Get available missed sessions + manual quota
     const { getAvailableMakeupQuotaSessions } = await import('./queries');
-    const { sessions: available } = await getAvailableMakeupQuotaSessions(user.id);
+    const { sessions: available, manualQuota } = await getAvailableMakeupQuotaSessions(user.id);
 
     // Get target group ID
     const { data: targetCourse } = await supabase.from('courses').select('group_id').eq('id', targetCourseId).single();
     if (!targetCourse) throw new Error('目標課程不存在');
 
-    // Filter by same group and only those with quota available
-    let availableQuotaSessions = available
+    // Filter absences by same group and only those with quota available
+    const availableQuotaSessions = available
         .filter((s: any) => s.groupId === targetCourse.group_id && !s.isQuotaFull)
         .sort((a: any, b: any) => a.date.localeCompare(b.date));
 
-    if (availableQuotaSessions.length < targetSessionIds.length) {
-        throw new Error(`補課額度不足。您選擇了 ${targetSessionIds.length} 堂課，但只有 ${availableQuotaSessions.length} 個可用額度。`);
+    // Total available = absences-based + manual quota
+    const totalAvailable = availableQuotaSessions.length + manualQuota;
+
+    if (totalAvailable < targetSessionIds.length) {
+        throw new Error(`補課額度不足。您選擇了 ${targetSessionIds.length} 堂課，但只有 ${totalAvailable} 個可用額度。`);
     }
 
     // 2. Pair and submit
+    // First use absence-based sources (with original session), then quota-only mode (manual quota)
     const results = [];
     for (let i = 0; i < targetSessionIds.length; i++) {
         const targetSid = targetSessionIds[i];
-        const source = availableQuotaSessions[i];
-        
+        const source = availableQuotaSessions[i]; // undefined if using manual quota
+
         try {
             const res = await internalSubmitMakeupRequest(
-                supabase, 
-                user, 
-                source.courseId, 
-                source.sessionId, 
-                targetCourseId, 
+                supabase,
+                user,
+                source?.courseId || targetCourseId,   // fallback to target course for quota-only
+                source?.sessionId || null,             // null = quota-only mode
+                targetCourseId,
                 targetSid
             );
             results.push(res);
@@ -1471,6 +1515,7 @@ export async function reviewMakeupRequest(
     if (error) throw new Error(`審核失敗: ${error.message}`);
 
     // 3. Post-update side effects
+    const adminClient = createAdminClient();
     if (decision === 'approved') {
         await supabase
             .from('attendance_records')
@@ -1481,6 +1526,21 @@ export async function reviewMakeupRequest(
                 marked_by: user.id,
                 marked_at: new Date().toISOString(),
             }, { onConflict: 'session_id,user_id' });
+
+        // Re-deduct makeup_quota (handles rejected→re-approved case)
+        if (!req.original_session_id) {
+            const { data: profile } = await adminClient
+                .from('profiles')
+                .select('makeup_quota')
+                .eq('id', req.user_id)
+                .maybeSingle();
+            if (profile) {
+                await adminClient
+                    .from('profiles')
+                    .update({ makeup_quota: Math.max(0, (profile.makeup_quota ?? 0) - 1) })
+                    .eq('id', req.user_id);
+            }
+        }
     } else {
         // If rejected, wipe the attendance record to clear the slot
         await supabase
@@ -1488,6 +1548,19 @@ export async function reviewMakeupRequest(
             .delete()
             .eq('session_id', req.target_session_id)
             .eq('user_id', req.user_id);
+
+        // Refund 1 makeup_quota on rejection (both quota-only and absence-based)
+        const { data: profile } = await adminClient
+            .from('profiles')
+            .select('makeup_quota')
+            .eq('id', req.user_id)
+            .maybeSingle();
+        if (profile) {
+            await adminClient
+                .from('profiles')
+                .update({ makeup_quota: (profile.makeup_quota ?? 0) + 1 })
+                .eq('id', req.user_id);
+        }
     }
 
     revalidatePath('/', 'layout');
@@ -1735,7 +1808,7 @@ export async function submitTransferRequest(
         result = await supabase.from('transfer_requests').insert(payload).select().single();
     }
 
-    const { error, data: newReq } = result;
+    const { error } = result;
 
     if (error) throw new Error(`轉讓申請失敗: ${error.message}`);
 

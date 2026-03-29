@@ -57,7 +57,7 @@ interface SessionEnrollmentDialogProps {
     cardBalance: number;
     sessions: Session[];
     missedSessions: MissedSession[];
-    makeupQuota?: { total: number, used: number, remaining: number };
+    makeupQuota?: { total: number, used: number, remaining: number, manualQuota?: number };
     isFull: boolean;
     enrolledCount: number;
     capacity: number;
@@ -84,6 +84,7 @@ export function SessionEnrollmentDialog({
     sessionOccupancy = {},
     excludeSessionIds = [],
 }: SessionEnrollmentDialogProps) {
+    const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
     const [isOpen, setIsOpen] = useState(false);
     const [mode, setMode] = useState<'selection' | 'enroll' | 'makeup'>('selection');
     const [selectedTargetSessionIds, setSelectedTargetSessionIds] = useState<Set<string>>(new Set());
@@ -95,14 +96,13 @@ export function SessionEnrollmentDialog({
     // AND hide those where the course quota is already exhausted to reduce confusion.
     const availableQuota = missedSessions.filter(ms => ms.groupId === groupId && !(ms as any).isQuotaFull);
     
-    // The "True Available Count" is the minimum of:
-    // 1. The number of actual eligible missed sessions we have in this group
-    // 2. The remaining quota budget for the user
-    // This ENSURES the number at the bottom (N 堂) matches what's actually selectable.
-    // Available count: if there are absence sources, limit by those; otherwise use full remaining quota
-    const trueAvailableCount = availableQuota.length > 0
-        ? Math.min(availableQuota.length, makeupQuota.remaining)
-        : makeupQuota.remaining;
+    // Absence-based quota is capped by actual missed session count;
+    // Manual quota (幹部贈予) adds on top without needing absence sources.
+    const manual = makeupQuota.manualQuota ?? 0;
+    const absenceBased = availableQuota.length > 0
+        ? Math.min(availableQuota.length, makeupQuota.remaining - manual)
+        : 0;
+    const trueAvailableCount = absenceBased + manual;
 
     // canMakeup is true if there's remaining quota (with or without absence sources)
     const canMakeup = makeupQuota.remaining > 0;
@@ -170,7 +170,7 @@ export function SessionEnrollmentDialog({
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) reset(); }}>
+        <Dialog open={isOpen} onOpenChange={(open) => { reset(); setIsOpen(open); }}>
             <DialogTrigger asChild>
                 <Button
                     variant="ghost"
@@ -250,27 +250,26 @@ export function SessionEnrollmentDialog({
                             <div className="flex flex-col gap-2.5">
                                 <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.1em] px-1">選擇堂次 (可多選)</label>
                                 <div className="flex flex-col gap-3">
-                                    {sessions.map(s => (
+                                    {sessions.map(s => { const isPast = s.session_date < todayStr; const isExcluded = excludeSessionIds.includes(s.id); const isFull = (sessionOccupancy[s.id] ?? 0) >= capacity; const isDisabled = isPast || isExcluded || (isFull && !selectedTargetSessionIds.has(s.id)); return (
                                         <div
                                             key={s.id}
                                             className={cn(
-                                                "w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer group text-left",
-                                                excludeSessionIds.includes(s.id)
+                                                "w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all text-left",
+                                                isDisabled
                                                     ? "opacity-50 grayscale cursor-not-allowed bg-muted/10 border-muted"
-                                                    : (sessionOccupancy[s.id] ?? 0) >= capacity && !selectedTargetSessionIds.has(s.id)
-                                                        ? "opacity-40 grayscale cursor-not-allowed bg-muted/10 border-muted"
-                                                        : selectedTargetSessionIds.has(s.id)
-                                                            ? "bg-orange-500/[0.03] border-orange-500 shadow-[0_0_20px_rgba(var(--orange-500),0.05)]"
-                                                            : "bg-muted/5 border-transparent hover:border-orange-500/20 hover:bg-muted/10"
+                                                    : selectedTargetSessionIds.has(s.id)
+                                                        ? "bg-orange-500/[0.03] border-orange-500 shadow-[0_0_20px_rgba(var(--orange-500),0.05)] cursor-pointer"
+                                                        : "bg-muted/5 border-transparent hover:border-orange-500/20 hover:bg-muted/10 cursor-pointer"
                                             )}
-                                            onClick={() => (sessionOccupancy[s.id] ?? 0) < capacity && !excludeSessionIds.includes(s.id) && toggleTargetSession(s.id)}
+                                            onClick={() => !isDisabled && toggleTargetSession(s.id)}
                                         >
                                             <div className="flex items-center gap-5 flex-1 min-w-0 h-full">
+                                                {!isPast && (
                                                 <div className="flex items-center justify-center shrink-0">
                                                     <Checkbox
-                                                        checked={selectedTargetSessionIds.has(s.id) || excludeSessionIds.includes(s.id)}
-                                                        onCheckedChange={() => !excludeSessionIds.includes(s.id) && toggleTargetSession(s.id)}
-                                                        disabled={excludeSessionIds.includes(s.id)}
+                                                        checked={selectedTargetSessionIds.has(s.id) || isExcluded}
+                                                        onCheckedChange={() => !isDisabled && toggleTargetSession(s.id)}
+                                                        disabled={isDisabled}
                                                         className={cn(
                                                             "h-6 w-6 rounded-lg border-2 transition-all [&_svg]:!size-4",
                                                             "border-muted-foreground/30",
@@ -280,6 +279,7 @@ export function SessionEnrollmentDialog({
                                                         onClick={(e) => e.stopPropagation()}
                                                     />
                                                 </div>
+                                                )}
                                                 <div className="min-w-0 flex-1 flex flex-col justify-center">
                                                     <p className="font-black text-base truncate transition-colors pr-2 leading-none">
                                                         第 {s.session_number} 堂
@@ -292,20 +292,17 @@ export function SessionEnrollmentDialog({
                                                 </div>
                                                 <div className={cn(
                                                     "text-[10px] h-5 px-2 font-black rounded-md flex items-center gap-1 shrink-0 self-center",
-                                                    excludeSessionIds.includes(s.id)
-                                                        ? "bg-muted text-muted-foreground"
-                                                        : selectedTargetSessionIds.has(s.id)
-                                                            ? "bg-orange-500/10 text-orange-500"
-                                                            : (sessionOccupancy[s.id] ?? 0) >= capacity 
-                                                                ? "bg-red-500/10 text-red-500" 
-                                                                : "bg-muted/10 text-muted-foreground"
+                                                    isPast ? "bg-muted text-muted-foreground"
+                                                        : isExcluded ? "bg-muted text-muted-foreground"
+                                                        : selectedTargetSessionIds.has(s.id) ? "bg-orange-500/10 text-orange-500"
+                                                        : isFull ? "bg-red-500/10 text-red-500"
+                                                        : "bg-muted/10 text-muted-foreground"
                                                 )}>
-                                                    <Users className="h-3 w-3" />
-                                                    {excludeSessionIds.includes(s.id) ? "已在名單" : `${(sessionOccupancy[s.id] ?? 0)}/${capacity}`}
+                                                    {isPast ? "已過期" : isExcluded ? <><Users className="h-3 w-3" />已在名單</> : <><Users className="h-3 w-3" />{(sessionOccupancy[s.id] ?? 0)}/{capacity}</>}
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                    ); })}
                                 </div>
                             </div>
                         </div>
@@ -317,27 +314,26 @@ export function SessionEnrollmentDialog({
                             <div className="space-y-3">
                                 <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.1em] px-1">欲補堂次</label>
                                 <div className="flex flex-col gap-3">
-                                    {sessions.map(s => (
+                                    {sessions.map(s => { const isPast = s.session_date < todayStr; const isExcluded = excludeSessionIds.includes(s.id); const isFull = (sessionOccupancy[s.id] ?? 0) >= capacity; const isDisabled = isPast || isExcluded || (isFull && !selectedTargetSessionIds.has(s.id)); return (
                                         <div
                                             key={s.id}
                                             className={cn(
-                                                "w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer group text-left",
-                                                excludeSessionIds.includes(s.id)
+                                                "w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all text-left",
+                                                isDisabled
                                                     ? "opacity-50 grayscale cursor-not-allowed bg-muted/10 border-muted"
-                                                    : (sessionOccupancy[s.id] ?? 0) >= capacity && !selectedTargetSessionIds.has(s.id)
-                                                        ? "opacity-40 grayscale cursor-not-allowed bg-muted/10 border-muted"
-                                                        : selectedTargetSessionIds.has(s.id)
-                                                            ? "bg-blue-500/[0.03] border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.05)]"
-                                                            : "bg-muted/5 border-transparent hover:border-blue-500/20 hover:bg-muted/10"
+                                                    : selectedTargetSessionIds.has(s.id)
+                                                        ? "bg-blue-500/[0.03] border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.05)] cursor-pointer"
+                                                        : "bg-muted/5 border-transparent hover:border-blue-500/20 hover:bg-muted/10 cursor-pointer"
                                             )}
-                                            onClick={() => (sessionOccupancy[s.id] ?? 0) < capacity && !excludeSessionIds.includes(s.id) && toggleTargetSession(s.id)}
+                                            onClick={() => !isDisabled && toggleTargetSession(s.id)}
                                         >
                                             <div className="flex items-center gap-5 flex-1 min-w-0 h-full">
+                                                {!isPast && (
                                                 <div className="flex items-center justify-center shrink-0">
                                                     <Checkbox
-                                                        checked={selectedTargetSessionIds.has(s.id) || excludeSessionIds.includes(s.id)}
-                                                        onCheckedChange={() => !excludeSessionIds.includes(s.id) && toggleTargetSession(s.id)}
-                                                        disabled={excludeSessionIds.includes(s.id)}
+                                                        checked={selectedTargetSessionIds.has(s.id) || isExcluded}
+                                                        onCheckedChange={() => !isDisabled && toggleTargetSession(s.id)}
+                                                        disabled={isDisabled}
                                                         className={cn(
                                                             "h-6 w-6 rounded-lg border-2 transition-all [&_svg]:!size-4",
                                                             "border-muted-foreground/30",
@@ -347,6 +343,7 @@ export function SessionEnrollmentDialog({
                                                         onClick={(e) => e.stopPropagation()}
                                                     />
                                                 </div>
+                                                )}
                                                 <div className="min-w-0 flex-1 flex flex-col justify-center">
                                                     <p className="font-black text-base truncate transition-colors pr-2 leading-none">
                                                         第 {s.session_number} 堂
@@ -359,20 +356,17 @@ export function SessionEnrollmentDialog({
                                                 </div>
                                                 <div className={cn(
                                                     "text-[10px] h-5 px-2 font-black rounded-md flex items-center gap-1 shrink-0 self-center",
-                                                    excludeSessionIds.includes(s.id)
-                                                        ? "bg-muted text-muted-foreground"
-                                                        : selectedTargetSessionIds.has(s.id)
-                                                            ? "bg-blue-500/10 text-blue-500"
-                                                            : (sessionOccupancy[s.id] ?? 0) >= capacity 
-                                                                ? "bg-red-500/10 text-red-500" 
-                                                                : "bg-muted/10 text-muted-foreground"
+                                                    isPast ? "bg-muted text-muted-foreground"
+                                                        : isExcluded ? "bg-muted text-muted-foreground"
+                                                        : selectedTargetSessionIds.has(s.id) ? "bg-blue-500/10 text-blue-500"
+                                                        : isFull ? "bg-red-500/10 text-red-500"
+                                                        : "bg-muted/10 text-muted-foreground"
                                                 )}>
-                                                    <Users className="h-3 w-3" />
-                                                    {excludeSessionIds.includes(s.id) ? "已在名單" : `${(sessionOccupancy[s.id] ?? 0)}/${capacity}`}
+                                                    {isPast ? "已過期" : isExcluded ? <><Users className="h-3 w-3" />已在名單</> : <><Users className="h-3 w-3" />{(sessionOccupancy[s.id] ?? 0)}/{capacity}</>}
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                    ); })}
                                 </div>
                             </div>
 

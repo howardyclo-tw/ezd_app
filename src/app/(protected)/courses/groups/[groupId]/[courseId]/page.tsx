@@ -69,6 +69,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         { data: leaveRequests },
         { data: attendanceRecords },
         { data: makeupsDeparting },
+        { data: userMakeupTargets },
+        { data: userTransferInTargets },
     ] = await Promise.all([
         // 2. Enrolled count
         supabase
@@ -133,15 +135,38 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             .in('session_id', sessionIds),
 
         // 11. Makeups departing from this course (to calculate used quota)
+        // Exclude quota-only (幹部贈予) where original_session_id is null — those don't consume per-course 1/4 cap
         supabase
             .from('makeup_requests')
-            .select('quota_used')
+            .select('quota_used, original_session_id')
             .eq('original_course_id', course.id)
             .eq('user_id', user.id)
+            .not('original_session_id', 'is', null)
             .in('status', ['pending', 'approved']),
+
+        // 12. Current user's existing makeup/transfer_in targets in this course (for UI exclusion)
+        supabase
+            .from('makeup_requests')
+            .select('target_session_id')
+            .eq('target_course_id', course.id)
+            .eq('user_id', user.id)
+            .in('status', ['pending', 'approved']),
+
+        supabase
+            .from('transfer_requests')
+            .select('session_id')
+            .eq('course_id', course.id)
+            .eq('to_user_id', user.id)
+            .eq('status', 'approved'),
     ]);
 
     const missedSessions = (missedSessionsResult as any)?.sessions ?? [];
+
+    // Sessions the current user already occupies via makeup or transfer_in
+    const userOccupiedSessionIds = [
+        ...(userMakeupTargets ?? []).map((m: any) => m.target_session_id),
+        ...(userTransferInTargets ?? []).map((t: any) => t.session_id),
+    ];
 
     // Build attendance map: { [userId]: { [sessionId]: status } }
     const attendanceMap: Record<string, Record<string, string>> = {};
@@ -358,6 +383,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             canManageAttendance={canManageAttendance}
             currentUserRole={profile?.role ?? 'guest'}
             sessionOccupancy={sessionOccupancy}
+            userOccupiedSessionIds={userOccupiedSessionIds}
         />
     );
 }
