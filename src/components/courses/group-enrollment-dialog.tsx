@@ -47,7 +47,7 @@ export function GroupEnrollmentDialog({
     const [isPending, startTransition] = useTransition();
     const router = useRouter();
 
-    const selectableCourses = courses.filter(c => !c.isEnrolled);
+    const sortedCourses = [...courses].sort((a, b) => a.isEnrolled === b.isEnrolled ? 0 : a.isEnrolled ? 1 : -1);
 
     const toggleCourse = (id: string) => {
         const next = new Set(selectedIds);
@@ -103,35 +103,40 @@ export function GroupEnrollmentDialog({
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto px-8 py-4 space-y-4">
-                    {selectableCourses.length === 0 ? (
+                    {sortedCourses.length === 0 ? (
                         <div className="text-center py-20 text-muted-foreground italic text-sm bg-muted/5 rounded-2xl border border-dashed">
                             目前無可報名的課程
                         </div>
                     ) : (
-                        selectableCourses.map((course) => (
+                        sortedCourses.map((course) => {
+                            const isDisabled = course.isFull || course.isEnrolled;
+                            return (
                             <div
                                 key={course.id}
-                                onClick={() => !course.isFull && toggleCourse(course.id)}
+                                onClick={() => !isDisabled && toggleCourse(course.id)}
                                 className={cn(
-                                    "w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer group text-left",
-                                    selectedIds.has(course.id)
-                                        ? "bg-primary/[0.03] border-primary shadow-[0_0_20px_rgba(var(--primary),0.05)]"
-                                        : "bg-muted/5 border-transparent hover:border-primary/20 hover:bg-muted/10",
-                                    course.isFull && "opacity-40 cursor-not-allowed grayscale bg-muted/20"
+                                    "w-full flex items-center justify-between p-5 rounded-2xl border-2 transition-all text-left",
+                                    isDisabled
+                                        ? "opacity-50 cursor-not-allowed grayscale bg-muted/10 border-muted"
+                                        : selectedIds.has(course.id)
+                                            ? "bg-primary/[0.03] border-primary shadow-[0_0_20px_rgba(var(--primary),0.05)] cursor-pointer"
+                                            : "bg-muted/5 border-transparent hover:border-primary/20 hover:bg-muted/10 cursor-pointer group"
                                 )}
                             >
                                 <div className="flex items-center gap-5 flex-1 min-w-0">
+                                    {!course.isEnrolled && (
                                     <div className="flex items-center justify-center shrink-0">
                                         <Checkbox
                                             checked={selectedIds.has(course.id)}
-                                            onCheckedChange={() => !course.isFull && toggleCourse(course.id)}
-                                            disabled={course.isFull}
+                                            onCheckedChange={() => !isDisabled && toggleCourse(course.id)}
+                                            disabled={isDisabled}
                                             className="h-6 w-6 rounded-lg border-2 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                             onClick={(e) => e.stopPropagation()}
                                         />
                                     </div>
+                                    )}
                                     <div className="min-w-0 flex-1">
-                                        <p className="font-black text-base truncate group-hover:text-primary transition-colors pr-2">
+                                        <p className={cn("font-black text-base truncate pr-2 transition-colors", !isDisabled && "group-hover:text-primary")}>
                                             {course.teacher} {course.name}
                                         </p>
                                         <div className="flex items-center gap-2 mt-1">
@@ -144,13 +149,18 @@ export function GroupEnrollmentDialog({
                                         </div>
                                     </div>
                                 </div>
-                                {course.isFull && (
+                                {course.isEnrolled ? (
+                                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 font-black text-[10px] rounded-md px-2 py-0.5 border-none">
+                                        已報名
+                                    </Badge>
+                                ) : course.isFull ? (
                                     <Badge variant="secondary" className="bg-muted text-muted-foreground font-black text-[10px] rounded-md px-2 py-0.5">
                                         額滿
                                     </Badge>
-                                )}
+                                ) : null}
                             </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
 
