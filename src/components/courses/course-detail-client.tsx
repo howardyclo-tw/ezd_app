@@ -1030,6 +1030,9 @@ export function CourseDetailClient({
                                             <td className="p-3 text-xs font-bold sticky left-0 bg-card/95 backdrop-blur-sm z-30 border-r border-muted/50">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-bold">{student.name}</span>
+                                                    {student.isLeader && (
+                                                        <Crown className="h-3.5 w-3.5 text-white fill-white/10" />
+                                                    )}
                                                 </div>
                                             </td>
                                             {sessions.map(s => {
