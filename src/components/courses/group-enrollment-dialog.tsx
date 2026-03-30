@@ -35,12 +35,14 @@ interface GroupEnrollmentDialogProps {
     groupTitle: string;
     courses: CourseOption[];
     cardBalance: number;
+    isGuest?: boolean;
 }
 
 export function GroupEnrollmentDialog({
     groupTitle,
     courses,
     cardBalance,
+    isGuest = false,
 }: GroupEnrollmentDialogProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -82,6 +84,19 @@ export function GroupEnrollmentDialog({
             }
         });
     };
+
+    if (isGuest) {
+        return (
+            <Button
+                size="lg"
+                disabled
+                className="w-full sm:w-auto font-bold rounded-xl px-6 h-11 flex items-center gap-2.5 opacity-50 cursor-not-allowed"
+            >
+                <UserPlus className="h-5 w-5 stroke-[2.5]" />
+                <span>整期報名（僅限社員）</span>
+            </Button>
+        );
+    }
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>

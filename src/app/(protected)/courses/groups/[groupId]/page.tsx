@@ -249,6 +249,7 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
                     <GroupEnrollmentDialog
                         groupTitle={groupData.title}
                         cardBalance={profile?.card_balance ?? 0}
+                        isGuest={profile?.role === 'guest'}
                         courses={(courses ?? []).map(c => {
                             const sessions = (c.course_sessions as any[]) ?? [];
                             const isUserEnrolled = (userEnrollments ?? []).some(ue => ue.course_id === c.id);
