@@ -99,6 +99,15 @@ export default async function DashboardPage() {
   const isAdmin = userRole === 'admin';
   const isLeader = userRole === 'leader';
   const isLeaderOrAdmin = isAdmin || isLeader;
+
+  // Check if user is a course leader (班長) in any course
+  const { data: courseLeaderCheck } = await supabase
+      .from('course_leaders')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle();
+  const isCourseLeader = !!courseLeaderCheck;
   const displayName = profile?.name || user.email?.split('@')[0] || '使用者';
 
   // Process attendance records
@@ -235,12 +244,12 @@ export default async function DashboardPage() {
       </div>
 
       {/* 4. Role Specific Tools */}
-      {isLeaderOrAdmin && (
+      {(isLeaderOrAdmin || isCourseLeader) && (
         <div className="space-y-6">
           <div className="flex items-center gap-4">
             <div className="h-px flex-1 bg-muted" />
             <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">
-              幹部行政工具
+              {isLeaderOrAdmin ? '幹部行政工具' : '班長工具'}
             </span>
             <div className="h-px flex-1 bg-muted" />
           </div>

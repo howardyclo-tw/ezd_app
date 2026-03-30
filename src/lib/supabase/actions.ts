@@ -377,13 +377,13 @@ export async function batchEnrollInSessions(
         return { success: false, message: `堂卡餘額不足（可報 ${canCover} 堂，需報 ${toEnrollSessionIds.length} 堂${expiredHint}）` };
     }
 
-    // 4. Capacity guard: check each session's real-time occupancy
-    // We need to fetch all factors affecting occupancy for these specific sessions
+    // 4. Capacity guard (adminClient for cross-user SELECT)
+    const adminForCapacity = createAdminClient();
     const [baseEnrollRes, makeupRes, leaveRes, transferRes] = await Promise.all([
-        supabase.from('enrollments').select('type, session_id').eq('course_id', courseId).eq('status', 'enrolled').or(`type.eq.full,session_id.in.(${toEnrollSessionIds.join(',')})`),
-        supabase.from('makeup_requests').select('target_session_id').eq('target_course_id', courseId).eq('status', 'approved').in('target_session_id', toEnrollSessionIds),
-        supabase.from('leave_requests').select('session_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
-        supabase.from('transfer_requests').select('session_id, from_user_id, to_user_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
+        adminForCapacity.from('enrollments').select('type, session_id').eq('course_id', courseId).eq('status', 'enrolled').or(`type.eq.full,session_id.in.(${toEnrollSessionIds.join(',')})`),
+        adminForCapacity.from('makeup_requests').select('target_session_id').eq('target_course_id', courseId).eq('status', 'approved').in('target_session_id', toEnrollSessionIds),
+        adminForCapacity.from('leave_requests').select('session_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
+        adminForCapacity.from('transfer_requests').select('session_id, from_user_id, to_user_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
     ]);
 
     const baseEnrollments = baseEnrollRes.data || [];
@@ -968,26 +968,26 @@ export async function submitLeaveRequest(
         created_at: new Date().toISOString(),
     };
 
+    const adminClient = createAdminClient();
     let error;
     if (existingLeave) {
-        const res = await supabase.from('leave_requests').update(payload).eq('id', existingLeave.id);
+        const res = await adminClient.from('leave_requests').update(payload).eq('id', existingLeave.id);
         error = res.error;
     } else {
-        const res = await supabase.from('leave_requests').insert(payload);
+        const res = await adminClient.from('leave_requests').insert(payload);
         error = res.error;
     }
 
     if (error) throw new Error(`請假申請失敗: ${error.message}`);
 
-    // --- NEW: Cross-Intent Cleanup ---
-    // Since student is now LEAVING, remove any existing Transfer or Makeup intents for this slot
+    // Cross-Intent Cleanup
     await Promise.all([
-        supabase.from('transfer_requests').delete().eq('session_id', sessionId).eq('from_user_id', user.id),
-        supabase.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id).eq('status', 'pending')
+        adminClient.from('transfer_requests').delete().eq('session_id', sessionId).eq('from_user_id', user.id),
+        adminClient.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id).eq('status', 'pending')
     ]);
 
     // Update attendance record immediately
-    await supabase.from('attendance_records').upsert({
+    await adminClient.from('attendance_records').upsert({
         session_id: sessionId,
         user_id: user.id,
         status: 'leave',
@@ -1084,14 +1084,17 @@ export async function reviewLeaveRequest(
             }, { onConflict: 'session_id,user_id' });
 
         // Cleanup: remove competing records from other tables
+        const adminForCleanup = createAdminClient();
         await Promise.all([
-            supabase.from('transfer_requests').delete().eq('session_id', req.session_id).eq('from_user_id', req.user_id),
-            supabase.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.user_id).eq('status', 'pending')
+            adminForCleanup.from('transfer_requests').delete().eq('session_id', req.session_id).eq('from_user_id', req.user_id),
+            adminForCleanup.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.user_id).eq('status', 'pending')
         ]);
     } else {
         // If rejected, restore attendance to previous state
+        const adminClient = createAdminClient();
+
         // Check if this was a makeup student — restore to 'makeup' instead of deleting
-        const { data: makeupCheck } = await supabase
+        const { data: makeupCheck } = await adminClient
             .from('makeup_requests')
             .select('id')
             .eq('target_session_id', req.session_id)
@@ -1100,7 +1103,7 @@ export async function reviewLeaveRequest(
             .limit(1);
 
         if (makeupCheck && makeupCheck.length > 0) {
-            await supabase
+            await adminClient
                 .from('attendance_records')
                 .upsert({
                     session_id: req.session_id,
@@ -1111,7 +1114,7 @@ export async function reviewLeaveRequest(
                 }, { onConflict: 'session_id,user_id' });
         } else {
             // Check if transfer_in student — restore to 'transfer_in'
-            const { data: transferCheck } = await supabase
+            const { data: transferCheck } = await adminClient
                 .from('transfer_requests')
                 .select('id')
                 .eq('session_id', req.session_id)
@@ -1120,7 +1123,7 @@ export async function reviewLeaveRequest(
                 .limit(1);
 
             if (transferCheck && transferCheck.length > 0) {
-                await supabase
+                await adminClient
                     .from('attendance_records')
                     .upsert({
                         session_id: req.session_id,
@@ -1131,7 +1134,7 @@ export async function reviewLeaveRequest(
                     }, { onConflict: 'session_id,user_id' });
             } else {
                 // Regular student: remove the leave attendance record
-                await supabase
+                await adminClient
                     .from('attendance_records')
                     .delete()
                     .eq('session_id', req.session_id)
@@ -1318,12 +1321,13 @@ async function internalSubmitMakeupRequest(
         }
     }
 
-    // --- Capacity Guard ---
+    // --- Capacity Guard (adminClient for cross-user SELECT) ---
+    const adminForMakeup = createAdminClient();
     const [baseEnrollRes, makeupRes, leaveRes, transferRes] = await Promise.all([
-        supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('course_id', target.course_id).eq('status', 'enrolled').or(`type.eq.full,session_id.eq.${targetSessionId}`),
-        supabase.from('makeup_requests').select('*', { count: 'exact', head: true }).eq('target_session_id', targetSessionId).eq('status', 'approved'),
-        supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('session_id', targetSessionId).eq('status', 'approved'),
-        supabase.from('transfer_requests').select('to_user_id').eq('course_id', target.course_id).eq('session_id', targetSessionId).eq('status', 'approved'),
+        adminForMakeup.from('enrollments').select('*', { count: 'exact', head: true }).eq('course_id', target.course_id).eq('status', 'enrolled').or(`type.eq.full,session_id.eq.${targetSessionId}`),
+        adminForMakeup.from('makeup_requests').select('*', { count: 'exact', head: true }).eq('target_session_id', targetSessionId).eq('status', 'approved'),
+        adminForMakeup.from('leave_requests').select('*', { count: 'exact', head: true }).eq('session_id', targetSessionId).eq('status', 'approved'),
+        adminForMakeup.from('transfer_requests').select('to_user_id').eq('course_id', target.course_id).eq('session_id', targetSessionId).eq('status', 'approved'),
     ]);
 
     const baseCount = baseEnrollRes.count ?? 0;
@@ -1338,7 +1342,7 @@ async function internalSubmitMakeupRequest(
     }
 
     // --- Duplicate Guard ---
-    const { data: existingMakeup } = await supabase
+    const { data: existingMakeup } = await adminForMakeup
         .from('makeup_requests')
         .select('id, status')
         .eq('target_session_id', targetSessionId)
@@ -1351,7 +1355,7 @@ async function internalSubmitMakeupRequest(
 
     // Guard: Prevent makeup if a transfer already exists for the ORIGINAL session
     if (originalSessionId) {
-        const { data: existingTransferForOriginal } = await supabase
+        const { data: existingTransferForOriginal } = await adminForMakeup
             .from('transfer_requests')
             .select('id')
             .eq('session_id', originalSessionId)
@@ -1379,10 +1383,10 @@ async function internalSubmitMakeupRequest(
 
     let error;
     if (existingMakeup) {
-        const res = await supabase.from('makeup_requests').update(payload).eq('id', existingMakeup.id);
+        const res = await adminForMakeup.from('makeup_requests').update(payload).eq('id', existingMakeup.id);
         error = res.error;
     } else {
-        const res = await supabase.from('makeup_requests').insert(payload);
+        const res = await adminForMakeup.from('makeup_requests').insert(payload);
         error = res.error;
     }
 
@@ -1391,13 +1395,13 @@ async function internalSubmitMakeupRequest(
     // Cleanup: Remove competing Leave/Transfer intents for the ORIGINAL session
     if (originalSessionId) {
         await Promise.all([
-            supabase.from('leave_requests').delete().eq('session_id', originalSessionId).eq('user_id', user.id),
-            supabase.from('transfer_requests').delete().eq('session_id', originalSessionId).eq('from_user_id', user.id)
+            adminForMakeup.from('leave_requests').delete().eq('session_id', originalSessionId).eq('user_id', user.id),
+            adminForMakeup.from('transfer_requests').delete().eq('session_id', originalSessionId).eq('from_user_id', user.id)
         ]);
     }
 
     // Update attendance record immediately for target session
-    await supabase.from('attendance_records').upsert({
+    await adminForMakeup.from('attendance_records').upsert({
         session_id: targetSessionId,
         user_id: user.id,
         status: 'makeup',
@@ -1636,15 +1640,13 @@ export async function getTransferCandidates(
 
     // If sessionId provided, also exclude users who already have that session
     if (sessionId) {
+        const adminForCandidates = createAdminClient();
         const [{ data: singleEnrolled }, { data: makeupUsers }, { data: transferInUsers }] = await Promise.all([
-            // Single-session enrolled for this specific session
-            supabase.from('enrollments').select('user_id')
+            adminForCandidates.from('enrollments').select('user_id')
                 .eq('course_id', courseId).eq('session_id', sessionId).eq('status', 'enrolled').eq('type', 'single'),
-            // Approved makeup targeting this session
-            supabase.from('makeup_requests').select('user_id')
+            adminForCandidates.from('makeup_requests').select('user_id')
                 .eq('target_session_id', sessionId).eq('status', 'approved'),
-            // Approved transfer_in for this session
-            supabase.from('transfer_requests').select('to_user_id')
+            adminForCandidates.from('transfer_requests').select('to_user_id')
                 .eq('session_id', sessionId).eq('status', 'approved').not('to_user_id', 'is', null),
         ]);
         (singleEnrolled ?? []).forEach(e => excludeIds.add(e.user_id));
@@ -1824,34 +1826,32 @@ export async function submitTransferRequest(
         created_at: new Date().toISOString(),
     };
 
+    const adminForTransfer = createAdminClient();
     let result;
     if (existingTransfer) {
-        result = await supabase.from('transfer_requests').update(payload).eq('id', existingTransfer.id).select().single();
+        result = await adminForTransfer.from('transfer_requests').update(payload).eq('id', existingTransfer.id).select().single();
     } else {
-        result = await supabase.from('transfer_requests').insert(payload).select().single();
+        result = await adminForTransfer.from('transfer_requests').insert(payload).select().single();
     }
 
     const { error } = result;
 
     if (error) throw new Error(`轉讓申請失敗: ${error.message}`);
 
-    // --- NEW: Cross-Intent Cleanup ---
-    // Student is now TRANSFERRING, remove any existing Leave or Makeup intents for this slot
+    // Cross-Intent Cleanup
     await Promise.all([
-        supabase.from('leave_requests').delete().eq('session_id', sessionId).eq('user_id', user.id),
-        supabase.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id).eq('status', 'pending')
+        adminForTransfer.from('leave_requests').delete().eq('session_id', sessionId).eq('user_id', user.id),
+        adminForTransfer.from('makeup_requests').delete().eq('original_session_id', sessionId).eq('user_id', user.id).eq('status', 'pending')
     ]);
-
-    // Update attendance: sender = transfer_out, receiver = transfer_in
     await Promise.all([
-        supabase.from('attendance_records').upsert({
+        adminForTransfer.from('attendance_records').upsert({
             session_id: sessionId,
             user_id: user.id,
             status: 'transfer_out',
             marked_by: user.id,
             marked_at: new Date().toISOString(),
         }, { onConflict: 'session_id,user_id' }),
-        toUserId ? supabase.from('attendance_records').upsert({
+        toUserId ? adminForTransfer.from('attendance_records').upsert({
             session_id: sessionId,
             user_id: toUserId,
             status: 'transfer_in',
@@ -1908,10 +1908,11 @@ export async function reviewTransferRequest(
 
     if (error) throw new Error(`審核失敗: ${error.message}`);
 
+    const adminForReview = createAdminClient();
     if (decision === 'approved') {
 
         // Mark original user as transfer_out, new user as transfer_in
-        await supabase.from('attendance_records').upsert([
+        await adminForReview.from('attendance_records').upsert([
             {
                 session_id: req.session_id,
                 user_id: req.from_user_id,
@@ -1930,17 +1931,17 @@ export async function reviewTransferRequest(
 
         // Cleanup: remove competing records
         await Promise.all([
-            supabase.from('leave_requests').delete().eq('session_id', req.session_id).eq('user_id', req.from_user_id),
-            supabase.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.from_user_id).eq('status', 'pending')
+            adminForReview.from('leave_requests').delete().eq('session_id', req.session_id).eq('user_id', req.from_user_id),
+            adminForReview.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.from_user_id).eq('status', 'pending')
         ]);
     } else {
         // If rejected, delete ONLY IF it's currently a transfer status
         const deletePromises = [
-            supabase.from('attendance_records').delete().eq('session_id', req.session_id).eq('user_id', req.from_user_id).eq('status', 'transfer_out')
+            adminForReview.from('attendance_records').delete().eq('session_id', req.session_id).eq('user_id', req.from_user_id).eq('status', 'transfer_out')
         ];
         if (req.to_user_id) {
             deletePromises.push(
-                supabase.from('attendance_records').delete().eq('session_id', req.session_id).eq('user_id', req.to_user_id).eq('status', 'transfer_in') as any
+                adminForReview.from('attendance_records').delete().eq('session_id', req.session_id).eq('user_id', req.to_user_id).eq('status', 'transfer_in') as any
             );
         }
         await Promise.all(deletePromises);
@@ -2328,7 +2329,19 @@ export async function submitRemittanceInfo(
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
-    const { error } = await supabase
+    // Verify ownership
+    const { data: order } = await supabase
+        .from('card_orders')
+        .select('id')
+        .eq('id', orderId)
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .maybeSingle();
+    if (!order) throw new Error('訂單不存在或已處理');
+
+    // Use adminClient — RLS with_check blocks status change from 'pending' to 'remitted'
+    const adminClient = createAdminClient();
+    const { error } = await adminClient
         .from('card_orders')
         .update({
             status: 'remitted',
@@ -2337,9 +2350,7 @@ export async function submitRemittanceInfo(
             remittance_date: remittanceDate,
             remittance_note: note ?? null,
         })
-        .eq('id', orderId)
-        .eq('user_id', user.id)
-        .eq('status', 'pending'); // only allow if still pending
+        .eq('id', orderId);
 
     if (error) throw new Error(`填寫匯款資訊失敗: ${error.message}`);
 
@@ -2361,7 +2372,8 @@ export async function cancelCardOrder(orderId: string): Promise<{ success: boole
         return { success: false, message: '此收費狀態已無法取消' };
     }
 
-    const { error } = await supabase
+    const adminClient = createAdminClient();
+    const { error } = await adminClient
         .from('card_orders')
         .update({ status: 'cancelled' })
         .eq('id', orderId);
