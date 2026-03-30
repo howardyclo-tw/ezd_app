@@ -202,6 +202,10 @@ export async function batchEnrollInCourses(
 
     if (courseIds.length === 0) return { success: true, message: '無可報名課程' };
 
+    // Guard: non-members cannot do full enrollment
+    const { data: userProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (userProfile?.role === 'guest') throw new Error('非社員無法整期報名，請先加入社員。');
+
     // 1. Get courses and sessions count
     const [coursesRes, profileRes] = await Promise.all([
         supabase.from('courses').select('*, course_sessions(count)').in('id', courseIds),
