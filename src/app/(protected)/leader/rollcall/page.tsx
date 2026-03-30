@@ -16,7 +16,7 @@ export default async function LeaderRollcallPage() {
     if (!user) redirect('/login');
 
     // 1. Fetch sessions for today with leader names and group titles
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
     const { data: sessions, error: sessionsError } = await supabase
         .from('course_sessions')
         .select(`
@@ -69,6 +69,41 @@ export default async function LeaderRollcallPage() {
         redirect('/dashboard');
     }
 
+    // Fetch courses where user is a leader, with next upcoming session
+    const { data: leaderCourses } = await supabase
+        .from('course_leaders')
+        .select(`
+            course_id,
+            courses (
+                id, name, teacher, slug,
+                course_groups ( id, slug, title ),
+                course_sessions ( session_date )
+            )
+        `)
+        .eq('user_id', user.id);
+
+    const myCourses = (leaderCourses ?? [])
+        .map((lc: any) => {
+            const course = lc.courses;
+            if (!course) return null;
+            const futureSessions = (course.course_sessions ?? [])
+                .filter((s: any) => s.session_date >= today)
+                .sort((a: any, b: any) => a.session_date.localeCompare(b.session_date));
+            if (futureSessions.length === 0) return null; // skip ended courses
+            return {
+                id: course.id,
+                name: course.name,
+                teacher: course.teacher,
+                slug: course.slug,
+                groupTitle: course.course_groups?.title,
+                groupSlug: course.course_groups?.slug || course.course_groups?.id,
+                nextSession: futureSessions[0].session_date,
+                remainingSessions: futureSessions.length,
+            };
+        })
+        .filter(Boolean)
+        .sort((a: any, b: any) => a.nextSession.localeCompare(b.nextSession));
+
     // To get the LOGICAL session number (index by date), we need ALL session dates for these courses
     const courseIds = [...new Set(mySessionsRaw.map((s: any) => s.courses?.id).filter(Boolean))];
     const { data: allCourseSessions } = await supabase
@@ -109,6 +144,30 @@ export default async function LeaderRollcallPage() {
                     </div>
                 </div>
             </div>
+
+            {/* My Leader Courses */}
+            {myCourses.length > 0 && (
+                <div className="space-y-3">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Crown className="h-3.5 w-3.5" />
+                        我負責的課程
+                    </p>
+                    <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                        {myCourses.map((c: any) => (
+                            <Link key={c.id} href={`/courses/groups/${c.groupSlug}/${c.slug}`}>
+                                <div className="flex items-center gap-3 p-3 rounded-xl border border-muted/50 bg-muted/5 hover:border-primary/30 hover:bg-primary/[0.02] transition-all group">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">{c.groupTitle}</p>
+                                        <p className="text-sm font-bold truncate group-hover:text-primary transition-colors">{c.teacher} {c.name}</p>
+                                        <p className="text-[11px] text-muted-foreground font-medium">下一堂 {c.nextSession} · 剩餘 {c.remainingSessions} 堂</p>
+                                    </div>
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary shrink-0" />
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Content */}
             {mySessions.length === 0 ? (

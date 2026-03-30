@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { notFound, redirect } from 'next/navigation';
 import { CourseDetailClient } from '@/components/courses/course-detail-client';
 import { getAvailableMakeupQuotaSessions, getMakeupRemainingQuotaForGroup } from '@/lib/supabase/queries';
@@ -57,6 +58,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
 
     // Fetch all independent data in parallel using the resolved course.id
     const sessionIds = (course.course_sessions as any[]).map((s: any) => s.id);
+    const adminDb = createAdminClient();
     const [
         { count: enrolledCount },
         { data: enrollment },
@@ -107,22 +109,22 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             .in('status', ['enrolled', 'waitlist'])
             .order('enrolled_at'),
 
-        // 7. Makeup students arriving in this course
-        supabase
+        // 7. Makeup students arriving in this course (adminClient for cross-user SELECT)
+        adminDb
             .from('makeup_requests')
             .select('*, profiles:user_id ( id, name, role )')
             .eq('target_course_id', course.id)
             .eq('status', 'approved'),
-        
+
         // 8. ALL approved transfer requests for this course (both Out and In)
-        supabase
+        adminDb
             .from('transfer_requests')
             .select('*, from_profile:profiles!transfer_requests_from_user_id_fkey(id, name, role), to_profile:profiles!transfer_requests_to_user_id_fkey(id, name, role)')
             .eq('course_id', course.id)
             .eq('status', 'approved'),
 
         // 9. Leave requests for this course
-        supabase
+        adminDb
             .from('leave_requests')
             .select('*')
             .eq('course_id', course.id)
@@ -394,11 +396,12 @@ function getOriginalTypeForOccupancy(student: any, sessionId: string, transferMe
     const dbStatus = student.attendance[sessionId] ?? 'unmarked';
     const isOfficial = student.type === 'official';
 
-    if (meta) return meta.type;
-    if (dbStatus === 'transfer_out') return 'transfer_out';
-    if (dbStatus === 'transfer_in') return 'transfer_in';
+    // Attendance status takes priority — leave/transfer_out always frees a slot
     if (dbStatus === 'leave') return 'leave';
+    if (dbStatus === 'transfer_out') return 'transfer_out';
 
+    if (meta) return meta.type;
+    if (dbStatus === 'transfer_in') return 'transfer_in';
     if (dbStatus === 'makeup') return 'makeup';
     if (!isOfficial && student.enrolledSessionIds?.includes(sessionId)) return 'single';
     if (!isOfficial) return 'none';
