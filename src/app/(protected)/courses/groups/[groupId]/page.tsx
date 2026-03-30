@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { createAdminClient } from '@/lib/supabase/admin';
 import { CourseCard } from "@/components/courses/course-card";
 import { ChevronLeft, Calendar as CalendarIcon, Edit2, Plus, UserPlus } from "lucide-react";
 import Link from 'next/link';
@@ -9,7 +10,7 @@ import { GroupEnrollmentDialog } from "@/components/courses/group-enrollment-dia
 export const dynamic = 'force-dynamic';
 
 // Helper: compute course status for display
-function getCourseDisplayStatus(course: any): string {
+function getCourseDisplayStatus(course: any, maxOccupancy: number): string {
     const now = new Date();
     const enrollStart = course.enrollment_start_at ? new Date(course.enrollment_start_at) : null;
     const enrollEnd = course.enrollment_end_at ? new Date(course.enrollment_end_at) : null;
@@ -17,8 +18,7 @@ function getCourseDisplayStatus(course: any): string {
     if (enrollStart && enrollStart > now) return 'upcoming';
     if (enrollEnd && enrollEnd < now) return 'ended';
 
-    const enrolledCount = (course.enrollments as any[])?.[0]?.count ?? 0;
-    if (enrolledCount >= course.capacity) return 'full';
+    if (maxOccupancy >= course.capacity) return 'full';
     return 'open';
 }
 
@@ -76,7 +76,6 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
             .select(`
                 *,
                 course_sessions ( id, session_date, session_number ),
-                enrollments ( count ),
                 course_leaders ( user_id, profiles!course_leaders_user_id_fkey ( id, name ) )
             `)
             .eq('group_id', groupData.id),
@@ -91,6 +90,64 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
     ]);
 
 
+
+    // Compute max session occupancy per course for accurate isFull check
+    const adminDb = createAdminClient();
+    const allCourseIds = (courses ?? []).map(c => c.id);
+    const allSessionIds = (courses ?? []).flatMap(c => (c.course_sessions as any[])?.map((s: any) => s.id) ?? []);
+
+    const [
+        { data: allFullEnrollments },
+        { data: allSingleEnrollments },
+        { data: allMakeups },
+        { data: allLeaves },
+        { data: allTransfers },
+    ] = allSessionIds.length > 0 ? await Promise.all([
+        adminDb.from('enrollments').select('course_id, user_id').eq('status', 'enrolled').eq('type', 'full').in('course_id', allCourseIds),
+        adminDb.from('enrollments').select('course_id, session_id, user_id').eq('status', 'enrolled').eq('type', 'single').in('session_id', allSessionIds),
+        adminDb.from('makeup_requests').select('target_session_id').eq('status', 'approved').in('target_session_id', allSessionIds),
+        adminDb.from('leave_requests').select('session_id').eq('status', 'approved').in('session_id', allSessionIds),
+        adminDb.from('transfer_requests').select('session_id, to_user_id').eq('status', 'approved').in('session_id', allSessionIds),
+    ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
+
+    // Build lookup maps (O(n) each) instead of filtering per session (O(n²))
+    const fullCountByCourse: Record<string, number> = {};
+    (allFullEnrollments ?? []).forEach((e: any) => { fullCountByCourse[e.course_id] = (fullCountByCourse[e.course_id] ?? 0) + 1; });
+
+    const singleCountBySession: Record<string, number> = {};
+    (allSingleEnrollments ?? []).forEach((e: any) => { singleCountBySession[e.session_id] = (singleCountBySession[e.session_id] ?? 0) + 1; });
+
+    const makeupCountBySession: Record<string, number> = {};
+    (allMakeups ?? []).forEach((m: any) => { makeupCountBySession[m.target_session_id] = (makeupCountBySession[m.target_session_id] ?? 0) + 1; });
+
+    const leaveCountBySession: Record<string, number> = {};
+    (allLeaves ?? []).forEach((l: any) => { leaveCountBySession[l.session_id] = (leaveCountBySession[l.session_id] ?? 0) + 1; });
+
+    const transferInBySession: Record<string, number> = {};
+    const transferOutBySession: Record<string, number> = {};
+    (allTransfers ?? []).forEach((t: any) => {
+        transferOutBySession[t.session_id] = (transferOutBySession[t.session_id] ?? 0) + 1;
+        if (t.to_user_id) transferInBySession[t.session_id] = (transferInBySession[t.session_id] ?? 0) + 1;
+    });
+
+    // Compute max occupancy per course using O(1) lookups
+    const courseMaxOccupancy: Record<string, number> = {};
+    for (const course of (courses ?? [])) {
+        const sessions = (course.course_sessions as any[]) ?? [];
+        const fullCount = fullCountByCourse[course.id] ?? 0;
+
+        let maxOcc = 0;
+        for (const s of sessions) {
+            const occ = fullCount
+                + (singleCountBySession[s.id] ?? 0)
+                + (makeupCountBySession[s.id] ?? 0)
+                + (transferInBySession[s.id] ?? 0)
+                - (leaveCountBySession[s.id] ?? 0)
+                - (transferOutBySession[s.id] ?? 0);
+            if (occ > maxOcc) maxOcc = occ;
+        }
+        courseMaxOccupancy[course.id] = maxOcc;
+    }
 
     // Map courses to CourseCard format
     let minDate: string | null = null;
@@ -114,7 +171,7 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
         const cShortId = course.slug || course.id;
         const gShortId = groupData.slug || groupData.id;
 
-        const enrolledCount = (course.enrollments as any[])?.[0]?.count ?? 0;
+        const enrolledCount = courseMaxOccupancy[course.id] ?? 0;
         const timeDisplay = firstSession
             ? `${firstSession.session_date.slice(5).replace('-', '/')} (${formatCourseTime(course, [firstSession]).split(' ')[0]}) ${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)} • ${sessions.length} 堂`
             : `${formatCourseTime(course, sessions)} • ${sessions.length} 堂`;
@@ -127,7 +184,7 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
             time: timeDisplay,
             location: course.room,
             type: course.type,
-            status: getCourseDisplayStatus(course),
+            status: getCourseDisplayStatus(course, courseMaxOccupancy[course.id] ?? 0),
             capacity: course.capacity,
             enrolledCount: enrolledCount,
             startDate: firstSession?.session_date ?? '',
@@ -194,7 +251,6 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
                         cardBalance={profile?.card_balance ?? 0}
                         courses={(courses ?? []).map(c => {
                             const sessions = (c.course_sessions as any[]) ?? [];
-                            const enrolledCount = (c.enrollments as any[])?.[0]?.count ?? 0;
                             const isUserEnrolled = (userEnrollments ?? []).some(ue => ue.course_id === c.id);
 
                             return {
@@ -204,7 +260,7 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
                                 sessionsCount: sessions.length,
                                 cardsPerSession: c.cards_per_session,
                                 isEnrolled: isUserEnrolled,
-                                isFull: enrolledCount >= c.capacity,
+                                isFull: (courseMaxOccupancy[c.id] ?? 0) >= c.capacity,
                             };
                         })}
                     />
