@@ -692,7 +692,7 @@ export function CourseDetailClient({
                             </h3>
                             {((course.type === 'normal' || course.type === 'special') && courseQuota && courseQuota.total > 0) && (
                                 <p className="text-[11px] text-muted-foreground font-medium pl-6">
-                                    本課額度: <span className={cn("font-bold", courseQuota.used >= courseQuota.total ? "text-rose-500" : "text-primary")}>{courseQuota.used}</span> / {courseQuota.total} 次 (已用/總額)
+                                    本課補課+轉讓額度: <span className={cn("font-bold", courseQuota.used >= courseQuota.total ? "text-rose-500" : "text-primary")}>{courseQuota.used}</span> / {courseQuota.total} 次 (已用/總額)
                                     <span className="text-[10px] opacity-60 font-normal ml-1">
                                         (規則: 該課 {sessions.length} 堂的 1/4)
                                     </span>

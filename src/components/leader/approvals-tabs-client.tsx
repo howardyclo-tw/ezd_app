@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { Check, Calendar, Loader2, Star, ClipboardList, X, CreditCard, User, Clock, Info, Ban } from "lucide-react";
-import { confirmCardOrder as _confirmCardOrder, rejectCardOrder as _rejectCardOrder, reviewLeaveRequest as _reviewLeaveRequest, reviewMakeupRequest as _reviewMakeupRequest, reviewTransferRequest as _reviewTransferRequest } from '@/lib/supabase/actions';
+import { confirmCardOrder as _confirmCardOrder, rejectCardOrder as _rejectCardOrder, reviewLeaveRequest as _reviewLeaveRequest, reviewMakeupRequest as _reviewMakeupRequest, reviewTransferRequest as _reviewTransferRequest, reviewSingleEnrollment as _reviewSingleEnrollment } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 const confirmCardOrder = safe(_confirmCardOrder);
 const rejectCardOrder = safe(_rejectCardOrder);
 const reviewLeaveRequest = safe(_reviewLeaveRequest);
 const reviewMakeupRequest = safe(_reviewMakeupRequest);
 const reviewTransferRequest = safe(_reviewTransferRequest);
+const reviewSingleEnrollment = safe(_reviewSingleEnrollment);
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -23,10 +24,11 @@ interface ApprovalsTabsClientProps {
     leaves: any[];
     makeups: any[];
     transfers: any[];
+    singleEnrollments: any[];
     currentUserId: string;
 }
 
-export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, currentUserId }: ApprovalsTabsClientProps) {
+export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, singleEnrollments, currentUserId }: ApprovalsTabsClientProps) {
     const router = useRouter();
     const [tab, setTab] = useState('card_orders');
     const [isPending, startTransition] = useTransition();
@@ -37,7 +39,9 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
             ? leaves
             : tab === 'makeups'
                 ? makeups
-                : transfers;
+                : tab === 'transfers'
+                    ? transfers
+                    : singleEnrollments;
 
     const handleConfirmCardOrder = async (id: string) => {
         startTransition(async () => {
@@ -105,6 +109,28 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
         });
     };
 
+    const handleToggleSingleEnrollment = async (id: string, currentStatus: string) => {
+        const newDecision = currentStatus === 'cancelled' ? 'approved' : 'rejected';
+        const confirmMessage = newDecision === 'rejected'
+            ? '確定要駁回此單堂報名嗎？堂卡將歸還給學員。'
+            : '確定要重新核准此單堂報名嗎？將重新扣除學員堂卡。';
+
+        if (!confirm(confirmMessage)) return;
+
+        startTransition(async () => {
+            try {
+                const res = await reviewSingleEnrollment(id, newDecision);
+                if (res.success) {
+                    router.refresh();
+                } else {
+                    alert(res.message);
+                }
+            } catch (err) {
+                alert(err instanceof Error ? err.message : '操作失敗');
+            }
+        });
+    };
+
     const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
 
     const tabHints: Record<string, { title: string; hint: string }> = {
@@ -124,6 +150,10 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
             title: '轉讓審核說明',
             hint: '系統自動核准，通常不需手動操作\n駁回：清除轉出/轉入出席紀錄，雙方恢復原狀\n駁回後可重新核准',
         },
+        single_enrollments: {
+            title: '單堂報名說明',
+            hint: '學員使用堂卡單堂報名，系統自動扣卡\n駁回：刪除報名紀錄，歸還 1 張堂卡\n• 已過期、已點名、已請假的堂次無法駁回',
+        },
     };
 
     const emptyMessages: Record<string, { title: string; desc: string }> = {
@@ -131,6 +161,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
         leaves: { title: '尚無近期請假紀錄', desc: '最近 30 天內沒有請假紀錄。' },
         makeups: { title: '尚無近期補課紀錄', desc: '最近 30 天內沒有補課紀錄。' },
         transfers: { title: '尚無近期轉讓紀錄', desc: '最近 30 天內沒有轉讓紀錄。' },
+        single_enrollments: { title: '尚無近期單堂報名紀錄', desc: '最近 30 天內沒有單堂報名紀錄。' },
     };
 
     return (
@@ -138,17 +169,20 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
             {/* Filter Tabs */}
             <div className="flex justify-center mb-10 px-4 sm:px-0">
                 <Tabs defaultValue="card_orders" className="w-full sm:w-auto" onValueChange={setTab}>
-                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-4 sm:flex sm:grid-cols-none sm:w-auto">
-                        <TabsTrigger value="card_orders" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">
+                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-5 sm:flex sm:grid-cols-none sm:w-auto">
+                        <TabsTrigger value="card_orders" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                             堂卡訂單
                         </TabsTrigger>
-                        <TabsTrigger value="leaves" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">
+                        <TabsTrigger value="single_enrollments" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
+                            單堂報名
+                        </TabsTrigger>
+                        <TabsTrigger value="leaves" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                             請假紀錄
                         </TabsTrigger>
-                        <TabsTrigger value="makeups" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">
+                        <TabsTrigger value="makeups" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                             補課紀錄
                         </TabsTrigger>
-                        <TabsTrigger value="transfers" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm">
+                        <TabsTrigger value="transfers" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                             轉讓紀錄
                         </TabsTrigger>
                     </TabsList>
@@ -189,6 +223,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                 <div className="space-y-4 mt-6">
                     {currentList.map((req) => {
                         const isCardOrder = tab === 'card_orders';
+                        const isSingleEnrollment = tab === 'single_enrollments';
                         // Determine session date for expiry check
                         const sessionDate = tab === 'makeups'
                             ? req.target_sessions?.session_date
@@ -208,15 +243,16 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                                                 !isCardOrder && "bg-muted text-muted-foreground border-transparent"
                                             )}>
                                                 {isCardOrder ? '堂卡購買' :
+                                                    isSingleEnrollment ? '單堂報名' :
                                                     tab === 'leaves' ? '請假紀錄' :
                                                         tab === 'makeups' ? '補課紀錄' : '轉讓紀錄'}
                                             </Badge>
                                             {/* Unified Status Badges */}
-                                            {(req.status === 'confirmed' || req.status === 'approved') ? (
+                                            {(req.status === 'confirmed' || req.status === 'approved' || req.status === 'enrolled') ? (
                                                 <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-transparent text-[10px] font-bold">
-                                                    已核准
+                                                    {isSingleEnrollment ? '已報名' : '已核准'}
                                                 </Badge>
-                                            ) : req.status === 'rejected' ? (
+                                            ) : (req.status === 'rejected' || req.status === 'cancelled') ? (
                                                 <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-transparent text-[10px] font-bold">
                                                     已駁回
                                                 </Badge>
@@ -226,7 +262,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                                                 </Badge>
                                             )}
                                             <span className="text-[11px] text-muted-foreground/70 font-medium">
-                                                申請時間: {format(parseISO(req.created_at), "yyyy/MM/dd HH:mm")}
+                                                {isSingleEnrollment ? '報名' : '申請'}時間: {format(parseISO(req.enrolled_at || req.created_at), "yyyy/MM/dd HH:mm")}
                                             </span>
                                         </div>
 
@@ -260,6 +296,12 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                                                     <>
                                                         <span className="text-muted-foreground/60 mr-1.5 font-bold">[{req.courses?.course_groups?.title}]</span>
                                                         {req.courses?.name} 第 {req.course_sessions?.session_number} 堂 ({req.course_sessions?.session_date}) 轉給 {req.to_profile?.name || req.to_user_name || '現場學員'}
+                                                    </>
+                                                )}
+                                                {isSingleEnrollment && (
+                                                    <>
+                                                        <span className="text-muted-foreground/60 mr-1.5 font-bold">[{req.courses?.course_groups?.title}]</span>
+                                                        {req.courses?.name} 第 {req.course_sessions?.session_number} 堂 ({req.course_sessions?.session_date})
                                                     </>
                                                 )}
                                                 {tab === 'card_orders' && (
@@ -360,8 +402,30 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                                             </button>
                                         )}
 
+                                        {/* Single enrollment actions */}
+                                        {isSingleEnrollment && req.status !== 'cancelled' && (
+                                            <button
+                                                disabled={isPending}
+                                                onClick={() => handleToggleSingleEnrollment(req.id, req.status)}
+                                                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all bg-white text-red-600 shadow-sm border border-transparent hover:bg-red-50 hover:border-red-200 hover:shadow-md active:scale-[0.98] disabled:opacity-50 min-w-[76px]"
+                                            >
+                                                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                                                駁回
+                                            </button>
+                                        )}
+                                        {isSingleEnrollment && req.status === 'cancelled' && (
+                                            <button
+                                                disabled={isPending}
+                                                onClick={() => handleToggleSingleEnrollment(req.id, req.status)}
+                                                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all bg-white text-emerald-600 shadow-sm border border-transparent hover:bg-emerald-50 hover:border-emerald-200 hover:shadow-md active:scale-[0.98] disabled:opacity-50 min-w-[76px]"
+                                            >
+                                                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                                核准
+                                            </button>
+                                        )}
+
                                         {/* Other requests specific actions */}
-                                        {!isCardOrder && isPast && (
+                                        {!isCardOrder && !isSingleEnrollment && isPast && (
                                             <button
                                                 disabled
                                                 className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-bold transition-all bg-muted/50 text-muted-foreground shadow-sm border border-transparent cursor-not-allowed min-w-[76px]"
@@ -370,7 +434,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                                                 已過期無法操作
                                             </button>
                                         )}
-                                        {!isCardOrder && !isPast && req.status !== 'rejected' && (
+                                        {!isCardOrder && !isSingleEnrollment && !isPast && req.status !== 'rejected' && (
                                             <button
                                                 disabled={isPending}
                                                 onClick={() => handleToggleStatus(req.id, tab as any, req.status)}
@@ -380,7 +444,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, cu
                                                 駁回
                                             </button>
                                         )}
-                                        {!isCardOrder && !isPast && req.status === 'rejected' && (
+                                        {!isCardOrder && !isSingleEnrollment && !isPast && req.status === 'rejected' && (
                                             <button
                                                 disabled={isPending}
                                                 onClick={() => handleToggleStatus(req.id, tab as any, req.status)}

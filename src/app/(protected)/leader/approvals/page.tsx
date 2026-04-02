@@ -1,4 +1,5 @@
 import { createClient, getServerProfile } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ShieldCheck } from "lucide-react";
@@ -65,13 +66,29 @@ export default async function LeaderApprovalsPage() {
         .gte('created_at', thirtyDaysAgoIso)
         .order('created_at', { ascending: false });
 
-    // Start all queries in parallel (1 serial trip saved)
+    // Fetch Recent Single Enrollments (use adminClient for cross-user SELECT)
+    const adminDb = createAdminClient();
+    const singleEnrollmentQuery = adminDb
+        .from('enrollments')
+        .select(`
+            *,
+            profiles!enrollments_user_id_fkey(name),
+            courses(name, course_groups(title)),
+            course_sessions!enrollments_session_id_fkey(session_date, session_number)
+        `)
+        .eq('type', 'single')
+        .in('status', ['enrolled', 'cancelled'])
+        .gte('enrolled_at', thirtyDaysAgoIso)
+        .order('enrolled_at', { ascending: false });
+
+    // Start all queries in parallel
     const [
         { data: cardOrders },
         { data: leaves },
         { data: makeups },
-        { data: transfers }
-    ] = await Promise.all([cardOrderQuery, leaveQuery, makeupQuery, transferQuery]);
+        { data: transfers },
+        { data: singleEnrollments }
+    ] = await Promise.all([cardOrderQuery, leaveQuery, makeupQuery, transferQuery, singleEnrollmentQuery]);
 
     return (
         <div className="container max-w-5xl py-6 space-y-6">
@@ -99,6 +116,7 @@ export default async function LeaderApprovalsPage() {
                 leaves={leaves || []}
                 makeups={makeups || []}
                 transfers={transfers || []}
+                singleEnrollments={singleEnrollments || []}
                 currentUserId={user.id}
             />
         </div>
