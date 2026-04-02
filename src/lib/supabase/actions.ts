@@ -2483,3 +2483,138 @@ export async function rejectCardOrder(orderId: string): Promise<{ success: boole
 
     return { success: true, message: '訂單已駁回' };
 }
+
+// ------------------------------------------------------------------
+// Single Enrollment Review (Admin)
+// ------------------------------------------------------------------
+
+export async function reviewSingleEnrollment(
+    enrollmentId: string,
+    decision: 'approved' | 'rejected'
+): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以執行此操作');
+
+    const adminClient = createAdminClient();
+
+    // 1. Fetch enrollment with session info
+    const { data: enrollment } = await adminClient
+        .from('enrollments')
+        .select('*, course_sessions!enrollments_session_id_fkey(session_date, session_number, course_id), courses!enrollments_course_id_fkey(capacity)')
+        .eq('id', enrollmentId)
+        .maybeSingle();
+
+    if (!enrollment) return { success: false, message: '找不到報名紀錄' };
+    if (enrollment.type !== 'single') return { success: false, message: '只能操作單堂報名' };
+
+    const sessionDate = (enrollment.course_sessions as any)?.session_date;
+    const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+
+    // 2. Guard: past session
+    if (sessionDate && sessionDate < todayStr) {
+        return { success: false, message: '此堂次已過期，無法操作。' };
+    }
+
+    const { syncCardBalance } = await import('./card-utils');
+
+    if (decision === 'rejected') {
+        // Guard: enrollment must be 'enrolled' (prevents double-refund)
+        if (enrollment.status !== 'enrolled') return { success: false, message: '此報名已被處理' };
+
+        // Guard: has attendance record
+        const { data: attendance } = await adminClient
+            .from('attendance_records')
+            .select('id, status')
+            .eq('session_id', enrollment.session_id)
+            .eq('user_id', enrollment.user_id)
+            .maybeSingle();
+
+        if (attendance && attendance.status !== 'unmarked') {
+            if (attendance.status === 'leave') {
+                return { success: false, message: '此堂次已有請假紀錄，請先駁回請假後再駁回報名。' };
+            }
+            return { success: false, message: `此堂次已有點名紀錄（${attendance.status}），無法駁回。` };
+        }
+
+        // Update status to cancelled (use conditional update to prevent concurrent double-refund)
+        const { data: updated } = await adminClient
+            .from('enrollments')
+            .update({ status: 'cancelled' })
+            .eq('id', enrollmentId)
+            .eq('status', 'enrolled')
+            .select();
+
+        if (!updated || updated.length === 0) return { success: false, message: '此報名已被處理' };
+
+        // Delete attendance record if exists
+        if (attendance) {
+            await adminClient.from('attendance_records').delete().eq('id', attendance.id);
+        }
+
+        // Refund card: find earliest expiring pool with used > 0
+        const { data: pools } = await adminClient
+            .from('card_orders')
+            .select('id, used, expires_at')
+            .eq('user_id', enrollment.user_id)
+            .eq('status', 'confirmed')
+            .gt('used', 0)
+            .order('expires_at', { ascending: true, nullsFirst: false })
+            .limit(1);
+
+        if (pools && pools.length > 0) {
+            await adminClient
+                .from('card_orders')
+                .update({ used: pools[0].used - 1 })
+                .eq('id', pools[0].id);
+        }
+
+        await syncCardBalance(enrollment.user_id);
+        revalidatePath('/', 'layout');
+        return { success: true, message: '已駁回單堂報名，堂卡已歸還' };
+
+    } else {
+        // Re-approve: status must be 'cancelled'
+        if (enrollment.status !== 'cancelled') return { success: false, message: '此報名不需要重新核准' };
+
+        // Check capacity
+        const [{ count: enrolledCount }, { count: makeupCount }, { count: leaveCount }, { data: transferData }] = await Promise.all([
+            adminClient.from('enrollments').select('*', { count: 'exact', head: true }).eq('course_id', enrollment.course_id).eq('status', 'enrolled').or(`type.eq.full,session_id.eq.${enrollment.session_id}`),
+            adminClient.from('makeup_requests').select('*', { count: 'exact', head: true }).eq('target_session_id', enrollment.session_id).eq('status', 'approved'),
+            adminClient.from('leave_requests').select('*', { count: 'exact', head: true }).eq('session_id', enrollment.session_id).eq('status', 'approved'),
+            adminClient.from('transfer_requests').select('to_user_id').eq('session_id', enrollment.session_id).eq('status', 'approved'),
+        ]);
+        const transferInCount = (transferData ?? []).filter((t: any) => !!t.to_user_id).length;
+        const transferOutCount = (transferData ?? []).length;
+        const occupancy = (enrolledCount ?? 0) + (makeupCount ?? 0) + transferInCount - (leaveCount ?? 0) - transferOutCount;
+        const capacity = (enrollment.courses as any)?.capacity ?? 999;
+        if (occupancy >= capacity) {
+            return { success: false, message: '此堂次已額滿，無法重新核准。' };
+        }
+
+        // Check card balance
+        const { getAvailableCardBalance } = await import('./card-utils');
+        const cardInfo = await getAvailableCardBalance(enrollment.user_id, sessionDate);
+        if (cardInfo.available < 1) {
+            return { success: false, message: '學員堂卡餘額不足，無法重新核准' };
+        }
+
+        // Restore enrollment first (if this fails, no card is deducted)
+        const { data: restored } = await adminClient
+            .from('enrollments')
+            .update({ status: 'enrolled' })
+            .eq('id', enrollmentId)
+            .eq('status', 'cancelled')
+            .select();
+
+        if (!restored || restored.length === 0) return { success: false, message: '此報名已被處理' };
+
+        // Then deduct card
+        const { deductCardsFIFO } = await import('./card-utils');
+        await deductCardsFIFO(enrollment.user_id, 1, sessionDate, '重新核准單堂報名');
+
+        revalidatePath('/', 'layout');
+        return { success: true, message: '已重新核准單堂報名，堂卡已扣除' };
+    }
+}
