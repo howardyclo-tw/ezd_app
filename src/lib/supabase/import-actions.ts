@@ -227,7 +227,7 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                     type: 'purchase',
                     amount: cardCount,
                     balance_after: (profileData?.card_balance || 0) + cardCount,
-                    note: `系統匯入：${purchase_date || new Date().toISOString().split('T')[0]}`
+                    note: `系統匯入：${purchase_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date())}`
                 });
 
                 await adminClient
@@ -421,7 +421,7 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                         d.setDate(d.getDate() + i * 7);
                         sessions.push({
                             course_id: courseId,
-                            session_date: d.toISOString().split('T')[0],
+                            session_date: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(d),
                             session_number: i + 1,
                         });
                     }

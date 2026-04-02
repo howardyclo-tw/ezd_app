@@ -24,7 +24,7 @@ import type {
 
 export async function getCourseGroups() {
     const supabase = await createClient();
-    const nowStr = new Date().toISOString().split('T')[0];
+    const nowStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
     const { data, error } = await supabase
         .from('course_groups')
         .select('*')
