@@ -669,7 +669,7 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
     });
     const sessions = sortedSessions.map((s: any, index: number) => ({
         course_id: course.id,
-        session_date: s.date instanceof Date ? s.date.toISOString().split('T')[0] : s.date,
+        session_date: s.date instanceof Date ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(s.date) : s.date,
         session_number: index + 1
     }));
 
@@ -2238,7 +2238,7 @@ export async function createCardOrder(quantity: number, includeMembership: boole
     // Check purchase window is open
     const config = await getSystemConfig();
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(now);
 
     // Check master toggle
     if (config['card_purchase_open'] !== 'true') {
@@ -2299,7 +2299,7 @@ export async function createCardOrder(quantity: number, includeMembership: boole
             total_amount: totalAmount,
             status: 'pending',
             include_membership: includeMembership,
-            expires_at: expiresAt.toISOString().split('T')[0],
+            expires_at: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(expiresAt),
         })
         .select('id')
         .single();
