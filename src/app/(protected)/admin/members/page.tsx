@@ -49,6 +49,7 @@ export default async function AdminMembersPage() {
                 courses ( id, name, type, teacher, course_groups ( title ) ),
                 course_sessions ( id, session_date )
             `)
+            .eq('status', 'enrolled')
             .then(res => res.error ? { data: [] } : res),
 
         // All course sessions (used for: session counts, full enrollment display, date lookups)
