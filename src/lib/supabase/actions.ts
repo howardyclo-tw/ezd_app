@@ -845,8 +845,35 @@ export async function saveAttendance(
     records: { userId: string; status: string; note?: string }[]
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
+    const adminClient = createAdminClient();
 
-    const upserts = records.map(r => ({
+    // Get course_id for this session
+    const { data: session } = await adminClient
+        .from('course_sessions')
+        .select('course_id')
+        .eq('id', sessionId)
+        .maybeSingle();
+
+    if (!session) throw new Error('找不到堂次');
+
+    // Build set of legitimate user IDs for this session
+    const [{ data: fullEnrollments }, { data: singleEnrollments }, { data: makeups }, { data: transfers }] = await Promise.all([
+        adminClient.from('enrollments').select('user_id').eq('course_id', session.course_id).eq('type', 'full').eq('status', 'enrolled'),
+        adminClient.from('enrollments').select('user_id').eq('session_id', sessionId).eq('type', 'single').eq('status', 'enrolled'),
+        adminClient.from('makeup_requests').select('user_id').eq('target_session_id', sessionId).eq('status', 'approved'),
+        adminClient.from('transfer_requests').select('to_user_id').eq('session_id', sessionId).eq('status', 'approved'),
+    ]);
+
+    const legitimateUserIds = new Set<string>();
+    (fullEnrollments ?? []).forEach(e => legitimateUserIds.add(e.user_id));
+    (singleEnrollments ?? []).forEach(e => legitimateUserIds.add(e.user_id));
+    (makeups ?? []).forEach(m => legitimateUserIds.add(m.user_id));
+    (transfers ?? []).forEach(t => { if (t.to_user_id) legitimateUserIds.add(t.to_user_id); });
+
+    // Filter records to only legitimate users
+    const filteredRecords = records.filter(r => legitimateUserIds.has(r.userId));
+
+    const upserts = filteredRecords.map(r => ({
         session_id: sessionId,
         user_id: r.userId,
         status: r.status,
@@ -855,17 +882,13 @@ export async function saveAttendance(
         marked_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase
-        .from('attendance_records')
-        .upsert(upserts, { onConflict: 'session_id,user_id' });
+    if (upserts.length > 0) {
+        const { error } = await adminClient
+            .from('attendance_records')
+            .upsert(upserts, { onConflict: 'session_id,user_id' });
 
-    if (error) throw new Error(`儲存點名失敗: ${error.message}`);
-
-    const { data: session } = await supabase
-        .from('course_sessions')
-        .select('course_id')
-        .eq('id', sessionId)
-        .maybeSingle();
+        if (error) throw new Error(`儲存點名失敗: ${error.message}`);
+    }
 
     if (session) revalidatePath('/', 'layout');
     return { success: true, message: '點名已儲存' };
@@ -1097,6 +1120,18 @@ export async function reviewLeaveRequest(
         // If rejected, restore attendance to previous state
         const adminClient = createAdminClient();
 
+        // Guard: if attendance has been overwritten by roll call (present/absent), block rejection
+        const { data: currentAttendance } = await adminClient
+            .from('attendance_records')
+            .select('status')
+            .eq('session_id', req.session_id)
+            .eq('user_id', req.user_id)
+            .maybeSingle();
+
+        if (currentAttendance && (currentAttendance.status === 'present' || currentAttendance.status === 'absent')) {
+            return { success: false, message: `此堂次已有點名紀錄（${currentAttendance.status === 'present' ? '出席' : '缺席'}），無法駁回請假。` };
+        }
+
         // Check if this was a makeup student — restore to 'makeup' instead of deleting
         const { data: makeupCheck } = await adminClient
             .from('makeup_requests')
@@ -1137,13 +1172,12 @@ export async function reviewLeaveRequest(
                         marked_at: new Date().toISOString(),
                     }, { onConflict: 'session_id,user_id' });
             } else {
-                // Regular student: remove the leave attendance record
+                // Regular student: remove attendance record (don't filter by status — it may have been overwritten by roll call)
                 await adminClient
                     .from('attendance_records')
                     .delete()
                     .eq('session_id', req.session_id)
-                    .eq('user_id', req.user_id)
-                    .eq('status', 'leave');
+                    .eq('user_id', req.user_id);
             }
         }
     }
@@ -1543,6 +1577,21 @@ export async function reviewMakeupRequest(
 
     // 3. Post-update side effects
     const adminClient = createAdminClient();
+
+    // Guard for rejection: if attendance has been overwritten by roll call, block
+    if (decision === 'rejected') {
+        const { data: currentAtt } = await adminClient
+            .from('attendance_records')
+            .select('status')
+            .eq('session_id', req.target_session_id)
+            .eq('user_id', req.user_id)
+            .maybeSingle();
+
+        if (currentAtt && (currentAtt.status === 'present' || currentAtt.status === 'absent')) {
+            return { success: false, message: `此堂次已有點名紀錄（${currentAtt.status === 'present' ? '出席' : '缺席'}），無法駁回補課。` };
+        }
+    }
+
     if (decision === 'approved') {
         await supabase
             .from('attendance_records')
@@ -1939,16 +1988,31 @@ export async function reviewTransferRequest(
             adminForReview.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.from_user_id).eq('status', 'pending')
         ]);
     } else {
-        // If rejected, delete ONLY IF it's currently a transfer status
-        const deletePromises = [
-            adminForReview.from('attendance_records').delete().eq('session_id', req.session_id).eq('user_id', req.from_user_id).eq('status', 'transfer_out')
-        ];
-        if (req.to_user_id) {
-            deletePromises.push(
-                adminForReview.from('attendance_records').delete().eq('session_id', req.session_id).eq('user_id', req.to_user_id).eq('status', 'transfer_in') as any
-            );
+        // If rejected, clean up attendance records
+        // For from_user: only delete if they don't have an enrollment (full or single) for this session
+        const { data: fromEnrollment } = await adminForReview.from('enrollments')
+            .select('id')
+            .eq('course_id', req.course_id).eq('user_id', req.from_user_id).eq('status', 'enrolled')
+            .or(`type.eq.full,session_id.eq.${req.session_id}`)
+            .limit(1).maybeSingle();
+        if (!fromEnrollment) {
+            await adminForReview.from('attendance_records').delete()
+                .eq('session_id', req.session_id).eq('user_id', req.from_user_id);
         }
-        await Promise.all(deletePromises);
+
+        // For to_user: always delete — they only had access via this transfer
+        if (req.to_user_id) {
+            // Check if to_user has their own enrollment for this session
+            const { data: toEnrollment } = await adminForReview.from('enrollments')
+                .select('id')
+                .eq('course_id', req.course_id).eq('user_id', req.to_user_id).eq('status', 'enrolled')
+                .or(`type.eq.full,session_id.eq.${req.session_id}`)
+                .limit(1).maybeSingle();
+            if (!toEnrollment) {
+                await adminForReview.from('attendance_records').delete()
+                    .eq('session_id', req.session_id).eq('user_id', req.to_user_id);
+            }
+        }
     }
 
     revalidatePath('/', 'layout');

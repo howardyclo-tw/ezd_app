@@ -249,11 +249,10 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         }
     });
 
-    // 2. Find ANYONE ELSE who has an attendance record or makeup/transfer intent
-    const otherParticipantUserIds = Array.from(new Set([
-        ...Object.keys(attendanceMap),
-        ...Object.keys(externalParticipantsMap)
-    ])).filter(id => !enrolledUserIds.has(id));
+    // 2. Find additional students from approved makeup/transfer only (NOT from attendanceMap to prevent ghost students)
+    const otherParticipantUserIds = Array.from(new Set(
+        Object.keys(externalParticipantsMap)
+    )).filter(id => !enrolledUserIds.has(id));
 
     let additionalOnlyRoster: any[] = [];
     if (otherParticipantUserIds.length > 0) {
@@ -264,10 +263,6 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
 
         additionalOnlyRoster = (additionalProfiles ?? []).map(p => {
             const externalSessions = externalParticipantsMap[p.id]?.sessions || [];
-            // CRITICAL: Also include ALL sessions where this user has attendance records
-            // This prevents students from disappearing when their status is set to 'unmarked'
-            const attendanceSessions = Object.keys(attendanceMap[p.id] ?? {});
-            const allSessions = Array.from(new Set([...externalSessions, ...attendanceSessions]));
             return {
                 id: p.id,
                 name: p.name,
@@ -275,7 +270,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
                 isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === p.id),
                 type: 'additional',
                 attendance: attendanceMap[p.id] ?? {},
-                enrolledSessionIds: allSessions,
+                enrolledSessionIds: externalSessions,
             };
         });
     }
