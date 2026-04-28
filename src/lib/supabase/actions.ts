@@ -873,6 +873,71 @@ export async function saveAttendance(
     // Filter records to only legitimate users
     const filteredRecords = records.filter(r => legitimateUserIds.has(r.userId));
 
+    // ── Server-side consistency: detect competing approved requests ──
+    // Race-safe vs frontend stale data. Auto-cleanup orphan leave_requests
+    // when overriding to present/absent; block transfer_out and present-over-makeup-source.
+    const userIdsToCheck = filteredRecords
+        .filter(r => r.status === 'present' || r.status === 'absent')
+        .map(r => r.userId);
+
+    const leaveIdsToDelete: string[] = [];
+
+    if (userIdsToCheck.length > 0) {
+        const [{ data: approvedLeaves }, { data: approvedTransfersOut }, { data: makeupsAsSource }] = await Promise.all([
+            adminClient.from('leave_requests')
+                .select('id, user_id')
+                .eq('session_id', sessionId).in('user_id', userIdsToCheck).eq('status', 'approved'),
+            adminClient.from('transfer_requests')
+                .select('id, from_user_id')
+                .eq('session_id', sessionId).in('from_user_id', userIdsToCheck).eq('status', 'approved'),
+            adminClient.from('makeup_requests')
+                .select('id, user_id, target_courses:target_course_id(name), target_sessions:target_session_id(session_date, session_number)')
+                .eq('original_session_id', sessionId).in('user_id', userIdsToCheck).in('status', ['pending', 'approved']),
+        ]);
+
+        const leaveByUser = new Map((approvedLeaves ?? []).map((l: any) => [l.user_id, l.id]));
+        const transferOutByUser = new Set((approvedTransfersOut ?? []).map((t: any) => t.from_user_id));
+        const makeupSourceByUser = new Map((makeupsAsSource ?? []).map((m: any) => [m.user_id, m]));
+
+        const conflictUserIds = Array.from(new Set([
+            ...transferOutByUser,
+            ...makeupSourceByUser.keys(),
+        ]));
+        const userNameMap = new Map<string, string>();
+        if (conflictUserIds.length > 0) {
+            const { data: names } = await adminClient.from('profiles').select('id, name').in('id', conflictUserIds);
+            (names ?? []).forEach((n: any) => userNameMap.set(n.id, n.name || '學員'));
+        }
+
+        const blockMessages: string[] = [];
+
+        for (const r of filteredRecords) {
+            if (r.status !== 'present' && r.status !== 'absent') continue;
+
+            if (transferOutByUser.has(r.userId)) {
+                blockMessages.push(`${userNameMap.get(r.userId) ?? '某學員'}此堂次已轉讓給其他學員，無法直接點名。請先至「申請審核」處理該轉讓記錄。`);
+                continue;
+            }
+
+            if (r.status === 'present' && makeupSourceByUser.has(r.userId)) {
+                const m = makeupSourceByUser.get(r.userId);
+                const ts = m?.target_sessions;
+                const tc = m?.target_courses;
+                const target = ts ? `${tc?.name ?? '某課'} 第 ${ts.session_number} 堂 (${ts.session_date})` : (tc?.name ?? '某課');
+                blockMessages.push(`${userNameMap.get(r.userId) ?? '某學員'}此堂次的缺席已被用於補課至「${target}」，無法改為出席。請先至「申請審核」駁回該補課。`);
+                continue;
+            }
+
+            if (leaveByUser.has(r.userId)) {
+                leaveIdsToDelete.push(leaveByUser.get(r.userId)!);
+            }
+        }
+
+        if (blockMessages.length > 0) {
+            throw new Error(blockMessages.join('\n'));
+        }
+    }
+
     const upserts = filteredRecords.map(r => ({
         session_id: sessionId,
         user_id: r.userId,
@@ -888,6 +953,10 @@ export async function saveAttendance(
             .upsert(upserts, { onConflict: 'session_id,user_id' });
 
         if (error) throw new Error(`儲存點名失敗: ${error.message}`);
+    }
+
+    if (leaveIdsToDelete.length > 0) {
+        await adminClient.from('leave_requests').delete().in('id', leaveIdsToDelete);
     }
 
     if (session) revalidatePath('/', 'layout');
