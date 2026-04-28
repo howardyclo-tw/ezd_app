@@ -438,7 +438,13 @@ export function CourseDetailClient({
                     return saveAttendance(sessionId, records);
                 });
 
-                await Promise.all(promises);
+                const results = await Promise.all(promises);
+                const failed = results.filter((r: any) => r && r.success === false);
+                if (failed.length > 0) {
+                    alert(failed.map((r: any) => r.message).join('\n\n'));
+                    router.refresh();
+                    return;
+                }
                 router.refresh();
                 setIsEditing(false);
             } catch (err) {

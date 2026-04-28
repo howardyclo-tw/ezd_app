@@ -870,20 +870,32 @@ export async function saveAttendance(
     (makeups ?? []).forEach(m => legitimateUserIds.add(m.user_id));
     (transfers ?? []).forEach(t => { if (t.to_user_id) legitimateUserIds.add(t.to_user_id); });
 
-    // Filter records to only legitimate users
-    const filteredRecords = records.filter(r => legitimateUserIds.has(r.userId));
+    // Filter records to only legitimate users; dedupe by userId (last write wins)
+    const recordByUser = new Map<string, { userId: string; status: string; note?: string }>();
+    for (const r of records) {
+        if (legitimateUserIds.has(r.userId)) recordByUser.set(r.userId, r);
+    }
+    const filteredRecords = Array.from(recordByUser.values());
 
     // ── Server-side consistency: detect competing approved requests ──
     // Race-safe vs frontend stale data. Auto-cleanup orphan leave_requests
     // when overriding to present/absent; block transfer_out and present-over-makeup-source.
-    const userIdsToCheck = filteredRecords
-        .filter(r => r.status === 'present' || r.status === 'absent')
-        .map(r => r.userId);
+    // Note: guard messages must reach the leader, so use return { success: false }
+    // instead of throw — saveAttendance is wrapped by safe() which masks throws in prod.
+    const userIdsToCheck = Array.from(new Set(
+        filteredRecords
+            .filter(r => r.status === 'present' || r.status === 'absent')
+            .map(r => r.userId)
+    ));
 
     const leaveIdsToDelete: string[] = [];
 
     if (userIdsToCheck.length > 0) {
-        const [{ data: approvedLeaves }, { data: approvedTransfersOut }, { data: makeupsAsSource }] = await Promise.all([
+        const [
+            { data: approvedLeaves, error: leavesErr },
+            { data: approvedTransfersOut, error: transfersErr },
+            { data: makeupsAsSource, error: makeupsErr },
+        ] = await Promise.all([
             adminClient.from('leave_requests')
                 .select('id, user_id')
                 .eq('session_id', sessionId).in('user_id', userIdsToCheck).eq('status', 'approved'),
@@ -894,6 +906,10 @@ export async function saveAttendance(
                 .select('id, user_id, target_courses:target_course_id(name), target_sessions:target_session_id(session_date, session_number)')
                 .eq('original_session_id', sessionId).in('user_id', userIdsToCheck).in('status', ['pending', 'approved']),
         ]);
+
+        if (leavesErr || transfersErr || makeupsErr) {
+            throw new Error(`儲存點名失敗（一致性檢查讀取錯誤）: ${(leavesErr || transfersErr || makeupsErr)?.message}`);
+        }
 
         const leaveByUser = new Map((approvedLeaves ?? []).map((l: any) => [l.user_id, l.id]));
         const transferOutByUser = new Set((approvedTransfersOut ?? []).map((t: any) => t.from_user_id));
@@ -934,7 +950,7 @@ export async function saveAttendance(
         }
 
         if (blockMessages.length > 0) {
-            throw new Error(blockMessages.join('\n'));
+            return { success: false, message: blockMessages.join('\n') };
         }
     }
 
@@ -956,7 +972,8 @@ export async function saveAttendance(
     }
 
     if (leaveIdsToDelete.length > 0) {
-        await adminClient.from('leave_requests').delete().in('id', leaveIdsToDelete);
+        const { error: cleanupErr } = await adminClient.from('leave_requests').delete().in('id', leaveIdsToDelete);
+        if (cleanupErr) throw new Error(`儲存點名後清理請假紀錄失敗: ${cleanupErr.message}`);
     }
 
     if (session) revalidatePath('/', 'layout');
@@ -2057,31 +2074,19 @@ export async function reviewTransferRequest(
             adminForReview.from('makeup_requests').delete().eq('original_session_id', req.session_id).eq('user_id', req.from_user_id).eq('status', 'pending')
         ]);
     } else {
-        // If rejected, clean up attendance records
-        // For from_user: only delete if they don't have an enrollment (full or single) for this session
-        const { data: fromEnrollment } = await adminForReview.from('enrollments')
-            .select('id')
-            .eq('course_id', req.course_id).eq('user_id', req.from_user_id).eq('status', 'enrolled')
-            .or(`type.eq.full,session_id.eq.${req.session_id}`)
-            .limit(1).maybeSingle();
-        if (!fromEnrollment) {
-            await adminForReview.from('attendance_records').delete()
-                .eq('session_id', req.session_id).eq('user_id', req.from_user_id);
-        }
-
-        // For to_user: always delete — they only had access via this transfer
-        if (req.to_user_id) {
-            // Check if to_user has their own enrollment for this session
-            const { data: toEnrollment } = await adminForReview.from('enrollments')
-                .select('id')
-                .eq('course_id', req.course_id).eq('user_id', req.to_user_id).eq('status', 'enrolled')
-                .or(`type.eq.full,session_id.eq.${req.session_id}`)
-                .limit(1).maybeSingle();
-            if (!toEnrollment) {
-                await adminForReview.from('attendance_records').delete()
-                    .eq('session_id', req.session_id).eq('user_id', req.to_user_id);
-            }
-        }
+        // If rejected, clear the attendance rows that were set by the approval.
+        // Filter by status='transfer_out'/'transfer_in' so we don't accidentally
+        // wipe a row already updated by another flow (e.g. rollcall after race).
+        // For from_user with own enrollment, deleting the row is safe — rollcall
+        // will create a fresh row when leader marks attendance.
+        await Promise.all([
+            adminForReview.from('attendance_records').delete()
+                .eq('session_id', req.session_id).eq('user_id', req.from_user_id)
+                .eq('status', 'transfer_out'),
+            req.to_user_id ? adminForReview.from('attendance_records').delete()
+                .eq('session_id', req.session_id).eq('user_id', req.to_user_id)
+                .eq('status', 'transfer_in') : Promise.resolve(),
+        ]);
     }
 
     revalidatePath('/', 'layout');
