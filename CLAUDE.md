@@ -44,6 +44,38 @@ This pattern exists because RLS policies are too restrictive for cross-user oper
 - Prod: shows generic "操作失敗！" message
 - Some guards use `return { success: false, message }` instead of `throw` to ensure messages reach the user in production
 
+### Route Structure
+
+```
+src/app/
+  (auth)/login, register           # Public auth pages
+  (protected)/                     # Auth-guarded via middleware + ProtectedRoute
+    dashboard/                     # Profile, stats, admin shortcuts
+      my_cards/                    # Card pool & purchase
+      my_courses/                  # Upcoming, makeup, history
+    courses/                       # Course group listing
+      groups/[groupId]/            # Courses in a period
+        [courseId]/                 # Attendance sheet (點名單) + edit
+      new/                         # Admin: create course
+    admin/members/, settings/      # Admin pages (role-gated in page)
+    leader/rollcall/, approvals/, import/   # Leader tools
+    guide/                         # User guide (from system_config)
+```
+
+No parallel routes or intercepting routes. Root `/` redirects to `/dashboard`.
+
+### Auth Flow
+
+Two-layer defense:
+1. **Middleware** (`src/lib/supabase/middleware.ts`): Cookie-based session sync via `updateSession()`. Unauthenticated users redirect to `/login`. Logged-in users on `/` redirect to `/dashboard`.
+2. **ProtectedRoute** (`src/components/layout/protected-route.tsx`): Server component in `(protected)/layout.tsx`. Re-verifies `getUser()`. Supports optional `requiredRole` prop with hierarchy check (`guest=0 < member=1 < admin=3`).
+
+Individual admin/leader pages handle their own role guards beyond the layout-level check.
+
+### Client-Side Context
+
+`RoleProvider` (`src/components/providers/role-provider.tsx`): Exposes `role`, `userName`, `setRole`, `setUserName` via React context. Wrapped at root layout level.
+
 ### Key File Organization
 
 ```
@@ -52,12 +84,15 @@ src/lib/supabase/
   queries.ts        # Read-only queries used by server components
   card-utils.ts     # FIFO card deduction with expiry validation
   safe-action.ts    # Error wrapper (dev vs prod)
-  server.ts         # User client + getServerProfile()
+  server.ts         # User client (React-cached) + getServerProfile()
   admin.ts          # Admin client (service role)
+  client.ts         # Browser-side Supabase client
+  middleware.ts     # Session cookie sync + auth redirects
   import-actions.ts # Bulk data import logic
 
-src/types/database.ts  # All TypeScript types and enums
-src/lib/constants.ts   # Shared badge colors/labels for attendance and enrollment
+src/actions/user-actions.ts  # Dev-only role switcher (email-gated server action)
+src/types/database.ts        # All TypeScript types and enums
+src/lib/constants.ts         # Shared badge colors/labels for attendance and enrollment
 ```
 
 ### Date Handling
@@ -110,3 +145,4 @@ When merging dev to main, restore these prod-only settings after merge.
 - `docs/prd.md` — Product requirements, feature status, business rules
 - `docs/system-overview.md` — Architecture, DB schema, technical decisions
 - User guide content stored in `system_config` table (key: `user_guide`), editable by admins in-app
+- `supabase/migrations/` — 9 SQL migration files (schema, seeds, RLS fixes, phase1 registration)

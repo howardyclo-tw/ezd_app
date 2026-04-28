@@ -344,11 +344,11 @@ export default async function AdminMembersPage() {
         }
     });
 
-    // Track which absence sessions have already been consumed by makeup requests
+    // Track which absence sessions have already been consumed by makeup requests (per user)
     const usedAbsenceSessionIds = new Set<string>();
     (makeupData ?? []).forEach(m => {
         if ((m.status === 'approved' || m.status === 'pending') && (m as any).original_session_id) {
-            usedAbsenceSessionIds.add((m as any).original_session_id);
+            usedAbsenceSessionIds.add(`${m.user_id}-${(m as any).original_session_id}`);
         }
     });
 
@@ -389,7 +389,7 @@ export default async function AdminMembersPage() {
         userAttendances.forEach(a => {
             const cId = (a.course_sessions as any)?.courses?.id;
             // Filter out absences already consumed by makeup requests
-            if (cId && fullCourseIds.has(cId) && !usedAbsenceSessionIds.has(a.session_id)) {
+            if (cId && fullCourseIds.has(cId) && !usedAbsenceSessionIds.has(`${p.id}-${a.session_id}`)) {
                 const list = courseAbsences.get(cId) || [];
                 list.push(a);
                 courseAbsences.set(cId, list);
