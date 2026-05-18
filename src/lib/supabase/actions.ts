@@ -722,12 +722,9 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
     const sortedNextSessions = [...data.sessions].map((s: any) => {
         let dateStr = s.date;
         if (s.date instanceof Date) {
-            const y = s.date.getFullYear();
-            const m = String(s.date.getMonth() + 1).padStart(2, '0');
-            const d = String(s.date.getDate()).padStart(2, '0');
-            dateStr = `${y}-${m}-${d}`;
+            dateStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(s.date);
         } else if (typeof s.date === 'string' && s.date.includes('T')) {
-            dateStr = s.date.split('T')[0];
+            dateStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date(s.date));
         }
         return { ...s, session_date: dateStr };
     }).sort((a: any, b: any) => a.session_date.localeCompare(b.session_date));
@@ -760,11 +757,11 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
             throw new Error('無法刪除已有紀錄的課堂。此堂課已有學員點名、請假或轉讓紀錄，如需異動請洽系統幹部。');
         }
 
-        // Check Requests (Leave, Makeup, Transfer)
+        // Check Requests (Leave, Makeup, Transfer) — rejected records don't block deletion
         const [leaveRes, makeupRes, transferRes] = await Promise.all([
-            supabase.from('leave_requests').select('id', { count: 'exact', head: true }).in('session_id', idsToRemove),
-            supabase.from('makeup_requests').select('id', { count: 'exact', head: true }).or(`original_session_id.in.(${idsToRemove.join(',')}),target_session_id.in.(${idsToRemove.join(',')})`),
-            supabase.from('transfer_requests').select('id', { count: 'exact', head: true }).in('session_id', idsToRemove)
+            supabase.from('leave_requests').select('id', { count: 'exact', head: true }).in('session_id', idsToRemove).neq('status', 'rejected'),
+            supabase.from('makeup_requests').select('id', { count: 'exact', head: true }).or(`original_session_id.in.(${idsToRemove.join(',')}),target_session_id.in.(${idsToRemove.join(',')})`).neq('status', 'rejected'),
+            supabase.from('transfer_requests').select('id', { count: 'exact', head: true }).in('session_id', idsToRemove).neq('status', 'rejected')
         ]);
 
         if ((leaveRes.count || 0) > 0 || (makeupRes.count || 0) > 0 || (transferRes.count || 0) > 0) {

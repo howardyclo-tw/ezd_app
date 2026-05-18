@@ -221,8 +221,8 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
         const end = new Date(groupData.registration_phase1_end);
 
         // e.g. "02/20~02/25"
-        const formatShortDate = (d: Date) =>
-            `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+        const fmt = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' });
+        const formatShortDate = (d: Date) => { const [, m, day] = fmt.format(d).split('-'); return `${m}/${day}`; };
         return `${formatShortDate(start)}~${formatShortDate(end)}`;
     };
 

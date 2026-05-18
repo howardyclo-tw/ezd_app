@@ -34,10 +34,10 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
                 session_date, 
                 session_number, 
                 attendance_records ( id ),
-                leave_requests ( id ),
-                makeup_requests_original:makeup_requests!makeup_requests_original_session_id_fkey ( id ),
-                makeup_requests_target:makeup_requests!makeup_requests_target_session_id_fkey ( id ),
-                transfer_requests ( id )
+                leave_requests ( id, status ),
+                makeup_requests_original:makeup_requests!makeup_requests_original_session_id_fkey ( id, status ),
+                makeup_requests_target:makeup_requests!makeup_requests_target_session_id_fkey ( id, status ),
+                transfer_requests ( id, status )
             ),
             course_leaders ( user_id, profiles!course_leaders_user_id_fkey ( name ) )
         `)
@@ -54,9 +54,10 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
         .sort((a: any, b: any) => a.session_number - b.session_number)
         .map((s: any) => {
             const hasAttendance = (s.attendance_records?.length || 0) > 0;
-            const hasLeave = (s.leave_requests?.length || 0) > 0;
-            const hasMakeup = (s.makeup_requests_original?.length || 0) > 0 || (s.makeup_requests_target?.length || 0) > 0;
-            const hasTransfer = (s.transfer_requests?.length || 0) > 0;
+            const hasLeave = (s.leave_requests?.filter((r: any) => r.status !== 'rejected')?.length || 0) > 0;
+            const hasMakeup = (s.makeup_requests_original?.filter((r: any) => r.status !== 'rejected')?.length || 0) > 0 ||
+                (s.makeup_requests_target?.filter((r: any) => r.status !== 'rejected')?.length || 0) > 0;
+            const hasTransfer = (s.transfer_requests?.filter((r: any) => r.status !== 'rejected')?.length || 0) > 0;
 
             return {
                 id: s.id,
