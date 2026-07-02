@@ -71,31 +71,25 @@ test.describe('Admin Members Management', () => {
     expect(groupText).toContain('E2E Test Group 2026');
 
     // ── Step 7: Verify and adjust makeup quota ──
-    await expect(page.getByText('總補課額度')).toBeVisible();
+    await expect(dialog.getByText('總補課額度')).toBeVisible();
 
-    // The makeup quota input is inside the orange-themed section.
-    // It is the input next to the "總補課額度" label inside a bg-orange section.
-    // Use a CSS selector targeting the orange-themed section's number input.
+    // The makeup quota input is inside the orange-themed section (unconditional).
     const makeupInput = dialog.locator('[class*="bg-orange"] input[type="number"]');
+    await expect(makeupInput.first()).toBeVisible();
+    // Set makeup quota to 2
+    await makeupInput.first().fill('2');
+    await page.waitForTimeout(300);
 
-    if (await makeupInput.count() > 0) {
-      // Set makeup quota to 2
-      await makeupInput.first().fill('2');
-      await page.waitForTimeout(300);
-    }
-
-    // ── Step 8: Verify card pool section ──
+    // ── Step 8: Verify card pool section (unconditional) ──
     await expect(dialog.getByText('堂卡餘額')).toBeVisible();
 
-    // The card balance number should be visible
+    // The card balance number MUST be visible (from seed: 10 cards, possibly modified by other tests)
     const cardSection = dialog.locator('[class*="bg-primary"]').first();
     const balanceDisplay = cardSection.locator('.text-xl').first();
-    if (await balanceDisplay.count() > 0) {
-      const balanceText = await balanceDisplay.textContent();
-      const balance = parseInt(balanceText?.trim() || '0', 10);
-      // Balance should be >= 0 (from seed: 10 cards, possibly modified by other tests)
-      expect(balance).toBeGreaterThanOrEqual(0);
-    }
+    await expect(balanceDisplay).toBeVisible();
+    const balanceText = await balanceDisplay.textContent();
+    const balance = parseInt(balanceText?.trim() || '0', 10);
+    expect(balance).toBeGreaterThanOrEqual(0);
 
     // ── Step 9: Save changes ──
     await dialog.getByRole('button', { name: '確認變更' }).click();
@@ -141,12 +135,10 @@ test.describe('Admin Members Management', () => {
     // Should have at least one card pool entry (from seed: 10 cards confirmed)
     expect(poolCount).toBeGreaterThanOrEqual(1);
 
-    // Card pool entries should show expiry dates
+    // Card pool entries should show expiry dates (unconditional)
     // The seed has expires_at = 2026-12-31
     const expiryText = page.locator('text=/到期 2026/');
-    if (await expiryText.count() > 0) {
-      await expect(expiryText.first()).toBeVisible();
-    }
+    await expect(expiryText.first()).toBeVisible();
 
     // Close
     await page.getByRole('button', { name: '關閉' }).click();

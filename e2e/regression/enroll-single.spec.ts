@@ -6,8 +6,9 @@ import { loginAs } from '../fixtures/auth';
  * member enrolls in one future session -> balance decreases by cards_per_session (1)
  * -> roster shows the member
  *
- * Idempotency: If the member is already enrolled in all sessions, the test
- * verifies the enrollment state without re-enrolling. On first run, it enrolls.
+ * Idempotency: The seed gives the member a full enrollment, so the test verifies
+ * the existing enrollment state. If the full enrollment is somehow missing, the test
+ * falls back to performing a single-session enrollment and verifying balance/roster.
  */
 
 const GROUP_ID = 'e2e00000-0000-0000-0000-000000000010';
@@ -42,11 +43,18 @@ test.describe('Single-Session Enrollment', () => {
     const memberInRoster = await page.getByText('E2E Member').count();
 
     if (memberInRoster > 0) {
-      // Member is already enrolled from a previous run -- verify state
-      // The roster should contain E2E Member
+      // Member is already enrolled (from seed full enrollment or prior single enrollment).
       await expect(page.getByText('E2E Member')).toBeVisible();
 
-      // Verify the enrollment dialog shows sessions as "已在名單"
+      // Check if fully enrolled (shows "已報名全堂")
+      const fullEnrolledBadge = page.getByText('已報名全堂');
+      if (await fullEnrolledBadge.count() > 0) {
+        // Full enrollment from seed -- verify state
+        await expect(fullEnrolledBadge).toBeVisible();
+        return;
+      }
+
+      // Single enrollment from prior run -- verify via enrollment dialog
       const enrollButton = page.getByRole('button', { name: /單堂報名/ });
       await expect(enrollButton).toBeVisible();
       await enrollButton.click();
@@ -105,13 +113,13 @@ test.describe('Single-Session Enrollment', () => {
     await page.getByRole('tab', { name: '使用中' }).click();
     await page.waitForTimeout(500);
 
+    // Balance element MUST exist after enrollment (unconditional assertion)
     const newBalanceEl = page.locator('.text-7xl, .text-8xl').first();
-    if (await newBalanceEl.count() > 0) {
-      const newText = await newBalanceEl.textContent();
-      const newBalance = parseInt(newText?.trim() || '0', 10);
-      // Balance should have decreased by 1 (cards_per_session = 1)
-      expect(newBalance).toBe(initialBalance - 1);
-    }
+    await expect(newBalanceEl).toBeVisible();
+    const newText = await newBalanceEl.textContent();
+    const newBalance = parseInt(newText?.trim() || '0', 10);
+    // Balance should have decreased by 1 (cards_per_session = 1)
+    expect(newBalance).toBe(initialBalance - 1);
 
     // ── Step 8: Verify member appears on roster ──
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);

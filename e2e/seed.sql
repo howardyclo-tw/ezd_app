@@ -113,10 +113,13 @@ ON CONFLICT (id) DO UPDATE SET
   enrollment_end_at   = EXCLUDED.enrollment_end_at;
 
 -- ────────────────────────────────────────────────────────────
--- 5. Course Sessions  (3 future sessions)
+-- 5. Course Sessions  (1 past + 3 future sessions)
 -- ────────────────────────────────────────────────────────────
 INSERT INTO public.course_sessions (id, course_id, session_date, session_number, is_cancelled)
 VALUES
+  ('e2e00000-0000-0000-0000-000000000030',
+   'e2e00000-0000-0000-0000-000000000020',
+   CURRENT_DATE - INTERVAL '7 days',  0, FALSE),
   ('e2e00000-0000-0000-0000-000000000031',
    'e2e00000-0000-0000-0000-000000000020',
    CURRENT_DATE + INTERVAL '7 days',  1, FALSE),
@@ -131,6 +134,53 @@ ON CONFLICT (id) DO UPDATE SET
   session_date   = EXCLUDED.session_date,
   session_number = EXCLUDED.session_number,
   is_cancelled   = EXCLUDED.is_cancelled;
+
+-- ────────────────────────────────────────────────────────────
+-- 5b. Full enrollment for the member (covers all sessions)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.enrollments (id, course_id, user_id, status, type, session_id, source)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000060',
+  'e2e00000-0000-0000-0000-000000000020',
+  (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com'),
+  'enrolled',
+  'full',
+  NULL,
+  'self'
+)
+ON CONFLICT (id) DO UPDATE SET
+  course_id  = EXCLUDED.course_id,
+  user_id    = EXCLUDED.user_id,
+  status     = EXCLUDED.status,
+  type       = EXCLUDED.type,
+  session_id = EXCLUDED.session_id,
+  source     = EXCLUDED.source;
+
+-- ────────────────────────────────────────────────────────────
+-- 5c. Cleanup: remove non-seed enrollments, leave requests,
+--     attendance records, card orders/transactions for idempotency
+-- ────────────────────────────────────────────────────────────
+DELETE FROM public.leave_requests
+WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
+  AND session_id IN (SELECT id FROM public.course_sessions
+                     WHERE course_id = 'e2e00000-0000-0000-0000-000000000020');
+
+DELETE FROM public.attendance_records
+WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
+  AND session_id IN (SELECT id FROM public.course_sessions
+                     WHERE course_id = 'e2e00000-0000-0000-0000-000000000020');
+
+DELETE FROM public.enrollments
+WHERE course_id = 'e2e00000-0000-0000-0000-000000000020'
+  AND id != 'e2e00000-0000-0000-0000-000000000060';
+
+DELETE FROM public.card_orders
+WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
+  AND id != 'e2e00000-0000-0000-0000-000000000040';
+
+DELETE FROM public.card_transactions
+WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
+  AND id != 'e2e00000-0000-0000-0000-000000000050';
 
 -- ────────────────────────────────────────────────────────────
 -- 6. Card Order  (confirmed, 10 cards for e2e-member)
