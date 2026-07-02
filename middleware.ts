@@ -1,8 +1,14 @@
-import { type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { updateSession } from './src/lib/supabase/middleware';
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  try {
+    return await updateSession(request);
+  } catch {
+    // If Supabase is completely unreachable, let the request through rather
+    // than crashing — pages will handle the missing session gracefully.
+    return NextResponse.next({ request });
+  }
 }
 
 export const config = {

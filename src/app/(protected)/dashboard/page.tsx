@@ -20,7 +20,8 @@ import {
   Banknote,
   ClipboardCheck,
   Settings,
-  Upload
+  Upload,
+  Bot
 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -308,7 +309,7 @@ export default async function DashboardPage() {
                       "text-sm font-bold",
                       totalPendingAppsCount > 0 ? "text-orange-600" : "text-foreground"
                     )}>申請審核</p>
-                    <p className="text-[10px] text-muted-foreground font-bold">核對堂卡匯款與檢視請假、補課、轉讓等系統自動化紀錄</p>
+                    <p className="text-[10px] text-muted-foreground font-bold">核對報名、請假、補課、轉讓等紀錄</p>
                   </div>
                   {/* Badge */}
                   <div className={cn(
@@ -323,6 +324,18 @@ export default async function DashboardPage() {
 
             {isAdmin && (
               <>
+                <Link href="/admin/ai-chat">
+                  <div className="flex items-center gap-4 p-4 rounded-2xl border border-muted/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-all group">
+                    <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all">
+                      <Bot className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold">AI 資料助理</p>
+                      <p className="text-[10px] text-muted-foreground font-bold">用自然語言查詢報名、補課、堂卡等資料</p>
+                    </div>
+                  </div>
+                </Link>
+
                 <Link href="/courses/new">
                   <div className="flex items-center gap-4 p-4 rounded-2xl border border-muted/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-all group">
                     <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background transition-all">

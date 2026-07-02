@@ -19,23 +19,30 @@ export function LoginForm() {
     e.preventDefault();
     setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      toast.error('登入失敗', {
-        description: error.message,
+      if (error) {
+        toast.error('登入失敗', {
+          description: error.message,
+        });
+        setLoading(false);
+        return;
+      }
+
+      toast.success('登入成功');
+      router.push('/dashboard');
+      router.refresh();
+    } catch {
+      toast.error('無法連線', {
+        description: '伺服器暫時無法連線，請稍後再試。',
       });
       setLoading(false);
-      return;
     }
-
-    toast.success('登入成功');
-    router.push('/dashboard');
-    router.refresh();
   };
 
   return (

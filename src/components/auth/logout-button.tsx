@@ -10,7 +10,11 @@ export function LogoutButton() {
 
     const handleSignOut = async () => {
         const supabase = createClient();
-        await supabase.auth.signOut();
+        try {
+            await supabase.auth.signOut();
+        } catch {
+            // Network error — proceed to clear local state anyway
+        }
         router.push('/login');
         router.refresh();
     };

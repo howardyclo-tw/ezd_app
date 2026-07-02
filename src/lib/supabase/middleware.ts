@@ -33,12 +33,27 @@ export async function updateSession(request: NextRequest) {
   // supabase.auth.getUser(). A simple mistake could make it very hard to
   // debug issues with users being randomly logged out.
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  let user: import('@supabase/supabase-js').User | null = null;
+  let error: import('@supabase/supabase-js').AuthError | null = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+    error = result.error;
+  } catch {
+    // Network error (e.g. Supabase project paused/unreachable) — treat as
+    // logged-out so the request still completes instead of crashing.
+  }
 
-  if (error) {
+  // A missing/expired session surfaces here as an auth error (e.g. "Invalid
+  // Refresh Token"). That's an expected logged-out state, not a server fault —
+  // when the refresh token is stale the SSR client writes cookie-clearing
+  // headers onto supabaseResponse. Only log genuinely unexpected errors so this
+  // benign case stops spamming the console / dev overlay.
+  const expectedLoggedOut =
+    !error ||
+    error.name === 'AuthSessionMissingError' ||
+    /refresh token/i.test(error.message ?? '');
+  if (error && !expectedLoggedOut) {
     console.error('Middleware Auth Error:', error.message);
   }
 
@@ -46,7 +61,9 @@ export async function updateSession(request: NextRequest) {
   if (user && request.nextUrl.pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
+    return redirectResponse;
   }
 
   if (
@@ -54,10 +71,14 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/register')
   ) {
-    // no user, potentially respond by redirecting the user to the login page
+    // No user: redirect to login, but carry over any auth-cookie changes (e.g.
+    // the SSR client clearing a stale session) so they aren't lost — otherwise
+    // the browser keeps the dead token and the auth error repeats every request.
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
+    return redirectResponse;
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
