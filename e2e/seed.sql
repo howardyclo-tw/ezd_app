@@ -136,6 +136,62 @@ ON CONFLICT (id) DO UPDATE SET
   is_cancelled   = EXCLUDED.is_cancelled;
 
 -- ────────────────────────────────────────────────────────────
+-- 4b. Second Course  (for single-session enrollment test)
+--     Member is NOT pre-enrolled here; 3 future sessions.
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.courses (id, group_id, name, description, type, teacher, room,
+                            start_time, end_time, capacity, cards_per_session,
+                            enrollment_start_at, enrollment_end_at)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000021',
+  'e2e00000-0000-0000-0000-000000000010',
+  'E2E Single Course',
+  'E2E single-session enrollment test course',
+  'normal',
+  'E2E Teacher',
+  'E2E Room',
+  '20:00',
+  '21:30',
+  20,
+  1,
+  NOW() - INTERVAL '1 day',
+  NOW() + INTERVAL '30 days'
+)
+ON CONFLICT (id) DO UPDATE SET
+  group_id           = EXCLUDED.group_id,
+  name               = EXCLUDED.name,
+  description        = EXCLUDED.description,
+  type               = EXCLUDED.type,
+  teacher            = EXCLUDED.teacher,
+  room               = EXCLUDED.room,
+  start_time         = EXCLUDED.start_time,
+  end_time           = EXCLUDED.end_time,
+  capacity           = EXCLUDED.capacity,
+  cards_per_session   = EXCLUDED.cards_per_session,
+  enrollment_start_at = EXCLUDED.enrollment_start_at,
+  enrollment_end_at   = EXCLUDED.enrollment_end_at;
+
+-- ────────────────────────────────────────────────────────────
+-- 5a2. Sessions for E2E Single Course (3 future sessions)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.course_sessions (id, course_id, session_date, session_number, is_cancelled)
+VALUES
+  ('e2e00000-0000-0000-0000-000000000034',
+   'e2e00000-0000-0000-0000-000000000021',
+   CURRENT_DATE + INTERVAL '8 days',  1, FALSE),
+  ('e2e00000-0000-0000-0000-000000000035',
+   'e2e00000-0000-0000-0000-000000000021',
+   CURRENT_DATE + INTERVAL '15 days', 2, FALSE),
+  ('e2e00000-0000-0000-0000-000000000036',
+   'e2e00000-0000-0000-0000-000000000021',
+   CURRENT_DATE + INTERVAL '22 days', 3, FALSE)
+ON CONFLICT (id) DO UPDATE SET
+  course_id      = EXCLUDED.course_id,
+  session_date   = EXCLUDED.session_date,
+  session_number = EXCLUDED.session_number,
+  is_cancelled   = EXCLUDED.is_cancelled;
+
+-- ────────────────────────────────────────────────────────────
 -- 5b. Full enrollment for the member (covers all sessions)
 -- ────────────────────────────────────────────────────────────
 INSERT INTO public.enrollments (id, course_id, user_id, status, type, session_id, source)
@@ -163,16 +219,27 @@ ON CONFLICT (id) DO UPDATE SET
 DELETE FROM public.leave_requests
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
   AND session_id IN (SELECT id FROM public.course_sessions
-                     WHERE course_id = 'e2e00000-0000-0000-0000-000000000020');
+                     WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
+                                         'e2e00000-0000-0000-0000-000000000021'));
 
 DELETE FROM public.attendance_records
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
   AND session_id IN (SELECT id FROM public.course_sessions
-                     WHERE course_id = 'e2e00000-0000-0000-0000-000000000020');
+                     WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
+                                         'e2e00000-0000-0000-0000-000000000021'));
 
 DELETE FROM public.enrollments
 WHERE course_id = 'e2e00000-0000-0000-0000-000000000020'
   AND id != 'e2e00000-0000-0000-0000-000000000060';
+
+-- Remove card transactions tied to the single-course enrollments (FK dep)
+DELETE FROM public.card_transactions
+WHERE enrollment_id IN (SELECT id FROM public.enrollments
+                        WHERE course_id = 'e2e00000-0000-0000-0000-000000000021');
+
+-- Remove all enrollments for the single-course (no seed enrollment there)
+DELETE FROM public.enrollments
+WHERE course_id = 'e2e00000-0000-0000-0000-000000000021';
 
 DELETE FROM public.card_orders
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')

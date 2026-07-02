@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAs, ACCOUNTS } from '../fixtures/auth';
+import { loginAs } from '../fixtures/auth';
 
 /**
  * Regression baseline: Card Purchase flow
@@ -11,9 +11,6 @@ import { loginAs, ACCOUNTS } from '../fixtures/auth';
  *
  * Note: card-purchase state accumulates across runs (delta assertion).
  */
-
-// Shared IDs from seed
-const COURSE_GROUP_ID = 'e2e00000-0000-0000-0000-000000000010';
 
 test.describe('Card Purchase Flow', () => {
   test('member purchases cards, admin approves, balance increases, expiry shown', async ({ page }) => {

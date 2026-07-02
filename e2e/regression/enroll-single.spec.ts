@@ -2,17 +2,23 @@ import { test, expect } from '@playwright/test';
 import { loginAs } from '../fixtures/auth';
 
 /**
- * Regression baseline: Single-session enrollment
- * member enrolls in one future session -> balance decreases by cards_per_session (1)
- * -> roster shows the member
+ * Regression baseline: Single-session enrollment on a DEDICATED course
  *
- * Idempotency: The seed gives the member a full enrollment, so the test verifies
- * the existing enrollment state. If the full enrollment is somehow missing, the test
- * falls back to performing a single-session enrollment and verifying balance/roster.
+ * "E2E Single Course" has 3 future sessions and the member is NOT
+ * pre-enrolled (seed gives no enrollment for this course).
+ *
+ * On first run: picks the first un-enrolled session, performs a real
+ * single-session enrollment via SessionEnrollmentDialog, and asserts
+ * balance decreased by cards_per_session (1) and the roster shows
+ * the member.
+ *
+ * Re-runnability: picks the first session that does NOT show "已在名單".
+ * With 3 sessions the test can run 3 times before exhaustion; after that
+ * it verifies the enrolled state (all sessions show "已在名單") and passes.
  */
 
 const GROUP_ID = 'e2e00000-0000-0000-0000-000000000010';
-const COURSE_ID = 'e2e00000-0000-0000-0000-000000000020';
+const COURSE_ID = 'e2e00000-0000-0000-0000-000000000021';
 
 test.describe('Single-Session Enrollment', () => {
   test('member enrolls in a single session, balance decreases, roster shows member', async ({ page }) => {
@@ -26,61 +32,30 @@ test.describe('Single-Session Enrollment', () => {
     await page.waitForTimeout(500);
 
     const balanceEl = page.locator('.text-7xl, .text-8xl').first();
-    let initialBalance = 0;
-    if (await balanceEl.count() > 0) {
-      const text = await balanceEl.textContent();
-      initialBalance = parseInt(text?.trim() || '0', 10);
-    }
+    await expect(balanceEl).toBeVisible();
+    const balText = await balanceEl.textContent();
+    const initialBalance = parseInt(balText?.trim() || '0', 10);
 
-    // ── Step 2: Navigate to the course detail page ──
+    // ── Step 2: Navigate to the dedicated single-enrollment course ──
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
     await page.waitForLoadState('networkidle');
 
-    // Verify we're on the right course
-    await expect(page.getByText('E2E Basic Groove')).toBeVisible();
+    // Verify we are on the right course
+    await expect(page.getByText('E2E Single Course')).toBeVisible();
 
-    // ── Step 3: Check if member is already enrolled ──
-    const memberInRoster = await page.getByText('E2E Member').count();
-
-    if (memberInRoster > 0) {
-      // Member is already enrolled (from seed full enrollment or prior single enrollment).
+    // ── Step 3: Open the enrollment dialog ──
+    const enrollButton = page.getByRole('button', { name: /單堂報名/ });
+    // If the button does not exist the member is already full-enrolled in all
+    // sessions (cannot happen for this course by design, but guard anyway).
+    const enrollBtnCount = await enrollButton.count();
+    if (enrollBtnCount === 0) {
+      // All sessions are enrolled -- verify the enrolled badge
+      await expect(page.getByText('已報名全堂')).toBeVisible();
+      // Verify member is on the roster
       await expect(page.getByText('E2E Member')).toBeVisible();
-
-      // Check if fully enrolled (shows "已報名全堂")
-      const fullEnrolledBadge = page.getByText('已報名全堂');
-      if (await fullEnrolledBadge.count() > 0) {
-        // Full enrollment from seed -- verify state
-        await expect(fullEnrolledBadge).toBeVisible();
-        return;
-      }
-
-      // Single enrollment from prior run -- verify via enrollment dialog
-      const enrollButton = page.getByRole('button', { name: /單堂報名/ });
-      await expect(enrollButton).toBeVisible();
-      await enrollButton.click();
-      await page.waitForTimeout(500);
-
-      await expect(page.getByText('選擇加入方式')).toBeVisible();
-
-      const dialog = page.locator('[data-slot="dialog-content"]');
-      await dialog.locator('div:has(> div > p:text-is("單堂報名"))').first().click();
-      await page.waitForTimeout(500);
-
-      // Verify sessions show "已在名單"
-      await expect(dialog.getByText('已在名單').first()).toBeVisible();
-
-      // Close dialog
-      await dialog.getByRole('button', { name: '返回' }).click();
-      await page.waitForTimeout(300);
-      await dialog.getByRole('button', { name: '關閉' }).click();
       return;
     }
 
-    // ── Step 4: Member is not enrolled yet -- proceed with enrollment ──
-    expect(initialBalance).toBeGreaterThanOrEqual(1);
-
-    const enrollButton = page.getByRole('button', { name: /單堂報名/ });
-    await expect(enrollButton).toBeVisible();
     await enrollButton.click();
 
     // Choose "單堂報名" mode inside dialog
@@ -88,40 +63,69 @@ test.describe('Single-Session Enrollment', () => {
     const dialog = page.locator('[data-slot="dialog-content"]');
     await dialog.locator('div:has(> div > p:text-is("單堂報名"))').first().click();
 
-    // ── Step 5: Select the first available future session ──
+    // ── Step 4: Wait for session list and find an available session ──
     await expect(dialog.getByText('選擇堂次')).toBeVisible();
 
-    // Click the first enabled checkbox
-    const sessionCheckboxes = dialog.locator('button[role="checkbox"]:not([disabled])');
-    const firstCheckbox = sessionCheckboxes.first();
-    await expect(firstCheckbox).toBeVisible();
-    await firstCheckbox.click();
-    await page.waitForTimeout(300);
+    // Checkboxes: enabled ones are sessions we can enroll in.
+    // Disabled+checked ones are "已在名單" (from prior runs).
+    const allCheckboxes = dialog.locator('button[role="checkbox"]');
+    const checkboxCount = await allCheckboxes.count();
 
-    // ── Step 6: Click "確認報名" ──
+    let enrolled = false;
+    for (let i = 0; i < checkboxCount; i++) {
+      const cb = allCheckboxes.nth(i);
+      const isDisabled = await cb.isDisabled();
+      if (!isDisabled) {
+        // Found an available session -- click it
+        await cb.click();
+        await page.waitForTimeout(300);
+        enrolled = true;
+        break;
+      }
+    }
+
+    if (!enrolled) {
+      // All sessions already enrolled from prior runs.
+      // Close dialog and verify existing state.
+      const backBtn = dialog.getByRole('button', { name: '返回' });
+      if (await backBtn.count() > 0) {
+        await backBtn.click();
+        await page.waitForTimeout(300);
+      }
+      const closeBtn = dialog.getByRole('button', { name: '關閉' });
+      if (await closeBtn.count() > 0) {
+        await closeBtn.click();
+      }
+
+      // Verify member is on the roster (enrolled in prior runs)
+      await expect(page.getByText('E2E Member')).toBeVisible();
+      return;
+    }
+
+    // ── Step 5: Confirm enrollment ──
+    expect(initialBalance).toBeGreaterThanOrEqual(1);
+
     const confirmButton = dialog.getByRole('button', { name: /確認報名/ });
     await expect(confirmButton).toBeEnabled();
     await confirmButton.click();
 
-    // Wait for success toast
+    // Wait for success toast to appear and page to settle
     await page.waitForTimeout(3000);
 
-    // ── Step 7: Verify balance decreased ──
+    // ── Step 6: Verify balance decreased by 1 ──
     await page.goto('/dashboard/my_cards');
     await page.waitForLoadState('networkidle');
 
     await page.getByRole('tab', { name: '使用中' }).click();
     await page.waitForTimeout(500);
 
-    // Balance element MUST exist after enrollment (unconditional assertion)
     const newBalanceEl = page.locator('.text-7xl, .text-8xl').first();
     await expect(newBalanceEl).toBeVisible();
     const newText = await newBalanceEl.textContent();
     const newBalance = parseInt(newText?.trim() || '0', 10);
-    // Balance should have decreased by 1 (cards_per_session = 1)
     expect(newBalance).toBe(initialBalance - 1);
 
-    // ── Step 8: Verify member appears on roster ──
+    // ── Step 7: Verify member appears on roster ──
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
     await page.waitForLoadState('networkidle');
 
