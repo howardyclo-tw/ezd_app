@@ -244,7 +244,6 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
                     </div>
                 </div>
 
-                {/* 整期報名功能尚未開放，暫時隱藏
                 <div className="flex items-center gap-2 w-full sm:w-auto mt-4 sm:mt-0">
                     <GroupEnrollmentDialog
                         groupTitle={groupData.title}
@@ -266,7 +265,6 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
                         })}
                     />
                 </div>
-                */}
             </div>
 
             {/* Course List */}
