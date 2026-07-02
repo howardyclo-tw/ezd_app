@@ -279,7 +279,7 @@ export function AiChatClient({ groups, defaultModel }: Props) {
             }}
             rows={1}
             placeholder="輸入問題…"
-            className="max-h-[200px] flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground/60 sm:text-sm"
+            className="max-h-[200px] flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
             disabled={busy}
           />
           <Button
