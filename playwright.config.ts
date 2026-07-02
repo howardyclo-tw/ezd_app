@@ -10,5 +10,11 @@ export default defineConfig({
     trace: 'on-first-retry',
     locale: 'zh-TW',
   },
+  webServer: {
+    command: 'pnpm dev',
+    url: 'http://[::1]:3000',
+    reuseExistingServer: true,
+    timeout: 120_000,
+  },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });
