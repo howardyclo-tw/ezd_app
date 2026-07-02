@@ -246,8 +246,16 @@ UI 送出前強制提示:「修改將作廢原報名並重新排隊,已滿的課
 
 - `e2e/` 目錄建 `@playwright/test` 專案:對 local dev server(`http://[::1]:3000`)+ dev Supabase;種子腳本建測試帳號(admin/member/guest)與測試檔期/課程(含 MV poll、ntd 課、free 課)。
 - Spec 分組:購卡規則(時段/倍數/效期)、常態整期精靈(含卡不足同步購卡)、報名修改(作廢重報)、MV(投票→開票→結算三態)、專攻 NTD(單堂/整期/不可取消)、風格(社員免費/非社員繳費/僅單堂)、黑名單(2 次停權/解鎖)、審核中心(確認/取消/名額釋放)、時區邊界(台北 00:00 vs UTC)。
-- `docs/mtk-feature-tracker.md`:30 項需求 × 狀態(設計/實作/E2E 驗證),每完成一項更新。
-- 開發全程 **dev branch**;每個 feature 先 Playwright MCP 互動驗證,再補 e2e spec,通過才標完成。
+- **Adversarial 測試套件(必要,與 happy-path 同等優先)**:驗證惡意/越權行為被正確阻擋,每項都要有對應 spec:
+  - **繞過 UI 直呼 server action**:所有報名/取消/訂單 action 在 UI 隱藏之外必須有伺服器端守衛(本次盤點已證實現況多處只擋 UI 不擋 action)
+  - **白嫖免費課**:非社員繞過 ntd 計價取得 free 報名、黑名單者換路徑報名(單堂 dialog/直呼 action/補課路徑)、繳費前取消再重報洗佔位
+  - **投票操縱**:未報名投票、重複投票、截止後投票/改票、偽造 enrollment_id 綁票
+  - **容量與併發**:並發報名衝破容量(RPC 原子性壓力測試)、「作廢重報」高頻 churn 干擾他人佔位
+  - **金流欺詐**:client 端竄改價格/數量(價格必須 server 端 resolve)、時窗外直呼購卡、非倍數/負數數量、自行確認自己的訂單(角色越權)
+  - **侵犯他人權益**:IDOR(操作他人 enrollment/order id)、替他人請假/取消、轉讓給非社員/轉讓 pending 報名、非指派班長點名他課
+  - **時區邊界**:UTC vs 台北日期差造成的時窗/效期繞過
+- `docs/mtk-feature-tracker.md`:30 項需求 × 狀態(設計/實作/E2E 驗證含 adversarial),每完成一項更新。
+- 開發全程 **dev branch**;每個 feature 先 Playwright MCP 互動驗證,再補 e2e spec(happy-path + adversarial),通過才標完成。
 
 ## 16. 邊界情況與預設決策(已按合理預設寫入,審閱時可推翻)
 
