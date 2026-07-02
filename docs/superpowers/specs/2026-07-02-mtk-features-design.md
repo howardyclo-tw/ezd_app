@@ -254,8 +254,12 @@ UI 送出前強制提示:「修改將作廢原報名並重新排隊,已滿的課
   - **金流欺詐**:client 端竄改價格/數量(價格必須 server 端 resolve)、時窗外直呼購卡、非倍數/負數數量、自行確認自己的訂單(角色越權)
   - **侵犯他人權益**:IDOR(操作他人 enrollment/order id)、替他人請假/取消、轉讓給非社員/轉讓 pending 報名、非指派班長點名他課
   - **時區邊界**:UTC vs 台北日期差造成的時窗/效期繞過
-- `docs/mtk-feature-tracker.md`:30 項需求 × 狀態(設計/實作/E2E 驗證含 adversarial),每完成一項更新。
-- 開發全程 **dev branch**;每個 feature 先 Playwright MCP 互動驗證,再補 e2e spec(happy-path + adversarial),通過才標完成。
+- **回歸保護(CI/CD 精神,必要)**:本次大幅改動共用基礎(`card_orders`→`orders`、報名寫入改 RPC、計價收斂),既有 prod 功能絕不可壞。
+  - **既有流程回歸 spec**:現行購卡兩步驟、堂卡 FIFO 扣卡與餘額、點名/請假/補課/轉讓、成員管理、匯入工具、既有審核中心分頁,每條都要有 e2e 覆蓋,重構前先跑通(建立 baseline)、重構後必須維持綠燈。
+  - **重構等價性**:`card_orders`→`orders` 遷移後,所有原本讀寫 card_orders 的路徑行為不變(以既有購卡 e2e 為驗證)。
+  - **CI gate**:每個 feature 分支合併前必跑 `npx tsc --noEmit`、`pnpm lint`、`pnpm build`、完整 e2e(happy + adversarial + regression)全綠才可標完成;三個 gate 命令列入每個 phase 的收尾步驟。
+- `docs/mtk-feature-tracker.md`:30 項需求 × 狀態(設計/實作/E2E:happy/adversarial/regression),每完成一項更新。
+- 開發全程 **dev branch**;每個 feature 先 Playwright MCP 互動驗證,再補 e2e spec(happy-path + adversarial + regression),通過才標完成。
 
 ## 16. 邊界情況與預設決策(已按合理預設寫入,審閱時可推翻)
 
