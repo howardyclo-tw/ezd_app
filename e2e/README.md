@@ -1,5 +1,7 @@
 # E2E Test Seed
 
+**WARNING: `seed.sql` has NO built-in prod guard. It must ONLY be applied to the DEV Supabase project (`mvxdxldwznbqycfgwqmc`). NEVER apply it to production (`zhaloqbeguzsknodrxsm`). Always use the DEV connection string or DEV project ID when running it.**
+
 Seeds the DEV Supabase database with deterministic fixtures for regression tests.
 
 ## Accounts

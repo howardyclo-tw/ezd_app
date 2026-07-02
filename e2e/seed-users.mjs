@@ -23,7 +23,11 @@ for (const line of envText.split('\n')) {
   const eqIdx = trimmed.indexOf('=');
   if (eqIdx === -1) continue;
   const key = trimmed.slice(0, eqIdx);
-  const val = trimmed.slice(eqIdx + 1);
+  let val = trimmed.slice(eqIdx + 1);
+  // Strip surrounding quotes
+  if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+    val = val.slice(1, -1);
+  }
   if (!process.env[key]) process.env[key] = val;
 }
 
@@ -65,20 +69,11 @@ async function ensureUser({ email, password, name }) {
     return createData.user.id;
   }
 
-  // If user already exists, look them up
+  // If user already exists, treat as success (seed.sql resolves IDs by email)
   if (createError?.message?.includes('already been registered') ||
       createError?.message?.includes('already exists')) {
-    // List users and find by email
-    const { data: listData, error: listError } = await supabase.auth.admin.listUsers();
-    if (listError) {
-      console.error(`  ERROR listing users for ${email}: ${listError.message}`);
-      process.exit(1);
-    }
-    const existing = listData.users.find((u) => u.email === email);
-    if (existing) {
-      console.log(`  EXISTS   ${email}  id=${existing.id}`);
-      return existing.id;
-    }
+    console.log(`  EXISTS   ${email}  (skipped — ID resolved by seed.sql)`);
+    return;
   }
 
   console.error(`  ERROR creating ${email}: ${createError?.message}`);
