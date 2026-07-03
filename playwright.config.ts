@@ -16,7 +16,7 @@ export default defineConfig({
   },
   use: {
     baseURL: 'http://[::1]:3000',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     locale: 'zh-TW',
   },
   webServer: {

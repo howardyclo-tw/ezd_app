@@ -2,7 +2,9 @@
  * e2e/global-setup.ts
  *
  * Playwright globalSetup: re-applies the E2E seed before every suite run
- * so that all tests start from a deterministic baseline.
+ * so that all tests start from a deterministic baseline, and pre-authenticates
+ * each E2E role into Playwright storageState files so tests never touch the
+ * login UI (eliminating the hydration-race login-stuck flake).
  *
  * Uses the Supabase service-role client (PostgREST) — no raw SQL driver needed.
  * Env vars loaded by @next/env (same as playwright.config.ts).
@@ -11,6 +13,18 @@
  */
 import { loadEnvConfig } from '@next/env';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import * as fs from 'fs';
+import * as path from 'path';
+
+/* ------------------------------------------------------------------ */
+/*  E2E accounts (shared with auth.ts)                                 */
+/* ------------------------------------------------------------------ */
+const ACCOUNTS = {
+  admin:   { email: 'e2e-admin@mediatek.com',   password: 'mediatek' },
+  member:  { email: 'e2e-member@mediatek.com',  password: 'mediatek' },
+  member2: { email: 'e2e-member2@mediatek.com', password: 'mediatek' },
+  guest:   { email: 'e2e-guest@mediatek.com',   password: 'mediatek' },
+} as const;
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (Asia/Taipei, matches app convention)                 */
@@ -390,4 +404,58 @@ export default async function globalSetup() {
   }, { onConflict: 'session_id,user_id' }));
 
   console.log('[globalSetup] E2E seed applied successfully.');
+
+  // ── 12. Generate storageState for each role ───────────────────
+  // Use a real Playwright browser to log in each role via the UI and
+  // save the resulting storageState. This produces correct cookies with
+  // proper domain/path that the middleware accepts -- avoiding manual
+  // cookie construction and IPv6 domain-matching issues.
+  //
+  // The login runs ONCE per role in globalSetup (not per-test), so even
+  // if the React hydration race hits, we can retry aggressively here.
+  const authDir = path.join(process.cwd(), 'e2e', '.auth');
+  if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
+
+  const { chromium } = await import('@playwright/test');
+  const browser = await chromium.launch();
+
+  for (const [role, creds] of Object.entries(ACCOUNTS)) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    let loggedIn = false;
+    // Retry login up to 3 times to handle the hydration race that only
+    // affects the first ever login attempt in a cold browser context.
+    for (let attempt = 1; attempt <= 3 && !loggedIn; attempt++) {
+      await page.goto('http://[::1]:3000/login');
+      // Wait for full network idle to ensure React hydration completes
+      await page.waitForLoadState('networkidle');
+      // Extra guard: wait for the submit button to be interactive
+      const submitBtn = page.getByRole('button', { name: '登入' });
+      await submitBtn.waitFor({ state: 'visible', timeout: 15000 });
+
+      await page.getByLabel('電子郵件').fill(creds.email);
+      await page.getByLabel('密碼').fill(creds.password);
+      await submitBtn.click();
+
+      try {
+        await page.waitForURL(/dashboard/, { timeout: 15000 });
+        loggedIn = true;
+      } catch {
+        console.warn(`[globalSetup] Login attempt ${attempt}/3 for ${role} timed out, retrying...`);
+      }
+    }
+
+    if (!loggedIn) {
+      await context.close();
+      await browser.close();
+      throw new Error(`[globalSetup] Failed to log in as ${role} after 3 attempts`);
+    }
+
+    await context.storageState({ path: path.join(authDir, `${role}.json`) });
+    await context.close();
+  }
+
+  await browser.close();
+  console.log('[globalSetup] Auth storageState files written for all roles.');
 }
