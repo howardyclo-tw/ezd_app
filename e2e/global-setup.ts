@@ -85,6 +85,7 @@ const IDS = {
     card10:   'e2e00000-0000-0000-0000-000000000040',
     card2:    'e2e00000-0000-0000-0000-000000000041',
     courseFee:'e2e00000-0000-0000-0000-000000000042',
+    cardCustomExpiry: 'e2e00000-0000-0000-0000-000000000043',
   },
   transactions: {
     purchase10: 'e2e00000-0000-0000-0000-000000000050',
@@ -92,7 +93,7 @@ const IDS = {
   },
 } as const;
 
-const SEED_ORDER_IDS = [IDS.orders.card10, IDS.orders.card2, IDS.orders.courseFee];
+const SEED_ORDER_IDS = [IDS.orders.card10, IDS.orders.card2, IDS.orders.courseFee, IDS.orders.cardCustomExpiry];
 const SEED_TX_IDS = [IDS.transactions.purchase10, IDS.transactions.purchase2];
 
 /* ------------------------------------------------------------------ */
@@ -154,7 +155,7 @@ export default async function globalSetup() {
   }).eq('id', adminId));
 
   check('profile member', await sb.from('profiles').update({
-    name: 'E2E Member', role: 'member', card_balance: 10, makeup_quota: 0,
+    name: 'E2E Member', role: 'member', card_balance: 15, makeup_quota: 0,
     member_valid_until: '2026-12-31', member_group_id: IDS.memberGroup,
   }).eq('id', memberId));
 
@@ -376,6 +377,15 @@ export default async function globalSetup() {
     id: IDS.orders.card2,
     user_id: memberId, quantity: 2, used: 2, unit_price: 270, total_amount: 540,
     status: 'confirmed', expires_at: '2026-12-31', confirmed_at: now,
+    confirmed_by: adminId, order_type: 'card_purchase',
+  }, { onConflict: 'id' }));
+
+  // Custom-expiry order: expires_at intentionally differs from group valid_until
+  // Used by expiry-cascade negative-case test to verify cascade does NOT over-reach
+  check('order cardCustomExpiry', await sb.from('orders').upsert({
+    id: IDS.orders.cardCustomExpiry,
+    user_id: memberId, quantity: 5, used: 0, unit_price: 270, total_amount: 1350,
+    status: 'confirmed', expires_at: '2027-12-31', confirmed_at: now,
     confirmed_by: adminId, order_type: 'card_purchase',
   }, { onConflict: 'id' }));
 

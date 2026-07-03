@@ -2152,13 +2152,17 @@ export async function updateMemberGroup(
             const memberIds = members.map(m => m.id);
 
             // Update confirmed card_purchase orders whose expires_at = old valid_until
-            await adminClient
+            const { error: cascadeErr } = await adminClient
                 .from('orders')
                 .update({ expires_at: validUntil })
                 .in('user_id', memberIds)
                 .eq('status', 'confirmed')
                 .eq('order_type', 'card_purchase')
                 .eq('expires_at', oldValidUntil);
+
+            if (cascadeErr) {
+                throw new Error(`群組已更新但堂卡到期日同步失敗: ${cascadeErr.message}`);
+            }
 
             // Recompute balance for each affected user
             const { syncCardBalance } = await import('./card-utils');
@@ -2468,9 +2472,11 @@ export async function createCardOrder(quantity: number, includeMembership: boole
         : parseInt(config['card_price_non_member'] ?? '370', 10);
 
     // Card expiry: use buyer's own member group valid_until; fall back to year-end
+    // Use Taipei year for the fallback to avoid UTC offset bug on Vercel
+    // (during the first hours of Jan 1 Asia/Taipei, UTC year is still previous year)
     const expiresAt = groupValidUntil
-        ? new Date(groupValidUntil + 'T00:00:00')
-        : new Date(new Date().getFullYear(), 11, 31); // fallback for guest/unassigned
+        ? groupValidUntil
+        : `${getTaipeiToday().slice(0, 4)}-12-31`;
 
     const membershipPrice = includeMembership ? 1800 : 0;
     const totalAmount = (quantity * unitPrice) + membershipPrice;
@@ -2484,7 +2490,7 @@ export async function createCardOrder(quantity: number, includeMembership: boole
             total_amount: totalAmount,
             status: 'pending',
             include_membership: includeMembership,
-            expires_at: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(expiresAt),
+            expires_at: expiresAt,
             order_type: 'card_purchase',
         })
         .select('id')

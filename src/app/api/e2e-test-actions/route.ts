@@ -11,10 +11,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { action, orderId } = body;
+    const { action, orderId, groupId, groupName, groupValidUntil } = body;
 
-    if (!action || !orderId) {
-        return NextResponse.json({ error: 'Missing action or orderId' }, { status: 400 });
+    if (!action) {
+        return NextResponse.json({ error: 'Missing action' }, { status: 400 });
     }
 
     try {
@@ -23,11 +23,19 @@ export async function POST(request: NextRequest) {
 
         let result;
         if (action === 'confirmOrder') {
+            if (!orderId) return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });
             result = await actions.confirmOrder(orderId);
         } else if (action === 'cancelOrder') {
+            if (!orderId) return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });
             result = await actions.cancelOrder(orderId);
         } else if (action === 'rejectOrder') {
+            if (!orderId) return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });
             result = await actions.rejectOrder(orderId);
+        } else if (action === 'updateMemberGroup') {
+            if (!groupId || !groupName || !groupValidUntil) {
+                return NextResponse.json({ error: 'Missing groupId, groupName, or groupValidUntil' }, { status: 400 });
+            }
+            result = await actions.updateMemberGroup(groupId, groupName, groupValidUntil);
         } else {
             return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
         }
