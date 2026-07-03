@@ -22,7 +22,7 @@ function todayTaipei(): string {
 function addDays(base: string, days: number): string {
   const d = new Date(base + 'T00:00:00+08:00'); // Taipei UTC+8
   d.setDate(d.getDate() + days);
-  return d.toISOString().split('T')[0];
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(d);
 }
 
 function nowISO(): string {
@@ -30,7 +30,7 @@ function nowISO(): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Seed IDs (must match e2e/seed.sql)                                 */
+/*  Seed IDs — single source of truth (globalSetup IS the seeder)      */
 /* ------------------------------------------------------------------ */
 const IDS = {
   memberGroup: 'e2e00000-0000-0000-0000-000000000001',

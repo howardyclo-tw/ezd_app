@@ -70,10 +70,10 @@ async function ensureUser({ email, password, name }) {
     return createData.user.id;
   }
 
-  // If user already exists, treat as success (seed.sql resolves IDs by email)
+  // If user already exists, treat as success (globalSetup resolves IDs dynamically)
   if (createError?.message?.includes('already been registered') ||
       createError?.message?.includes('already exists')) {
-    console.log(`  EXISTS   ${email}  (skipped — ID resolved by seed.sql)`);
+    console.log(`  EXISTS   ${email}  (skipped — ID resolved by globalSetup)`);
     return;
   }
 
@@ -94,4 +94,4 @@ console.log('\nAll user IDs:');
 for (const [email, id] of Object.entries(ids)) {
   console.log(`  ${email} => ${id}`);
 }
-console.log('\nDone. Now run:  Apply e2e/seed.sql via Supabase MCP or psql.');
+console.log('\nDone. Auth users created. Playwright globalSetup (e2e/global-setup.ts) handles all DB seeding automatically.');

@@ -5,7 +5,7 @@ import { getUserIdByEmail, getAttendanceRecord } from '../fixtures/db';
 /**
  * Regression baseline: Makeup (supplementary class enrollment)
  *
- * Pre-conditions (from seed.sql):
+ * Pre-conditions (from e2e/global-setup.ts):
  *   - E2E Member is full-enrolled in E2E Basic Groove (normal, 5 sessions)
  *   - Member has an absence (status=absent) on session 0 (past, -7 days)
  *   - E2E Single Course is in the same group, member is NOT enrolled there

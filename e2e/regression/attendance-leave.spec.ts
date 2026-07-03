@@ -23,7 +23,6 @@ test.describe('Attendance & Leave', () => {
     await loginAs(page, 'admin');
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
 
-
     // The "點名" button enables attendance editing for admin/leader
     const attendanceButton = page.getByRole('button', { name: '點名' });
     await expect(attendanceButton).toBeVisible();
@@ -80,7 +79,6 @@ test.describe('Attendance & Leave', () => {
     // Reload page and verify the marked status persisted
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
 
-
     // Enter edit mode again to verify
     await page.getByRole('button', { name: '點名' }).click();
     await page.waitForTimeout(500);
@@ -99,7 +97,6 @@ test.describe('Attendance & Leave', () => {
   test('member takes leave on a future session or verifies existing leave', async ({ page }) => {
     await loginAs(page, 'member');
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
-
 
     // The member has a full enrollment (seeded), so they must appear in roster
     await expect(page.getByText('E2E Member')).toBeVisible();
@@ -143,7 +140,6 @@ test.describe('Attendance & Leave', () => {
 
       // Reload and verify
       await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
-  
 
       // Should see "請假" status somewhere in the session cards
       await expect(page.locator('.snap-x').getByText('請假').first()).toBeVisible();
@@ -185,7 +181,6 @@ test.describe('Attendance & Leave', () => {
   test('leave button is disabled on past sessions (cannot leave past sessions)', async ({ page }) => {
     await loginAs(page, 'member');
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
-
 
     // Seed provides TWO past sessions:
     //   - session 2f (CURRENT_DATE - 14 days): NO attendance record (unmarked)

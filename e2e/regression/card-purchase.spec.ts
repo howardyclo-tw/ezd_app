@@ -21,12 +21,10 @@ test.describe('Card Purchase Flow', () => {
     await loginAs(page, 'admin');
     await page.goto('/admin/settings');
 
-
     // Navigate to my_cards as member to check if purchase is open
     await page.context().clearCookies();
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
-
 
     // Check if purchase button says "購買未開放"
     const purchaseButton = page.getByRole('button', { name: /立即購卡|購買未開放/ });
@@ -38,7 +36,6 @@ test.describe('Card Purchase Flow', () => {
       await page.context().clearCookies();
       await loginAs(page, 'admin');
       await page.goto('/admin/settings');
-  
 
       await page.waitForTimeout(1000);
 
@@ -72,7 +69,7 @@ test.describe('Card Purchase Flow', () => {
       await page.context().clearCookies();
       await loginAs(page, 'member');
       await page.goto('/dashboard/my_cards');
-  
+
     }
 
     // ── Step 1: Record initial balance ──
@@ -137,7 +134,6 @@ test.describe('Card Purchase Flow', () => {
     await loginAs(page, 'admin');
     await page.goto('/leader/approvals');
 
-
     // Should be on "堂卡訂單" tab by default
     await expect(page.getByText('堂卡訂單').first()).toBeVisible();
 
@@ -163,7 +159,6 @@ test.describe('Card Purchase Flow', () => {
     await page.context().clearCookies();
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
-
 
     // Go to 使用中 tab
     await page.getByRole('tab', { name: '使用中' }).click();

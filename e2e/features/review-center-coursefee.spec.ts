@@ -4,7 +4,7 @@ import { loginAs } from '../fixtures/auth';
 /**
  * Feature test: Review Center -- course_fee payment tab
  *
- * Seed state (e2e/seed.sql):
+ * Seed state (e2e/global-setup.ts):
  *   - "E2E NTD Course" (pricing_mode=ntd) under the E2E course group
  *   - Order ...0042: course_fee, status=remitted, amount=800, bank=012, last5=54321
  *   - Enrollment ...0062: pending_payment, linked to order ...0042
@@ -78,7 +78,6 @@ test.describe('Review Center: Course Fee Payment Tab', () => {
 
     await loginAs(page, 'admin');
     await page.goto('/leader/approvals');
-
 
     // Click the course fee tab
     await page.getByRole('tab', { name: '報名繳費' }).click();

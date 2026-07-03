@@ -5,7 +5,7 @@ import { getUserIdByEmail, getAttendanceRecord, getTransferRequests } from '../f
 /**
  * Regression baseline: Transfer (session transfer between members)
  *
- * Pre-conditions (from seed.sql):
+ * Pre-conditions (from e2e/global-setup.ts):
  *   - E2E Member is full-enrolled in E2E Workshop (workshop, 4 future sessions)
  *   - E2E Member2 exists with role=member (transfer recipient)
  *   - E2E Guest exists with role=guest (rejected recipient)
@@ -28,7 +28,7 @@ import { getUserIdByEmail, getAttendanceRecord, getTransferRequests } from '../f
  *   (submitTransferRequest) is identical for all course types except the quota check,
  *   so the gap is limited to the quota-enforcement branch.
  *
- * Idempotency: seed.sql cleanup deletes prior transfer_requests and attendance for
+ * Idempotency: globalSetup cleanup deletes prior transfer_requests and attendance for
  * these courses. The test also handles the case where the session already shows
  * transfer_out from a prior run.
  */
@@ -119,7 +119,6 @@ test.describe('Transfer', () => {
 
     // Reload to see updated roster
     await page.goto(`/courses/groups/${GROUP_ID}/${WORKSHOP_ID}`);
-
 
     // Verify: the session card should now show "轉出" status for the transferred session
     const transferOutBadge = page.getByText('轉出');
