@@ -499,9 +499,11 @@ git commit -m "refactor: single isMemberActive across order/import; remove dead 
   - `confirmOrder(orderId)` — if `course_fee`: set linked enrollments `status='enrolled'`; if `card_purchase`: existing issue-cards behavior; if the card_purchase is linked to enrollments (同步購卡), after issuing cards run deduction and flip those enrollments to `enrolled` (see 2.3).
   - `cancelOrder(orderId, reason)` — set order `cancelled`, linked enrollments `cancelled` + `cancel_reason`, release seats, refund any deducted cards by the correct count.
 
-- [ ] **Step 1: Write happy-path e2e** `e2e/features/course-fee-order.spec.ts` — guest enrolls in an `ntd` workshop single → enrollment `pending_payment`, order `pending`; guest submits remittance → `remitted`; admin confirms → enrollment `enrolled`, seat counted. (Will fail until implemented.)
-- [ ] **Step 2: Implement** the three functions above; reuse existing `submitRemittanceInfo` (generalize to any `order_type`).
-- [ ] **Step 3: Run e2e — PASS.**
+**Sequencing note (added during execution):** The full UI e2e "guest self-enrolls ntd → pending_payment order" cannot run at 2.1 — the ntd enroll *routing* is built in Phase 5.5, and the admin *confirm/cancel* UI is Task 2.3. So 2.1 builds and verifies the functions; the course-fee **confirm/cancel** e2e lands in **Task 2.3** (drive the review-center UI over a seeded pending course_fee order + `pending_payment` enrollment), and the **create-from-enrollment** e2e lands in **Phase 5**.
+
+- [ ] **Step 1: Implement** the three functions (`createCourseFeeOrder`, generalize `confirmCardOrder`→`confirmOrder` and `rejectCardOrder`/`cancelCardOrder`→`cancelOrder` to branch on `order_type`); reuse/generalize `submitRemittanceInfo` to any `order_type`.
+- [ ] **Step 2: Preserve card-order behavior** — the existing card_purchase confirm/cancel/reject paths must behave identically (they are regression-covered). Keep backward-compatible exported names or update call sites consistently.
+- [ ] **Step 3: Verify** — `npx tsc --noEmit` clean; run `pnpm e2e e2e/regression` (card-purchase confirm/approve path MUST stay green, proving the generalization didn't break the card flow). Optionally seed a pending `course_fee` order + linked `pending_payment` enrollment via MCP SQL and confirm the new branch's DB transitions by direct query.
 - [ ] **Step 4: Commit** `feat: course_fee order lifecycle (create/confirm/cancel) with enrollment side-effects`.
 
 ### Task 2.2: Fix hard-coded 1-card refund/re-deduct in `reviewSingleEnrollment`
