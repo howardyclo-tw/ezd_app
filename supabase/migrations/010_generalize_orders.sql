@@ -1,11 +1,12 @@
 -- 010_generalize_orders.sql
 -- Generalize card_orders -> orders to support card_purchase, course_fee, membership_fee
 
--- 1. Rename table (preserves all policies, indexes, FKs, triggers)
-ALTER TABLE card_orders RENAME TO orders;
+-- 1. Rename table (preserves all policies, indexes, FKs, triggers). IF EXISTS makes re-runs safe.
+ALTER TABLE IF EXISTS card_orders RENAME TO orders;
 
--- 2. Add order_type discriminator
+-- 2. Add order_type discriminator (DEFAULT backfills existing rows in-place)
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type text NOT NULL DEFAULT 'card_purchase';
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_type_chk;
 ALTER TABLE orders ADD CONSTRAINT orders_type_chk
   CHECK (order_type IN ('card_purchase', 'course_fee', 'membership_fee'));
 
@@ -18,10 +19,8 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS course_group_id uuid REFERENCES cour
 -- 5. Backfill amount from total_amount for existing card_purchase rows
 UPDATE orders SET amount = total_amount WHERE amount IS NULL;
 
--- 6. Backfill order_type explicitly (DEFAULT covers it, but be safe)
-UPDATE orders SET order_type = 'card_purchase' WHERE order_type = 'card_purchase';
-
--- 7. Add status CHECK that includes 'rejected' (no prior status CHECK existed)
+-- 6. Add status CHECK that includes 'rejected' (no prior status CHECK existed)
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_chk;
 ALTER TABLE orders ADD CONSTRAINT orders_status_chk
   CHECK (status IN ('pending', 'remitted', 'confirmed', 'rejected', 'cancelled'));
 
