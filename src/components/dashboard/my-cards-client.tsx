@@ -53,6 +53,7 @@ interface MyCardsClientProps {
     priceMember: number;
     priceNonMember: number;
     minPurchase: number;
+    purchaseUnit: number;
     isMember: boolean;
     bankInfo: string;
 }
@@ -72,6 +73,7 @@ export function MyCardsClient({
     priceMember,
     priceNonMember,
     minPurchase,
+    purchaseUnit,
     isMember,
     bankInfo,
 }: MyCardsClientProps) {
@@ -81,7 +83,7 @@ export function MyCardsClient({
     // Purchase Dialog
     const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
     const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
-    const [purchaseQty, setPurchaseQty] = useState(5);
+    const [purchaseQty, setPurchaseQty] = useState(purchaseUnit);
     const [includeMembership, setIncludeMembership] = useState(false);
     const [purchaseStep, setPurchaseStep] = useState<1 | 2>(1);
 
@@ -489,8 +491,8 @@ export function MyCardsClient({
                                     variant="outline"
                                     size="icon"
                                     className="h-12 w-12 rounded-full text-lg font-bold"
-                                    onClick={() => setPurchaseQty(Math.max(5, purchaseQty - 5))}
-                                    disabled={purchaseQty <= 5}
+                                    onClick={() => setPurchaseQty(Math.max(purchaseUnit, purchaseQty - purchaseUnit))}
+                                    disabled={purchaseQty <= purchaseUnit}
                                 >
                                     <Minus className="h-5 w-5" />
                                 </Button>
@@ -502,8 +504,8 @@ export function MyCardsClient({
                                     variant="outline"
                                     size="icon"
                                     className="h-12 w-12 rounded-full text-lg font-bold"
-                                    onClick={() => setPurchaseQty(Math.min(20, purchaseQty + 5))}
-                                    disabled={purchaseQty >= 20}
+                                    onClick={() => setPurchaseQty(purchaseQty + purchaseUnit)}
+
                                 >
                                     <Plus className="h-5 w-5" />
                                 </Button>

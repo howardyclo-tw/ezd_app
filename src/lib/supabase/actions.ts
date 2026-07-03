@@ -2400,6 +2400,14 @@ export async function createCardOrder(quantity: number, includeMembership: boole
         }
     }
 
+    const purchaseUnit = parseInt(config['card_purchase_unit'] ?? '5', 10);
+    if (quantity <= 0) {
+        return { success: false, message: '購買數量必須為正整數' };
+    }
+    if (quantity % purchaseUnit !== 0) {
+        return { success: false, message: `購買數量需為 ${purchaseUnit} 的倍數` };
+    }
+
     const minPurchase = parseInt(config['card_min_purchase'] ?? '5', 10);
     if (quantity < minPurchase) {
         throw new Error(`最小購買數量為 ${minPurchase} 堂`);

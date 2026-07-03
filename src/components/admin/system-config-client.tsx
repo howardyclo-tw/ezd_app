@@ -22,6 +22,7 @@ const KNOWN_KEYS: Record<string, { label: string; description: string; type: 'te
     card_price_member: { label: '社員購卡單價', description: '具備有效社員身份者，購買堂卡的每張單價 (NT$)', type: 'number' },
     card_price_non_member: { label: '非社員購卡單價', description: '一般學員或會籍過期者，購買堂卡的每張單價 (NT$)', type: 'number' },
     card_min_purchase: { label: '最低購買張數', description: '單筆購卡申請的最少張數限制 (例如：5 張)', type: 'number' },
+    card_purchase_unit: { label: '購買單位', description: '購卡數量必須為此數的倍數 (預設 5)', type: 'number' },
     card_expire_month: { label: '年度失效月份', description: '堂卡固定於每年年底何時失效 (通常設定為 12 月月底)', type: 'number' },
     bank_info: { label: '匯款帳號資訊', description: '公告於購卡頁面的指定匯款帳號、銀行代碼與戶名', type: 'text' },
 };

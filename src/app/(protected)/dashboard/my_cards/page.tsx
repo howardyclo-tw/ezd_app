@@ -61,6 +61,7 @@ export default async function MyCardsPage() {
     const priceMember = parseInt(config['card_price_member'] ?? '270', 10);
     const priceNonMember = parseInt(config['card_price_non_member'] ?? '370', 10);
     const minPurchase = parseInt(config['card_min_purchase'] ?? '5', 10);
+    const purchaseUnit = parseInt(config['card_purchase_unit'] ?? '5', 10);
     const bankInfo = config['bank_info'] ?? '';
 
     // Build card pools from confirmed orders for display
@@ -96,6 +97,7 @@ export default async function MyCardsPage() {
                 priceMember={priceMember}
                 priceNonMember={priceNonMember}
                 minPurchase={minPurchase}
+                purchaseUnit={purchaseUnit}
                 isMember={isMember}
                 bankInfo={bankInfo}
             />
