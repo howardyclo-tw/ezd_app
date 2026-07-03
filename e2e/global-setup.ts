@@ -40,6 +40,7 @@ const IDS = {
   multiCourse: 'e2e00000-0000-0000-0000-000000000022',
   ntdCourse:   'e2e00000-0000-0000-0000-000000000023',
   workshop:    'e2e00000-0000-0000-0000-000000000024',
+  oversellCourse: 'e2e00000-0000-0000-0000-000000000025',
   sessions: {
     past14:  'e2e00000-0000-0000-0000-00000000002f',
     past7:   'e2e00000-0000-0000-0000-000000000030',
@@ -57,6 +58,7 @@ const IDS = {
     ws2:     'e2e00000-0000-0000-0000-00000000003c',
     ws3:     'e2e00000-0000-0000-0000-00000000003d',
     ws4:     'e2e00000-0000-0000-0000-00000000003e',
+    oversell1:'e2e00000-0000-0000-0000-00000000003f',
   },
   enrollments: {
     memberFull:      'e2e00000-0000-0000-0000-000000000060',
@@ -180,6 +182,8 @@ export default async function globalSetup() {
       pricing_mode: 'ntd' },
     { id: IDS.workshop,     name: 'E2E Workshop',           description: 'E2E workshop transfer test course',
       type: 'workshop',start_time: '21:00', end_time: '22:30', capacity: 20, cards_per_session: 1 },
+    { id: IDS.oversellCourse, name: 'E2E Oversell Guard',  description: 'Capacity-1 course for concurrency oversell test',
+      type: 'normal',  start_time: '12:00', end_time: '13:00', capacity: 1,  cards_per_session: 0 },
   ];
 
   for (const c of courses) {
@@ -216,6 +220,8 @@ export default async function globalSetup() {
     { id: IDS.sessions.ws2,     course_id: IDS.workshop,     session_date: addDays(today, 10), session_number: 2 },
     { id: IDS.sessions.ws3,     course_id: IDS.workshop,     session_date: addDays(today, 17), session_number: 3 },
     { id: IDS.sessions.ws4,     course_id: IDS.workshop,     session_date: addDays(today, 24), session_number: 4 },
+    // Oversell Guard: 1 future session (capacity-1 course)
+    { id: IDS.sessions.oversell1, course_id: IDS.oversellCourse, session_date: addDays(today, 12), session_number: 1 },
   ];
 
   for (const s of sessions) {
@@ -311,6 +317,9 @@ export default async function globalSetup() {
   check('cleanup enroll workshop', await sb.from('enrollments').delete()
     .eq('course_id', IDS.workshop)
     .neq('id', IDS.enrollments.workshopFull));
+
+  check('cleanup enroll oversell', await sb.from('enrollments').delete()
+    .eq('course_id', IDS.oversellCourse));
 
   // 7g. Non-seed orders
   check('cleanup orders', await sb.from('orders').delete()

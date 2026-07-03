@@ -8,7 +8,6 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from './server';
 import { createAdminClient } from './admin';
-import { computeSessionOccupancy } from './capacity';
 import { computeMakeupQuota, isBeforeClass } from '@/types/database';
 import { getUserMakeupQuotaUsed, getUserTransferCount, getSystemConfig } from './queries';
 import { isMemberActive } from '@/lib/supabase/pricing';
@@ -270,31 +269,48 @@ export async function batchEnrollInCourses(
         return { success: false, message: `堂卡餘額不足（可用: ${cardInfo.available}, 需扣除: ${totalCost}${expiredHint}）` };
     }
 
-    // 4. Create enrollments
-    const enrollments = toEnroll.map(c => ({
-        course_id: c.id,
-        user_id: user.id,
-        status: 'enrolled',
-        type: 'full' as const,
-        session_id: null,
-        source: 'self' as const,
-    }));
+    // 4. Enroll via atomic RPC (capacity check + insert + card deduction in single txn)
+    const adminClient = createAdminClient();
+    let enrolledCount = 0;
+    let deductedTotal = 0;
 
-    const { data: inserted, error: enrollError } = await supabase.from('enrollments').upsert(enrollments, { onConflict: 'course_id,user_id,session_id' }).select('id, course_id');
-    if (enrollError) throw new Error(`報名失敗: ${enrollError.message}`);
+    for (const course of toEnroll) {
+        const sessionsCount = (course.course_sessions as any)?.[0]?.count ?? 0;
+        const cost = course.cards_per_session * sessionsCount;
 
-    // FIFO deduct cards
-    const { deductCardsFIFO } = await import('./card-utils');
-    const { newBalance } = await deductCardsFIFO(
-        user.id,
-        totalCost,
-        latestEndDate,
-        `整期報名 ${toEnroll.length} 門課程`,
-        inserted?.[0]?.id
-    );
+        const { data, error } = await adminClient.rpc('enroll_atomic', {
+            p_user: user.id,
+            p_course: course.id,
+            p_type: 'full',
+            p_session: null,
+            p_status: 'enrolled',
+            p_cards_to_deduct: cost,
+            p_order_id: null,
+        });
+
+        if (error) throw new Error(`報名失敗: ${error.message}`);
+
+        const result = data as { ok: boolean; enrollment_id?: string; reason?: string };
+        if (!result.ok) {
+            if (result.reason === 'already_enrolled') continue;
+            if (result.reason === 'full') {
+                if (enrolledCount > 0) {
+                    revalidatePath('/', 'layout');
+                    return { success: false, message: `已報名 ${enrolledCount} 門課程，但「${course.name}」已額滿。` };
+                }
+                return { success: false, message: `「${course.name}」已額滿` };
+            }
+            if (result.reason === 'insufficient_cards') {
+                return { success: false, message: '堂卡餘額不足' };
+            }
+            throw new Error(`報名失敗: ${result.reason}`);
+        }
+        enrolledCount++;
+        deductedTotal += cost;
+    }
 
     revalidatePath('/', 'layout');
-    return { success: true, message: `成功報名 ${toEnroll.length} 門課程，扣除 ${totalCost} 堂卡。` };
+    return { success: true, message: `成功報名 ${enrolledCount} 門課程，扣除 ${deductedTotal} 堂卡。` };
 }
 
 /**
@@ -333,9 +349,7 @@ export async function batchEnrollInSessions(
 
     if (toEnrollSessionIds.length === 0) return { success: false, message: '所選堂次皆已報名' };
 
-    // 3. Get each session's date for per-session FIFO deduction
-    const totalCost = course.cards_per_session * toEnrollSessionIds.length;
-
+    // 3. Get each session's date for per-session FIFO pre-check
     const { data: sessionDateRows } = await supabase
         .from('course_sessions')
         .select('id, session_date')
@@ -384,69 +398,39 @@ export async function batchEnrollInSessions(
         return { success: false, message: `堂卡餘額不足（可報 ${canCover} 堂，需報 ${toEnrollSessionIds.length} 堂${expiredHint}）` };
     }
 
-    // 4. Capacity guard (adminClient for cross-user SELECT)
-    const adminForCapacity = createAdminClient();
-    const [baseEnrollRes, makeupRes, leaveRes, transferRes] = await Promise.all([
-        adminForCapacity.from('enrollments').select('type, status, session_id').eq('course_id', courseId).in('status', ['enrolled', 'pending_payment', 'pending_vote']).or(`type.eq.full,session_id.in.(${toEnrollSessionIds.join(',')})`),
-        adminForCapacity.from('makeup_requests').select('target_session_id').eq('target_course_id', courseId).eq('status', 'approved').in('target_session_id', toEnrollSessionIds),
-        adminForCapacity.from('leave_requests').select('session_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
-        adminForCapacity.from('transfer_requests').select('session_id, from_user_id, to_user_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
-    ]);
-
-    const baseEnrollments = baseEnrollRes.data || [];
-    const makeups = makeupRes.data || [];
-    const leaves = leaveRes.data || [];
-    const transfers = transferRes.data || [];
+    // 4. Enroll via atomic RPC (capacity check + insert + card deduction in single txn)
+    const adminClient = createAdminClient();
+    let enrolledCount = 0;
 
     for (const sid of toEnrollSessionIds) {
-        const makeupCount = makeups.filter(m => m.target_session_id === sid).length;
-        const leaveCount = leaves.filter(l => l.session_id === sid).length;
-        const transferInCount = transfers.filter(t => t.session_id === sid && !!t.to_user_id).length;
-        const transferOutCount = transfers.filter(t => t.session_id === sid).length;
-
-        const occupancy = computeSessionOccupancy({
-            enrollments: baseEnrollments,
-            sessionId: sid,
-            makeupCount,
-            transferInCount,
-            leaveCount,
-            transferOutCount,
+        const { data, error } = await adminClient.rpc('enroll_atomic', {
+            p_user: user.id,
+            p_course: courseId,
+            p_type: 'single',
+            p_session: sid,
+            p_status: 'enrolled',
+            p_cards_to_deduct: course.cards_per_session,
+            p_order_id: null,
         });
-        if (occupancy >= course.capacity) {
-            throw new Error(`第 ${toEnrollSessionIds.indexOf(sid) + 1} 個選擇的堂次已額滿，請重新整理頁面。`);
+
+        if (error) throw new Error(`報名失敗: ${error.message}`);
+
+        const result = data as { ok: boolean; enrollment_id?: string; reason?: string };
+        if (!result.ok) {
+            if (result.reason === 'full') {
+                throw new Error(`第 ${toEnrollSessionIds.indexOf(sid) + 1} 個選擇的堂次已額滿，請重新整理頁面。`);
+            }
+            if (result.reason === 'already_enrolled') continue;
+            if (result.reason === 'insufficient_cards') {
+                return { success: false, message: '堂卡餘額不足' };
+            }
+            throw new Error(`報名失敗: ${result.reason}`);
         }
-    }
-
-    // 5. Create enrollments
-    const enrollments = toEnrollSessionIds.map(sid => ({
-        course_id: courseId,
-        user_id: user.id,
-        status: 'enrolled' as const,
-        type: 'single' as const,
-        session_id: sid,
-        source: 'self' as const,
-        enrolled_at: new Date().toISOString(),
-    }));
-
-    const { data: inserted, error: enrollError } = await supabase.from('enrollments').upsert(enrollments, { onConflict: 'course_id,user_id,session_id' }).select('id, session_id');
-    if (enrollError) throw new Error(`報名失敗: ${enrollError.message}`);
-
-    // FIFO deduct cards per session (each session uses its own date for expiry check)
-    const { deductCardsFIFO } = await import('./card-utils');
-    for (const sid of toEnrollSessionIds) {
-        const sessionDate = sessionDateMap.get(sid) || today;
-        const enrollmentId = inserted?.find((i: any) => i.session_id === sid)?.id;
-        await deductCardsFIFO(
-            user.id,
-            course.cards_per_session,
-            sessionDate,
-            `單堂報名課程: ${course.name} (${sessionDate})`,
-            enrollmentId
-        );
+        enrolledCount++;
     }
 
     revalidatePath('/', 'layout');
-    return { success: true, message: `成功報名 ${toEnrollSessionIds.length} 堂課，扣除 ${totalCost} 堂卡。` };
+    return { success: true, message: `成功報名 ${enrolledCount} 堂課，扣除 ${enrolledCount * course.cards_per_session} 堂卡。` };
 }
 
 /**
