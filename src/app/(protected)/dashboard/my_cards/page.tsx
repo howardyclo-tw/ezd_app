@@ -27,9 +27,10 @@ export default async function MyCardsPage() {
 
     // Fetch card orders
     const { data: orders } = await supabase
-        .from('card_orders')
+        .from('orders')
         .select('*')
         .eq('user_id', user.id)
+        .eq('order_type', 'card_purchase')
         .order('created_at', { ascending: false });
 
     // Fetch system config for pricing and purchase window

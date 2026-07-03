@@ -91,9 +91,10 @@ export default async function AdminMembersPage() {
 
         // Card orders (for card pools display)
         supabase
-            .from('card_orders')
+            .from('orders')
             .select('id, user_id, quantity, used, expires_at')
             .eq('status', 'confirmed')
+            .eq('order_type', 'card_purchase')
             .order('expires_at', { ascending: true })
             .then(res => res.error ? { data: [] } : res),
 

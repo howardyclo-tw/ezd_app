@@ -23,8 +23,9 @@ export default async function LeaderApprovalsPage() {
     const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
 
     // Fetch Recent Card Orders
-    const cardOrderQuery = supabase.from('card_orders')
+    const cardOrderQuery = supabase.from('orders')
         .select('*, profiles!card_orders_user_id_fkey(name)')
+        .eq('order_type', 'card_purchase')
         .gte('created_at', thirtyDaysAgoIso)
         .order('created_at', { ascending: false });
 

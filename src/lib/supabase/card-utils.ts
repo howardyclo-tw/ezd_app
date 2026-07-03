@@ -27,10 +27,11 @@ export async function getAvailableCardBalance(userId: string, asOfDate?: string)
     const checkDate = asOfDate || today;
 
     const { data: orders } = await supabase
-        .from('card_orders')
+        .from('orders')
         .select('id, quantity, used, expires_at, created_at')
         .eq('user_id', userId)
         .eq('status', 'confirmed')
+        .eq('order_type', 'card_purchase')
         .order('expires_at', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true });
 
@@ -79,10 +80,11 @@ export async function deductCardsFIFO(
 
     // Get available pools (not expired as of courseEndDate, ordered FIFO)
     const { data: orders } = await adminClient
-        .from('card_orders')
+        .from('orders')
         .select('id, quantity, used, expires_at')
         .eq('user_id', userId)
         .eq('status', 'confirmed')
+        .eq('order_type', 'card_purchase')
         .order('expires_at', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true });
 
@@ -107,7 +109,7 @@ export async function deductCardsFIFO(
         const toDeduct = Math.min(poolRemaining, remaining);
 
         await adminClient
-            .from('card_orders')
+            .from('orders')
             .update({ used: pool.used + toDeduct })
             .eq('id', pool.id);
 
@@ -117,10 +119,11 @@ export async function deductCardsFIFO(
     // Recalculate and sync profiles.card_balance (total unexpired remaining)
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
     const { data: refreshed } = await adminClient
-        .from('card_orders')
+        .from('orders')
         .select('quantity, used, expires_at')
         .eq('user_id', userId)
-        .eq('status', 'confirmed');
+        .eq('status', 'confirmed')
+        .eq('order_type', 'card_purchase');
 
     const newBalance = (refreshed ?? []).reduce((sum, o) => {
         const rem = o.quantity - o.used;
@@ -149,7 +152,7 @@ export async function deductCardsFIFO(
 }
 
 /**
- * Recalculate and sync profiles.card_balance from card_orders pools.
+ * Recalculate and sync profiles.card_balance from orders pools.
  * Call this after any operation that might change pool state.
  */
 export async function syncCardBalance(userId: string): Promise<number> {
@@ -157,10 +160,11 @@ export async function syncCardBalance(userId: string): Promise<number> {
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
 
     const { data: orders } = await adminClient
-        .from('card_orders')
+        .from('orders')
         .select('quantity, used, expires_at')
         .eq('user_id', userId)
-        .eq('status', 'confirmed');
+        .eq('status', 'confirmed')
+        .eq('order_type', 'card_purchase');
 
     const balance = (orders ?? []).reduce((sum, o) => {
         const rem = o.quantity - o.used;

@@ -47,10 +47,11 @@ transfer_requests   id, course_id, session_id, from_user_id, to_user_id, to_user
                     extra_cards_required, status
   status text enum: 'pending' | 'approved' | 'rejected' | 'cancelled'
 
-card_orders         id, user_id, quantity, used, unit_price, total_amount, status,
-                    remittance_bank_code, remittance_account_last5, remittance_date,
-                    confirmed_by, expires_at date, include_membership bool
-  status text enum: 'pending' | 'remitted' | 'confirmed' | 'cancelled'
+orders              id, user_id, order_type, quantity, used, unit_price, total_amount, amount,
+                    status, remittance_bank_code, remittance_account_last5, remittance_date,
+                    confirmed_by, expires_at date, include_membership bool, course_group_id
+  order_type text enum: 'card_purchase' | 'course_fee' | 'membership_fee'
+  status text enum: 'pending' | 'remitted' | 'confirmed' | 'rejected' | 'cancelled'
 card_transactions   id, user_id, type, amount int (+add / -deduct), balance_after, order_id,
                     enrollment_id, note, created_by, created_at
   type text enum:   'purchase' | 'deduct' | 'refund' | 'expire' | 'admin_adjust'

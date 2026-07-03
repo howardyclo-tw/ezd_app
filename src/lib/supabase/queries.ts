@@ -313,9 +313,10 @@ export async function getUserTransferCount(userId: string, courseId: string) {
 export async function getUserCardOrders(userId: string) {
     const supabase = await createClient();
     const { data, error } = await supabase
-        .from('card_orders')
+        .from('orders')
         .select('*')
         .eq('user_id', userId)
+        .eq('order_type', 'card_purchase')
         .order('created_at', { ascending: false });
 
     if (error) throw new Error(`getUserCardOrders: ${error.message}`);
@@ -339,8 +340,9 @@ export async function getUserCardTransactions(userId: string) {
 export async function getPendingCardOrders() {
     const supabase = await createClient();
     const { data, error } = await supabase
-        .from('card_orders')
+        .from('orders')
         .select('*, profiles ( id, name, role )')
+        .eq('order_type', 'card_purchase')
         .in('status', ['pending', 'remitted'])
         .order('created_at');
 

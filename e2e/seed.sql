@@ -241,7 +241,7 @@ WHERE enrollment_id IN (SELECT id FROM public.enrollments
 DELETE FROM public.enrollments
 WHERE course_id = 'e2e00000-0000-0000-0000-000000000021';
 
-DELETE FROM public.card_orders
+DELETE FROM public.orders
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
   AND id != 'e2e00000-0000-0000-0000-000000000040';
 
@@ -252,8 +252,8 @@ WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.co
 -- ────────────────────────────────────────────────────────────
 -- 6. Card Order  (confirmed, 10 cards for e2e-member)
 -- ────────────────────────────────────────────────────────────
-INSERT INTO public.card_orders (id, user_id, quantity, used, unit_price, total_amount,
-                                 status, expires_at, confirmed_at, confirmed_by)
+INSERT INTO public.orders (id, user_id, quantity, used, unit_price, total_amount,
+                                 status, expires_at, confirmed_at, confirmed_by, order_type)
 VALUES (
   'e2e00000-0000-0000-0000-000000000040',
   (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com'),
@@ -264,7 +264,8 @@ VALUES (
   'confirmed',
   '2026-12-31',
   NOW(),
-  (SELECT id FROM auth.users WHERE email = 'e2e-admin@mediatek.com')
+  (SELECT id FROM auth.users WHERE email = 'e2e-admin@mediatek.com'),
+  'card_purchase'
 )
 ON CONFLICT (id) DO UPDATE SET
   user_id      = EXCLUDED.user_id,
@@ -275,7 +276,8 @@ ON CONFLICT (id) DO UPDATE SET
   status       = EXCLUDED.status,
   expires_at   = EXCLUDED.expires_at,
   confirmed_at = EXCLUDED.confirmed_at,
-  confirmed_by = EXCLUDED.confirmed_by;
+  confirmed_by = EXCLUDED.confirmed_by,
+  order_type   = EXCLUDED.order_type;
 
 -- ────────────────────────────────────────────────────────────
 -- 7. Card Transaction  (purchase ledger entry for the order)

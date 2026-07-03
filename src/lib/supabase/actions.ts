@@ -2261,9 +2261,9 @@ export async function adminAddCards(
 
     const adminClient = createAdminClient();
 
-    // Create a confirmed card_order (admin grant)
+    // Create a confirmed order (admin grant)
     const { error: orderError } = await adminClient
-        .from('card_orders')
+        .from('orders')
         .insert({
             user_id: userId,
             quantity,
@@ -2275,6 +2275,7 @@ export async function adminAddCards(
             confirmed_at: new Date().toISOString(),
             expires_at: expiresAt,
             include_membership: false,
+            order_type: 'card_purchase',
         });
 
     if (orderError) return { success: false, message: `新增堂卡失敗: ${orderError.message}` };
@@ -2307,14 +2308,15 @@ export async function updateCardPoolExpiry(
 
     const adminClient = createAdminClient();
     const { error } = await adminClient
-        .from('card_orders')
+        .from('orders')
         .update({ expires_at: newExpiresAt })
-        .eq('id', orderId);
+        .eq('id', orderId)
+        .eq('order_type', 'card_purchase');
 
     if (error) return { success: false, message: `修改失敗: ${error.message}` };
 
     // Sync balance for the order's owner
-    const { data: order } = await adminClient.from('card_orders').select('user_id').eq('id', orderId).single();
+    const { data: order } = await adminClient.from('orders').select('user_id').eq('id', orderId).eq('order_type', 'card_purchase').single();
     if (order) {
         const { syncCardBalance } = await import('./card-utils');
         await syncCardBalance(order.user_id);
@@ -2426,7 +2428,7 @@ export async function createCardOrder(quantity: number, includeMembership: boole
     const totalAmount = (quantity * unitPrice) + membershipPrice;
 
     const { data, error } = await supabase
-        .from('card_orders')
+        .from('orders')
         .insert({
             user_id: user.id,
             quantity,
@@ -2435,6 +2437,7 @@ export async function createCardOrder(quantity: number, includeMembership: boole
             status: 'pending',
             include_membership: includeMembership,
             expires_at: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(expiresAt),
+            order_type: 'card_purchase',
         })
         .select('id')
         .single();
@@ -2470,18 +2473,19 @@ export async function submitRemittanceInfo(
 
     // Verify ownership
     const { data: order } = await supabase
-        .from('card_orders')
+        .from('orders')
         .select('id')
         .eq('id', orderId)
         .eq('user_id', user.id)
         .eq('status', 'pending')
+        .eq('order_type', 'card_purchase')
         .maybeSingle();
     if (!order) throw new Error('訂單不存在或已處理');
 
     // Use adminClient — RLS with_check blocks status change from 'pending' to 'remitted'
     const adminClient = createAdminClient();
     const { error } = await adminClient
-        .from('card_orders')
+        .from('orders')
         .update({
             status: 'remitted',
             remittance_bank_code: bankCode,
@@ -2500,10 +2504,11 @@ export async function cancelCardOrder(orderId: string): Promise<{ success: boole
     const { supabase, user } = await getCurrentUser();
 
     const { data: order } = await supabase
-        .from('card_orders')
+        .from('orders')
         .select('*')
         .eq('id', orderId)
         .eq('user_id', user.id)
+        .eq('order_type', 'card_purchase')
         .single();
 
     if (!order) return { success: false, message: '找不到訂單' };
@@ -2513,7 +2518,7 @@ export async function cancelCardOrder(orderId: string): Promise<{ success: boole
 
     const adminClient = createAdminClient();
     const { error } = await adminClient
-        .from('card_orders')
+        .from('orders')
         .update({ status: 'cancelled' })
         .eq('id', orderId);
 
@@ -2526,9 +2531,10 @@ export async function confirmCardOrder(orderId: string): Promise<{ success: bool
     const { supabase, user } = await getCurrentUser();
 
     const { data: order } = await supabase
-        .from('card_orders')
+        .from('orders')
         .select('*')
         .eq('id', orderId)
+        .eq('order_type', 'card_purchase')
         .maybeSingle();
 
     if (!order) throw new Error('訂單不存在');
@@ -2536,7 +2542,7 @@ export async function confirmCardOrder(orderId: string): Promise<{ success: bool
 
     // Update order status
     const { error: orderError } = await supabase
-        .from('card_orders')
+        .from('orders')
         .update({
             status: 'confirmed',
             confirmed_by: user.id,
@@ -2596,13 +2602,13 @@ export async function rejectCardOrder(orderId: string): Promise<{ success: boole
     const { supabase, user } = await getCurrentUser();
 
     // 1. Get order and current status
-    const { data: order } = await supabase.from('card_orders').select('*').eq('id', orderId).maybeSingle();
+    const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).eq('order_type', 'card_purchase').maybeSingle();
     if (!order) throw new Error('訂單不存在');
 
     // 2. Update status to rejected (this removes it from the pool since status != 'confirmed')
     // 3. Then sync balance to reflect the change
     const { error } = await supabase
-        .from('card_orders')
+        .from('orders')
         .update({
             status: 'rejected',
             confirmed_by: user.id,
@@ -2690,17 +2696,18 @@ export async function reviewSingleEnrollment(
 
         // Refund card: find earliest expiring pool with used > 0
         const { data: pools } = await adminClient
-            .from('card_orders')
+            .from('orders')
             .select('id, used, expires_at')
             .eq('user_id', enrollment.user_id)
             .eq('status', 'confirmed')
+            .eq('order_type', 'card_purchase')
             .gt('used', 0)
             .order('expires_at', { ascending: true, nullsFirst: false })
             .limit(1);
 
         if (pools && pools.length > 0) {
             await adminClient
-                .from('card_orders')
+                .from('orders')
                 .update({ used: pools[0].used - 1 })
                 .eq('id', pools[0].id);
         }

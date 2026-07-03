@@ -204,7 +204,7 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                 const expiresAt = latestGroup?.valid_until || `${new Date(purchaseTs).getFullYear()}-12-31`;
 
                 const { data: order, error: orderError } = await adminClient
-                    .from('card_orders')
+                    .from('orders')
                     .insert({
                         user_id: userId,
                         quantity: cardCount,
@@ -215,6 +215,7 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                         expires_at: expiresAt,
                         include_membership: false,
                         created_at: purchaseTs,
+                        order_type: 'card_purchase',
                     })
                     .select()
                     .single();

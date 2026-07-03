@@ -78,9 +78,10 @@ export default async function DashboardPage() {
 
     // 4. Pending card orders
     supabase
-      .from('card_orders')
+      .from('orders')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
+      .eq('order_type', 'card_purchase')
       .in('status', ['pending', 'remitted']),
 
     // 5. Today's sessions for rollcall badge
@@ -89,10 +90,11 @@ export default async function DashboardPage() {
       .select(`id, courses!inner ( course_leaders!inner ( user_id ) )`)
       .eq('session_date', today),
 
-    // 6. Pending finance count 
+    // 6. Pending finance count
     supabase
-      .from('card_orders')
+      .from('orders')
       .select('id', { count: 'exact', head: true })
+      .eq('order_type', 'card_purchase')
       .in('status', ['pending', 'remitted'])
   ]);
 
