@@ -134,8 +134,8 @@ test.describe('Card Purchase Flow', () => {
     await loginAs(page, 'admin');
     await page.goto('/leader/approvals');
 
-    // Should be on "堂卡訂單" tab by default
-    await expect(page.getByText('堂卡訂單').first()).toBeVisible();
+    // Should be on "繳費對帳" tab by default
+    await expect(page.getByText('繳費對帳').first()).toBeVisible();
 
     // Find the approve button near the E2E Member order.
     // Look for the card that contains "E2E Member" and has a "核准" button.

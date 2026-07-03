@@ -22,8 +22,7 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 interface ApprovalsTabsClientProps {
-    cardOrders: any[];
-    courseFeeOrders: any[];
+    paymentOrders: any[];
     leaves: any[];
     makeups: any[];
     transfers: any[];
@@ -31,22 +30,21 @@ interface ApprovalsTabsClientProps {
     currentUserId: string;
 }
 
-export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeups, transfers, singleEnrollments, currentUserId }: ApprovalsTabsClientProps) {
+export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers, singleEnrollments, currentUserId }: ApprovalsTabsClientProps) {
     const router = useRouter();
-    const [tab, setTab] = useState('card_orders');
+    const [tab, setTab] = useState('payment_orders');
     const [isPending, startTransition] = useTransition();
+    const [paymentFilter, setPaymentFilter] = useState<'all' | 'card_purchase' | 'course_fee'>('all');
 
-    const currentList = tab === 'card_orders'
-        ? cardOrders
-        : tab === 'course_fee_orders'
-            ? courseFeeOrders
-            : tab === 'leaves'
-                ? leaves
-                : tab === 'makeups'
-                    ? makeups
-                    : tab === 'transfers'
-                        ? transfers
-                        : singleEnrollments;
+    const currentList = tab === 'payment_orders'
+        ? paymentOrders.filter(o => paymentFilter === 'all' || o.order_type === paymentFilter)
+        : tab === 'leaves'
+            ? leaves
+            : tab === 'makeups'
+                ? makeups
+                : tab === 'transfers'
+                    ? transfers
+                    : singleEnrollments;
 
     const handleConfirmCardOrder = async (id: string) => {
         startTransition(async () => {
@@ -173,13 +171,9 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
     const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
 
     const tabHints: Record<string, { title: string; hint: string }> = {
-        card_orders: {
-            title: '堂卡審核說明',
-            hint: '核准：核發堂卡並更新餘額\n駁回：取消訂單，已核發的堂卡會扣回餘額（不影響已報名的課程紀錄）\n駁回後可重新核准，堂卡會重新核發',
-        },
-        course_fee_orders: {
-            title: '報名繳費說明',
-            hint: '確認：繳費確認後，學員的報名狀態將從「待繳費」變為「已報名」\n取消：取消訂單後，相關報名紀錄將被撤銷，名額釋出',
+        payment_orders: {
+            title: '繳費對帳說明',
+            hint: '堂卡訂單：核准核發堂卡並更新餘額；駁回取消訂單，已核發的堂卡會扣回餘額\n報名繳費：確認後學員報名狀態從「待繳費」變為「已報名」；取消後報名紀錄撤銷，名額釋出',
         },
         leaves: {
             title: '請假審核說明',
@@ -200,8 +194,7 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
     };
 
     const emptyMessages: Record<string, { title: string; desc: string }> = {
-        card_orders: { title: '沒有待對帳的堂卡訂單', desc: '太棒了！所有的訂單都已處理完畢。' },
-        course_fee_orders: { title: '沒有待對帳的報名繳費', desc: '目前沒有待處理的課程繳費訂單。' },
+        payment_orders: { title: '沒有待對帳的繳費訂單', desc: '太棒了！所有的訂單都已處理完畢。' },
         leaves: { title: '尚無近期請假紀錄', desc: '最近 30 天內沒有請假紀錄。' },
         makeups: { title: '尚無近期補課紀錄', desc: '最近 30 天內沒有補課紀錄。' },
         transfers: { title: '尚無近期轉讓紀錄', desc: '最近 30 天內沒有轉讓紀錄。' },
@@ -212,13 +205,10 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
         <>
             {/* Filter Tabs */}
             <div className="flex justify-center mb-10 px-4 sm:px-0">
-                <Tabs defaultValue="card_orders" className="w-full sm:w-auto" onValueChange={setTab}>
-                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-6 sm:flex sm:grid-cols-none sm:w-auto">
-                        <TabsTrigger value="card_orders" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
-                            堂卡訂單
-                        </TabsTrigger>
-                        <TabsTrigger value="course_fee_orders" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
-                            報名繳費
+                <Tabs defaultValue="payment_orders" className="w-full sm:w-auto" onValueChange={setTab}>
+                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-5 sm:flex sm:grid-cols-none sm:w-auto">
+                        <TabsTrigger value="payment_orders" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
+                            繳費對帳
                         </TabsTrigger>
                         <TabsTrigger value="single_enrollments" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                             單堂報名
@@ -249,12 +239,32 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                 </div>
             </div>
 
+            {/* Payment Filter Chips */}
+            {tab === 'payment_orders' && (
+                <div className="flex items-center gap-2 mt-4">
+                    {(['all', 'card_purchase', 'course_fee'] as const).map(f => (
+                        <button
+                            key={f}
+                            onClick={() => setPaymentFilter(f)}
+                            className={cn(
+                                "px-3 py-1.5 rounded-full text-xs font-bold transition-all border",
+                                paymentFilter === f
+                                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                    : "bg-muted/30 text-muted-foreground border-muted/50 hover:bg-muted/50"
+                            )}
+                        >
+                            {f === 'all' ? '全部' : f === 'card_purchase' ? '堂卡' : '課程費'}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {/* Content */}
             {currentList.length === 0 ? (
                 <Card className="border-dashed border-muted/50 bg-muted/5 mt-6">
                     <CardContent className="flex flex-col items-center justify-center py-20 text-center">
                         <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
-                            {(tab === 'card_orders' || tab === 'course_fee_orders') ? (
+                            {tab === 'payment_orders' ? (
                                 <CreditCard className="h-8 w-8 text-muted-foreground/40" />
                             ) : (
                                 <ClipboardList className="h-8 w-8 text-muted-foreground/40" />
@@ -269,14 +279,15 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
             ) : (
                 <div className="space-y-4 mt-6">
                     {currentList.map((req) => {
-                        const isCardOrder = tab === 'card_orders';
-                        const isCourseFeeOrder = tab === 'course_fee_orders';
+                        const isCardOrder = req.order_type === 'card_purchase';
+                        const isCourseFeeOrder = req.order_type === 'course_fee';
+                        const isPaymentOrder = isCardOrder || isCourseFeeOrder;
                         const isSingleEnrollment = tab === 'single_enrollments';
                         // Determine session date for expiry check
                         const sessionDate = tab === 'makeups'
                             ? req.target_sessions?.session_date
                             : req.course_sessions?.session_date;
-                        const isPast = !isCardOrder && !isCourseFeeOrder && sessionDate && sessionDate < todayStr;
+                        const isPast = !isPaymentOrder && !isSingleEnrollment && sessionDate && sessionDate < todayStr;
 
                         return (
                             <Card key={req.id} className="relative overflow-hidden border-muted/50 bg-card/40 backdrop-blur-md shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
@@ -287,8 +298,9 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                         <div className="flex items-center gap-2.5 flex-wrap">
                                             <Badge variant="outline" className={cn(
                                                 "text-[10px] font-bold uppercase tracking-wider",
-                                                (isCardOrder || isCourseFeeOrder) && "bg-orange-500/10 text-orange-600 border-orange-200",
-                                                (!isCardOrder && !isCourseFeeOrder) && "bg-muted text-muted-foreground border-transparent"
+                                                isCardOrder && "bg-blue-500/10 text-blue-600 border-blue-200",
+                                                isCourseFeeOrder && "bg-purple-500/10 text-purple-600 border-purple-200",
+                                                (!isPaymentOrder) && "bg-muted text-muted-foreground border-transparent"
                                             )}>
                                                 {isCardOrder ? '堂卡購買' :
                                                     isCourseFeeOrder ? '報名繳費' :
@@ -327,7 +339,7 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
 
                                         {/* Row 3: Course / Order Details */}
                                         <div className="flex items-start gap-2.5 text-[13px] sm:text-sm font-medium text-foreground/80 leading-relaxed">
-                                            {(isCardOrder || isCourseFeeOrder) ? (
+                                            {isPaymentOrder ? (
                                                 <CreditCard className="h-4 w-4 opacity-50 shrink-0 relative top-0.5" />
                                             ) : (
                                                 <Calendar className="h-4 w-4 opacity-50 shrink-0 relative top-0.5" />
@@ -357,7 +369,7 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                                         {req.courses?.name} 第 {req.course_sessions?.session_number} 堂 ({req.course_sessions?.session_date})
                                                     </>
                                                 )}
-                                                {tab === 'card_orders' && (
+                                                {isCardOrder && (
                                                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                                         <span>購買 {req.quantity} 堂卡，金額 ${req.total_amount}</span>
                                                         {req.total_amount > (req.quantity * req.unit_price) && (
@@ -377,7 +389,7 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                         </div>
 
                                         {/* Premium Remittance Info Box (Compact) */}
-                                        {(isCardOrder || isCourseFeeOrder) && req.remittance_bank_code && (
+                                        {isPaymentOrder && req.remittance_bank_code && (
                                             <div className="mt-3 overflow-hidden rounded-xl border border-muted/30 bg-muted/10">
                                                 <div className="flex flex-col sm:flex-row sm:items-center divide-y sm:divide-y-0 sm:divide-x divide-muted/30">
                                                     <div className="flex items-center gap-3 px-4 py-1.5 sm:py-1.5">
@@ -391,7 +403,7 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                                             <span className="text-[12px] font-bold text-foreground tabular-nums">{req.remittance_bank_code}</span>
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <div className="flex items-center gap-3 px-4 py-1.5 sm:py-1.5">
                                                         <div className="flex-shrink-0 w-6 h-6 rounded-lg bg-background flex items-center justify-center border border-muted/50 shadow-sm">
                                                             <div className="w-3.5 h-3.5 text-muted-foreground opacity-60">
@@ -403,7 +415,7 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                                             <span className="text-[12px] font-bold text-foreground tabular-nums">{req.remittance_account_last5}</span>
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <div className="flex items-center gap-3 px-4 py-1.5 sm:py-1.5 flex-1">
                                                         <div className="flex-shrink-0 w-6 h-6 rounded-lg bg-background flex items-center justify-center border border-muted/50 shadow-sm">
                                                             <Clock className="w-3.5 h-3.5 text-muted-foreground opacity-60" />
@@ -411,12 +423,12 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                                         <div className="flex flex-col -space-y-0.5">
                                                             <span className="text-[9px] uppercase tracking-wider font-black text-muted-foreground/60">匯款時間</span>
                                                             <span className="text-[12px] font-bold text-foreground whitespace-nowrap">
-                                                                {req.remittance_date ? new Date(req.remittance_date).toLocaleString('zh-TW', { 
-                                                                    month: '2-digit', 
-                                                                    day: '2-digit', 
-                                                                    hour: '2-digit', 
-                                                                    minute: '2-digit', 
-                                                                    hour12: false 
+                                                                {req.remittance_date ? new Date(req.remittance_date).toLocaleString('zh-TW', {
+                                                                    month: '2-digit',
+                                                                    day: '2-digit',
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit',
+                                                                    hour12: false
                                                                 }) : '---'}
                                                             </span>
                                                         </div>
@@ -424,13 +436,13 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                                 </div>
                                             </div>
                                         )}
-                                        {(isCardOrder || isCourseFeeOrder) && req.status === 'pending' && (
+                                        {isPaymentOrder && req.status === 'pending' && (
                                             <div className="flex items-center gap-2.5 text-[13px] font-medium text-muted-foreground/80 pl-[1.625rem] pt-1">
                                                 <Star className="h-4 w-4 shrink-0 opacity-40" />
                                                 <span className="italic">等待學員填寫匯款資訊...</span>
                                             </div>
                                         )}
-                                        {!isCardOrder && !isCourseFeeOrder && req.reason && (
+                                        {!isPaymentOrder && !isSingleEnrollment && req.reason && (
                                             <div className="pl-6.5 text-[13px] text-muted-foreground/80 italic border-l-2 border-muted/50 ml-2 mt-1 py-0.5">
                                                 {req.reason}
                                             </div>
@@ -506,7 +518,7 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                         )}
 
                                         {/* Other requests specific actions */}
-                                        {!isCardOrder && !isCourseFeeOrder && !isSingleEnrollment && isPast && (
+                                        {!isPaymentOrder && !isSingleEnrollment && isPast && (
                                             <button
                                                 disabled
                                                 className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-bold transition-all bg-muted/50 text-muted-foreground shadow-sm border border-transparent cursor-not-allowed min-w-[76px]"
@@ -515,7 +527,7 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                                 已過期無法操作
                                             </button>
                                         )}
-                                        {!isCardOrder && !isCourseFeeOrder && !isSingleEnrollment && !isPast && req.status !== 'rejected' && (
+                                        {!isPaymentOrder && !isSingleEnrollment && !isPast && req.status !== 'rejected' && (
                                             <button
                                                 disabled={isPending}
                                                 onClick={() => handleToggleStatus(req.id, tab as any, req.status)}
@@ -525,7 +537,7 @@ export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeu
                                                 駁回
                                             </button>
                                         )}
-                                        {!isCardOrder && !isCourseFeeOrder && !isSingleEnrollment && !isPast && req.status === 'rejected' && (
+                                        {!isPaymentOrder && !isSingleEnrollment && !isPast && req.status === 'rejected' && (
                                             <button
                                                 disabled={isPending}
                                                 onClick={() => handleToggleStatus(req.id, tab as any, req.status)}

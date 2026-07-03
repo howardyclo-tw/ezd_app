@@ -99,6 +99,12 @@ export default async function LeaderApprovalsPage() {
         { data: singleEnrollments }
     ] = await Promise.all([cardOrderQuery, courseFeeOrderQuery, leaveQuery, makeupQuery, transferQuery, singleEnrollmentQuery]);
 
+    // Merge card_purchase + course_fee orders into one list, sorted by created_at desc
+    const paymentOrders = [
+        ...(cardOrders || []),
+        ...(courseFeeOrders || []),
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
     return (
         <div className="container max-w-5xl py-6 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -121,8 +127,7 @@ export default async function LeaderApprovalsPage() {
             </div>
 
             <ApprovalsTabsClient
-                cardOrders={cardOrders || []}
-                courseFeeOrders={courseFeeOrders || []}
+                paymentOrders={paymentOrders}
                 leaves={leaves || []}
                 makeups={makeups || []}
                 transfers={transfers || []}
