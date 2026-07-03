@@ -53,7 +53,7 @@ test.describe('Attendance & Leave', () => {
 
     // Check current state of the cell
     let cellDiv = targetCell.locator('div').first();
-    let cellClass = await cellDiv.getAttribute('class') || '';
+    const cellClass = await cellDiv.getAttribute('class') || '';
 
     if (cellClass.includes('bg-rose')) {
       // Was already present -> now absent. Need two more clicks to cycle: absent->unmarked->present
