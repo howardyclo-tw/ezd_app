@@ -643,7 +643,7 @@ export function CourseDetailClient({
                                     <Clock className="h-4 w-4 shrink-0" />
                                     <span className="text-sm font-bold">候補中{userEnrollment.enrollmentStatus.waitlistPosition ? ` 第${userEnrollment.enrollmentStatus.waitlistPosition}位` : ''}</span>
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isPending} className="text-xs text-muted-foreground hover:bg-transparent hover:text-destructive font-medium justify-center transition-colors">
+                                <Button variant="ghost" size="sm" onClick={handleCancelEnrollment} disabled={isPending} className="text-xs text-muted-foreground hover:bg-transparent hover:text-destructive font-medium justify-center transition-colors">
                                     {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <UserMinus className="h-3.5 w-3.5 mr-1" />}
                                     取消候補
                                 </Button>

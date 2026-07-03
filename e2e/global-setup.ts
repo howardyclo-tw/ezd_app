@@ -63,6 +63,7 @@ const IDS = {
     multiSingle:     'e2e00000-0000-0000-0000-000000000061',
     ntdPending:      'e2e00000-0000-0000-0000-000000000062',
     workshopFull:    'e2e00000-0000-0000-0000-000000000063',
+    singleWaitlist: 'e2e00000-0000-0000-0000-000000000064',
   },
   orders: {
     card10:   'e2e00000-0000-0000-0000-000000000040',
@@ -296,7 +297,8 @@ export default async function globalSetup() {
     .neq('id', IDS.enrollments.memberFull));
 
   check('cleanup enroll single', await sb.from('enrollments').delete()
-    .eq('course_id', IDS.singleCourse));
+    .eq('course_id', IDS.singleCourse)
+    .neq('id', IDS.enrollments.singleWaitlist));
 
   check('cleanup enroll multi', await sb.from('enrollments').delete()
     .eq('course_id', IDS.multiCourse)
@@ -331,6 +333,8 @@ export default async function globalSetup() {
       order_id: IDS.orders.courseFee },
     { id: IDS.enrollments.workshopFull, course_id: IDS.workshop, user_id: memberId,
       status: 'enrolled', type: 'full', session_id: null, source: 'self' },
+    { id: IDS.enrollments.singleWaitlist, course_id: IDS.singleCourse, user_id: member2Id,
+      status: 'waitlist', type: 'full', session_id: null, source: 'self', waitlist_position: 1 },
   ];
 
   for (const e of seedEnrollments) {
