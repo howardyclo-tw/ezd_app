@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { notFound, redirect } from 'next/navigation';
 import { CourseDetailClient } from '@/components/courses/course-detail-client';
 import { getAvailableMakeupQuotaSessions, getMakeupRemainingQuotaForGroup } from '@/lib/supabase/queries';
+import { computeSessionOccupancy } from '@/lib/supabase/capacity';
 import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
@@ -73,6 +74,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         { data: makeupsDeparting },
         { data: userMakeupTargets },
         { data: userTransferInTargets },
+        { data: occupancyEnrollments },
     ] = await Promise.all([
         // 2. Enrolled count
         supabase
@@ -160,6 +162,13 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             .eq('course_id', course.id)
             .eq('to_user_id', user.id)
             .eq('status', 'approved'),
+
+        // 14. Enrollments for occupancy computation (adminClient for cross-user visibility)
+        adminDb
+            .from('enrollments')
+            .select('type, status, session_id')
+            .eq('course_id', course.id)
+            .in('status', ['enrolled', 'pending_payment', 'pending_vote']),
     ]);
 
     const missedSessions = (missedSessionsResult as any)?.sessions ?? [];
@@ -302,26 +311,22 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         makeupSessionMap[m.target_session_id].add(p.id);
     });
 
-    // --- Calculate Session Occupancy ---
-    // Formula: n = (Official/Single Enrollments) + (Approved Makeup) + (Arriving Transfers) - (Approved Leave) - (Outgoing Transfers)
-    // Note: Arriving Transfers and Outgoing Transfers here are matching pairs on the SAME session.
-    // If a full-term student transfers out to a non-student, BaseCount includes sender, Arriving +1, Outgoing -1 => net 0 change to seats. 
-    // If we want total occupied seats, we just need to ensure each unique occupied seat is counted once.
-    
-    // We can use the roster itself to count, as it consolidates all participants.
+    // --- Calculate Session Occupancy via shared formula ---
     const sessionOccupancy: Record<string, number> = {};
     sortedSessions.forEach((s: any) => {
-        let count = 0;
-        rosterWithAttendance.forEach(student => {
-            const origType = getOriginalTypeForOccupancy(student, s.id, transferMetadata);
-            // Count if: 
-            // - Student is Official (full) and NOT on leave/transfer_out
-            // - Student is Additional (single/makeup/transfer_in) and assigned to this session
-            if (origType === 'normal' || origType === 'single' || origType === 'makeup' || origType === 'transfer_in') {
-                count++;
-            }
+        const makeupCount = (makeupsArriving ?? []).filter((m: any) => m.target_session_id === s.id).length;
+        const leaveCount = (leaveRequests ?? []).filter((l: any) => l.session_id === s.id).length;
+        const transferInCount = (transfersApproved ?? []).filter((t: any) => t.session_id === s.id && !!t.to_user_id).length;
+        const transferOutCount = (transfersApproved ?? []).filter((t: any) => t.session_id === s.id).length;
+
+        sessionOccupancy[s.id] = computeSessionOccupancy({
+            enrollments: occupancyEnrollments ?? [],
+            sessionId: s.id,
+            makeupCount,
+            transferInCount,
+            leaveCount,
+            transferOutCount,
         });
-        sessionOccupancy[s.id] = count;
     });
 
     // --- Calculate specific quota for THIS course ---
@@ -385,20 +390,3 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     );
 }
 
-// Helper duplicated from client or moved to common lib if needed
-function getOriginalTypeForOccupancy(student: any, sessionId: string, transferMetadata: any): string {
-    const meta = transferMetadata[sessionId]?.[student.id];
-    const dbStatus = student.attendance[sessionId] ?? 'unmarked';
-    const isOfficial = student.type === 'official';
-
-    // Attendance status takes priority — leave/transfer_out always frees a slot
-    if (dbStatus === 'leave') return 'leave';
-    if (dbStatus === 'transfer_out') return 'transfer_out';
-
-    if (meta) return meta.type;
-    if (dbStatus === 'transfer_in') return 'transfer_in';
-    if (dbStatus === 'makeup') return 'makeup';
-    if (!isOfficial && student.enrolledSessionIds?.includes(sessionId)) return 'single';
-    if (!isOfficial) return 'none';
-    return 'normal';
-}

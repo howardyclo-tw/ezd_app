@@ -8,6 +8,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from './server';
 import { createAdminClient } from './admin';
+import { computeSessionOccupancy } from './capacity';
 import { computeMakeupQuota, isBeforeClass } from '@/types/database';
 import { getUserMakeupQuotaUsed, getUserTransferCount, getSystemConfig } from './queries';
 import { isMemberActive } from '@/lib/supabase/pricing';
@@ -386,7 +387,7 @@ export async function batchEnrollInSessions(
     // 4. Capacity guard (adminClient for cross-user SELECT)
     const adminForCapacity = createAdminClient();
     const [baseEnrollRes, makeupRes, leaveRes, transferRes] = await Promise.all([
-        adminForCapacity.from('enrollments').select('type, session_id').eq('course_id', courseId).eq('status', 'enrolled').or(`type.eq.full,session_id.in.(${toEnrollSessionIds.join(',')})`),
+        adminForCapacity.from('enrollments').select('type, status, session_id').eq('course_id', courseId).in('status', ['enrolled', 'pending_payment', 'pending_vote']).or(`type.eq.full,session_id.in.(${toEnrollSessionIds.join(',')})`),
         adminForCapacity.from('makeup_requests').select('target_session_id').eq('target_course_id', courseId).eq('status', 'approved').in('target_session_id', toEnrollSessionIds),
         adminForCapacity.from('leave_requests').select('session_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
         adminForCapacity.from('transfer_requests').select('session_id, from_user_id, to_user_id').eq('course_id', courseId).eq('status', 'approved').in('session_id', toEnrollSessionIds),
@@ -398,15 +399,19 @@ export async function batchEnrollInSessions(
     const transfers = transferRes.data || [];
 
     for (const sid of toEnrollSessionIds) {
-        // formula: n = (Official/Single) + (Makeup) + (Transfer In) - (Leave) - (Transfer Out)
-        const fullEnrolledCount = baseEnrollments.filter(e => e.type === 'full').length;
-        const singleEnrolledCount = baseEnrollments.filter(e => e.type === 'single' && e.session_id === sid).length;
         const makeupCount = makeups.filter(m => m.target_session_id === sid).length;
         const leaveCount = leaves.filter(l => l.session_id === sid).length;
         const transferInCount = transfers.filter(t => t.session_id === sid && !!t.to_user_id).length;
         const transferOutCount = transfers.filter(t => t.session_id === sid).length;
 
-        const occupancy = fullEnrolledCount + singleEnrolledCount + makeupCount + transferInCount - leaveCount - transferOutCount;
+        const occupancy = computeSessionOccupancy({
+            enrollments: baseEnrollments,
+            sessionId: sid,
+            makeupCount,
+            transferInCount,
+            leaveCount,
+            transferOutCount,
+        });
         if (occupancy >= course.capacity) {
             throw new Error(`第 ${toEnrollSessionIds.indexOf(sid) + 1} 個選擇的堂次已額滿，請重新整理頁面。`);
         }

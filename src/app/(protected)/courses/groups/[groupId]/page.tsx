@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { createAdminClient } from '@/lib/supabase/admin';
+import { computeSessionOccupancy } from '@/lib/supabase/capacity';
 import { CourseCard } from "@/components/courses/course-card";
 import { ChevronLeft, Calendar as CalendarIcon, Edit2, Plus, UserPlus } from "lucide-react";
 import Link from 'next/link';
@@ -97,26 +98,18 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
     const allSessionIds = (courses ?? []).flatMap(c => (c.course_sessions as any[])?.map((s: any) => s.id) ?? []);
 
     const [
-        { data: allFullEnrollments },
-        { data: allSingleEnrollments },
+        { data: allEnrollments },
         { data: allMakeups },
         { data: allLeaves },
         { data: allTransfers },
     ] = allSessionIds.length > 0 ? await Promise.all([
-        adminDb.from('enrollments').select('course_id, user_id').eq('status', 'enrolled').eq('type', 'full').in('course_id', allCourseIds),
-        adminDb.from('enrollments').select('course_id, session_id, user_id').eq('status', 'enrolled').eq('type', 'single').in('session_id', allSessionIds),
+        adminDb.from('enrollments').select('course_id, type, status, session_id').in('status', ['enrolled', 'pending_payment', 'pending_vote']).in('course_id', allCourseIds),
         adminDb.from('makeup_requests').select('target_session_id').eq('status', 'approved').in('target_session_id', allSessionIds),
         adminDb.from('leave_requests').select('session_id').eq('status', 'approved').in('session_id', allSessionIds),
         adminDb.from('transfer_requests').select('session_id, to_user_id').eq('status', 'approved').in('session_id', allSessionIds),
-    ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
+    ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }];
 
-    // Build lookup maps (O(n) each) instead of filtering per session (O(n²))
-    const fullCountByCourse: Record<string, number> = {};
-    (allFullEnrollments ?? []).forEach((e: any) => { fullCountByCourse[e.course_id] = (fullCountByCourse[e.course_id] ?? 0) + 1; });
-
-    const singleCountBySession: Record<string, number> = {};
-    (allSingleEnrollments ?? []).forEach((e: any) => { singleCountBySession[e.session_id] = (singleCountBySession[e.session_id] ?? 0) + 1; });
-
+    // Build lookup maps for attendance deltas (O(n) each)
     const makeupCountBySession: Record<string, number> = {};
     (allMakeups ?? []).forEach((m: any) => { makeupCountBySession[m.target_session_id] = (makeupCountBySession[m.target_session_id] ?? 0) + 1; });
 
@@ -130,20 +123,29 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
         if (t.to_user_id) transferInBySession[t.session_id] = (transferInBySession[t.session_id] ?? 0) + 1;
     });
 
-    // Compute max occupancy per course using O(1) lookups
+    // Group enrollments by course_id for efficient per-course filtering
+    const enrollmentsByCourse: Record<string, any[]> = {};
+    (allEnrollments ?? []).forEach((e: any) => {
+        if (!enrollmentsByCourse[e.course_id]) enrollmentsByCourse[e.course_id] = [];
+        enrollmentsByCourse[e.course_id].push(e);
+    });
+
+    // Compute max occupancy per course using computeSessionOccupancy
     const courseMaxOccupancy: Record<string, number> = {};
     for (const course of (courses ?? [])) {
         const sessions = (course.course_sessions as any[]) ?? [];
-        const fullCount = fullCountByCourse[course.id] ?? 0;
+        const courseEnrollments = enrollmentsByCourse[course.id] ?? [];
 
         let maxOcc = 0;
         for (const s of sessions) {
-            const occ = fullCount
-                + (singleCountBySession[s.id] ?? 0)
-                + (makeupCountBySession[s.id] ?? 0)
-                + (transferInBySession[s.id] ?? 0)
-                - (leaveCountBySession[s.id] ?? 0)
-                - (transferOutBySession[s.id] ?? 0);
+            const occ = computeSessionOccupancy({
+                enrollments: courseEnrollments,
+                sessionId: s.id,
+                makeupCount: makeupCountBySession[s.id] ?? 0,
+                transferInCount: transferInBySession[s.id] ?? 0,
+                leaveCount: leaveCountBySession[s.id] ?? 0,
+                transferOutCount: transferOutBySession[s.id] ?? 0,
+            });
             if (occ > maxOcc) maxOcc = occ;
         }
         courseMaxOccupancy[course.id] = maxOcc;
