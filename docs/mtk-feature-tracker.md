@@ -57,3 +57,10 @@
 | 三處 isMember 不一致 | P1 | ⬜ |
 | 死碼 enrollment-button / getCardPriceForUser | P1 | ⬜ |
 | types/database.ts 過期(缺 member_groups 等) | P1 | ⬜ |
+
+## 技術債清理(排程於最後)
+
+| 項目 | Phase | 狀態 |
+|---|---|---|
+| 全 repo lint 清零(430 問題:318 err/112 warn,主要 no-explicit-any) | P9 | ⬜ 已排程 |
+| 說明:此 repo 從初始 commit(2026-01-04)就是 Next 16 + ESLint 9,`next lint` 壞掉+舊 .eslintrc.json 被忽略,故 lint 從未運作過(非升級造成)。P9 於功能完成+完整 e2e 安全網就位後執行。 | | |

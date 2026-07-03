@@ -734,6 +734,23 @@ git commit -m "refactor: single isMemberActive across order/import; remove dead 
 
 ---
 
+## Phase 9 — Repo-wide lint-debt cleanup (scheduled; runs LAST)
+
+**Context:** The repo was scaffolded on Next 16 + ESLint 9 with a broken `next lint` script and an ESLint-9-ignored `.eslintrc.json`, so lint never ran until Task 0.4. Result: **430 pre-existing problems (318 errors / 112 warnings), overwhelmingly `@typescript-eslint/no-explicit-any`** in `src/lib/supabase/actions.ts` and peers. This phase drives the whole repo to lint-clean.
+
+**Why last (not now):** (1) It's a large, behavior-risky diff — replacing `any` with real types routinely surfaces latent bugs; it must run with the FULL e2e safety net (regression + all feature suites) in place, which only exists after Phase 8. (2) It dovetails with Task 1.3's refreshed `database.ts` types and the typed row shapes introduced across Phases 1–7 — many `any`s become trivially typeable once those exist, so doing it after avoids re-work. (3) It must not block or entangle the MTK feature delivery.
+
+### Task 9.1: Auto-fixable + mechanical rules
+- [ ] Run `npx eslint . --fix` for the 3 auto-fixable problems + any trivially mechanical rules (prefer-const, unused imports); run tsc + full e2e; commit per rule-group.
+
+### Task 9.2: `no-explicit-any` elimination, file-by-file
+- [ ] For each high-count file (start with `actions.ts`), replace `any` with real types (Supabase row types from refreshed `database.ts`, generics, `unknown` + narrowing). After each file: `npx tsc --noEmit`, `npx eslint <file>` clean, run the e2e suites that cover that file's behavior, commit. Never weaken types with `// eslint-disable` except where genuinely unavoidable (documented).
+
+### Task 9.3: Remaining warnings + whole-repo gate flip
+- [ ] Clear residual warnings; once `pnpm lint` (whole repo) is clean, flip the CI gate from "changed-files" to "whole-repo lint clean" and update the plan's Global Constraints + tracker.
+
+---
+
 ## Self-Review
 
 **Spec coverage** (spec §→task):
