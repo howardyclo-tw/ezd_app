@@ -13,6 +13,7 @@ import { getUserMakeupQuotaUsed, getUserTransferCount, getSystemConfig } from '.
 import { isMemberActive } from '@/lib/supabase/pricing';
 import { getTaipeiToday } from '@/lib/date';
 import { isCardWindowOpen, getCardPurchaseWindow } from '@/lib/card-window';
+import { validatePurchaseQuantity } from '@/lib/card-purchase';
 
 
 // ------------------------------------------------------------------
@@ -2400,12 +2401,10 @@ export async function createCardOrder(quantity: number, includeMembership: boole
         }
     }
 
-    const purchaseUnit = parseInt(config['card_purchase_unit'] ?? '5', 10);
-    if (quantity <= 0) {
-        return { success: false, message: '購買數量必須為正整數' };
-    }
-    if (quantity % purchaseUnit !== 0) {
-        return { success: false, message: `購買數量需為 ${purchaseUnit} 的倍數` };
+    const rawUnit = parseInt(config['card_purchase_unit'] ?? '5', 10);
+    const qtyCheck = validatePurchaseQuantity(quantity, rawUnit);
+    if (!qtyCheck.ok) {
+        return { success: false, message: qtyCheck.message! };
     }
 
     const minPurchase = parseInt(config['card_min_purchase'] ?? '5', 10);
