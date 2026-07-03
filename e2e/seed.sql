@@ -192,6 +192,55 @@ ON CONFLICT (id) DO UPDATE SET
   is_cancelled   = EXCLUDED.is_cancelled;
 
 -- ────────────────────────────────────────────────────────────
+-- 4c. Multi-Card Course (cards_per_session=2, for refund-count e2e)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.courses (id, group_id, name, description, type, teacher, room,
+                            start_time, end_time, capacity, cards_per_session,
+                            enrollment_start_at, enrollment_end_at)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000022',
+  'e2e00000-0000-0000-0000-000000000010',
+  'E2E Multi-Card Course',
+  'E2E multi-card refund test course (cards_per_session=2)',
+  'normal',
+  'E2E Teacher',
+  'E2E Room',
+  '18:00',
+  '19:30',
+  20,
+  2,
+  NOW() - INTERVAL '1 day',
+  NOW() + INTERVAL '30 days'
+)
+ON CONFLICT (id) DO UPDATE SET
+  group_id           = EXCLUDED.group_id,
+  name               = EXCLUDED.name,
+  description        = EXCLUDED.description,
+  type               = EXCLUDED.type,
+  teacher            = EXCLUDED.teacher,
+  room               = EXCLUDED.room,
+  start_time         = EXCLUDED.start_time,
+  end_time           = EXCLUDED.end_time,
+  capacity           = EXCLUDED.capacity,
+  cards_per_session   = EXCLUDED.cards_per_session,
+  enrollment_start_at = EXCLUDED.enrollment_start_at,
+  enrollment_end_at   = EXCLUDED.enrollment_end_at;
+
+-- ────────────────────────────────────────────────────────────
+-- 5a3. Session for E2E Multi-Card Course (1 future session)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.course_sessions (id, course_id, session_date, session_number, is_cancelled)
+VALUES
+  ('e2e00000-0000-0000-0000-000000000037',
+   'e2e00000-0000-0000-0000-000000000022',
+   CURRENT_DATE + INTERVAL '10 days', 1, FALSE)
+ON CONFLICT (id) DO UPDATE SET
+  course_id      = EXCLUDED.course_id,
+  session_date   = EXCLUDED.session_date,
+  session_number = EXCLUDED.session_number,
+  is_cancelled   = EXCLUDED.is_cancelled;
+
+-- ────────────────────────────────────────────────────────────
 -- 5b. Full enrollment for the member (covers all sessions)
 -- ────────────────────────────────────────────────────────────
 INSERT INTO public.enrollments (id, course_id, user_id, status, type, session_id, source)
@@ -220,13 +269,15 @@ DELETE FROM public.leave_requests
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
   AND session_id IN (SELECT id FROM public.course_sessions
                      WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
-                                         'e2e00000-0000-0000-0000-000000000021'));
+                                         'e2e00000-0000-0000-0000-000000000021',
+                                         'e2e00000-0000-0000-0000-000000000022'));
 
 DELETE FROM public.attendance_records
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
   AND session_id IN (SELECT id FROM public.course_sessions
                      WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
-                                         'e2e00000-0000-0000-0000-000000000021'));
+                                         'e2e00000-0000-0000-0000-000000000021',
+                                         'e2e00000-0000-0000-0000-000000000022'));
 
 DELETE FROM public.enrollments
 WHERE course_id = 'e2e00000-0000-0000-0000-000000000020'
@@ -241,13 +292,23 @@ WHERE enrollment_id IN (SELECT id FROM public.enrollments
 DELETE FROM public.enrollments
 WHERE course_id = 'e2e00000-0000-0000-0000-000000000021';
 
+-- Remove card transactions tied to the multi-card course enrollments (FK dep)
+DELETE FROM public.card_transactions
+WHERE enrollment_id IN (SELECT id FROM public.enrollments
+                        WHERE course_id = 'e2e00000-0000-0000-0000-000000000022');
+
+-- Remove non-seed enrollments for the multi-card course
+DELETE FROM public.enrollments
+WHERE course_id = 'e2e00000-0000-0000-0000-000000000022'
+  AND id != 'e2e00000-0000-0000-0000-000000000061';
+
 DELETE FROM public.orders
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
-  AND id != 'e2e00000-0000-0000-0000-000000000040';
+  AND id NOT IN ('e2e00000-0000-0000-0000-000000000040', 'e2e00000-0000-0000-0000-000000000041');
 
 DELETE FROM public.card_transactions
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
-  AND id != 'e2e00000-0000-0000-0000-000000000050';
+  AND id NOT IN ('e2e00000-0000-0000-0000-000000000050', 'e2e00000-0000-0000-0000-000000000051');
 
 -- ────────────────────────────────────────────────────────────
 -- 6. Card Order  (confirmed, 10 cards for e2e-member)
@@ -302,6 +363,77 @@ ON CONFLICT (id) DO UPDATE SET
   order_id      = EXCLUDED.order_id,
   note          = EXCLUDED.note,
   created_by    = EXCLUDED.created_by;
+
+-- ────────────────────────────────────────────────────────────
+-- 8. Multi-Card Course: single enrollment + dedicated card order
+--    The member has a single enrollment on the multi-card course
+--    (cards_per_session=2), with 2 cards deducted from a separate order.
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.orders (id, user_id, quantity, used, unit_price, total_amount,
+                                 status, expires_at, confirmed_at, confirmed_by, order_type)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000041',
+  (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com'),
+  2,
+  2,
+  270,
+  540,
+  'confirmed',
+  '2026-12-31',
+  NOW(),
+  (SELECT id FROM auth.users WHERE email = 'e2e-admin@mediatek.com'),
+  'card_purchase'
+)
+ON CONFLICT (id) DO UPDATE SET
+  user_id      = EXCLUDED.user_id,
+  quantity     = EXCLUDED.quantity,
+  used         = EXCLUDED.used,
+  unit_price   = EXCLUDED.unit_price,
+  total_amount = EXCLUDED.total_amount,
+  status       = EXCLUDED.status,
+  expires_at   = EXCLUDED.expires_at,
+  confirmed_at = EXCLUDED.confirmed_at,
+  confirmed_by = EXCLUDED.confirmed_by,
+  order_type   = EXCLUDED.order_type;
+
+INSERT INTO public.card_transactions (id, user_id, type, amount, balance_after,
+                                       order_id, note, created_by)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000051',
+  (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com'),
+  'purchase',
+  2,
+  12,
+  'e2e00000-0000-0000-0000-000000000041',
+  'E2E seed: 2 cards for multi-card course',
+  (SELECT id FROM auth.users WHERE email = 'e2e-admin@mediatek.com')
+)
+ON CONFLICT (id) DO UPDATE SET
+  user_id       = EXCLUDED.user_id,
+  type          = EXCLUDED.type,
+  amount        = EXCLUDED.amount,
+  balance_after = EXCLUDED.balance_after,
+  order_id      = EXCLUDED.order_id,
+  note          = EXCLUDED.note,
+  created_by    = EXCLUDED.created_by;
+
+INSERT INTO public.enrollments (id, course_id, user_id, status, type, session_id, source)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000061',
+  'e2e00000-0000-0000-0000-000000000022',
+  (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com'),
+  'enrolled',
+  'single',
+  'e2e00000-0000-0000-0000-000000000037',
+  'self'
+)
+ON CONFLICT (id) DO UPDATE SET
+  course_id  = EXCLUDED.course_id,
+  user_id    = EXCLUDED.user_id,
+  status     = EXCLUDED.status,
+  type       = EXCLUDED.type,
+  session_id = EXCLUDED.session_id,
+  source     = EXCLUDED.source;
 
 -- ============================================================
 -- Done. Verify with:

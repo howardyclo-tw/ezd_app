@@ -2789,12 +2789,14 @@ export async function reviewSingleEnrollment(
     // 1. Fetch enrollment with session info
     const { data: enrollment } = await adminClient
         .from('enrollments')
-        .select('*, course_sessions!enrollments_session_id_fkey(session_date, session_number, course_id), courses!enrollments_course_id_fkey(capacity)')
+        .select('*, course_sessions!enrollments_session_id_fkey(session_date, session_number, course_id), courses!enrollments_course_id_fkey(capacity, cards_per_session)')
         .eq('id', enrollmentId)
         .maybeSingle();
 
     if (!enrollment) return { success: false, message: '找不到報名紀錄' };
     if (enrollment.type !== 'single') return { success: false, message: '只能操作單堂報名' };
+
+    const cardsPerSession: number = (enrollment.courses as any)?.cards_per_session ?? 1;
 
     const sessionDate = (enrollment.course_sessions as any)?.session_date;
     const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
@@ -2840,7 +2842,7 @@ export async function reviewSingleEnrollment(
             await adminClient.from('attendance_records').delete().eq('id', attendance.id);
         }
 
-        // Refund card: find earliest expiring pool with used > 0
+        // Refund card(s): distribute refund across pools (earliest-expiring first)
         const { data: pools } = await adminClient
             .from('orders')
             .select('id, used, expires_at')
@@ -2848,14 +2850,17 @@ export async function reviewSingleEnrollment(
             .eq('status', 'confirmed')
             .eq('order_type', 'card_purchase')
             .gt('used', 0)
-            .order('expires_at', { ascending: true, nullsFirst: false })
-            .limit(1);
+            .order('expires_at', { ascending: true, nullsFirst: false });
 
-        if (pools && pools.length > 0) {
+        let refundRemaining = cardsPerSession;
+        for (const pool of (pools ?? [])) {
+            if (refundRemaining <= 0) break;
+            const refundFromPool = Math.min(pool.used, refundRemaining);
             await adminClient
                 .from('orders')
-                .update({ used: pools[0].used - 1 })
-                .eq('id', pools[0].id);
+                .update({ used: pool.used - refundFromPool })
+                .eq('id', pool.id);
+            refundRemaining -= refundFromPool;
         }
 
         await syncCardBalance(enrollment.user_id);
@@ -2884,7 +2889,7 @@ export async function reviewSingleEnrollment(
         // Check card balance
         const { getAvailableCardBalance } = await import('./card-utils');
         const cardInfo = await getAvailableCardBalance(enrollment.user_id, sessionDate);
-        if (cardInfo.available < 1) {
+        if (cardInfo.available < cardsPerSession) {
             return { success: false, message: '學員堂卡餘額不足，無法重新核准' };
         }
 
@@ -2898,9 +2903,9 @@ export async function reviewSingleEnrollment(
 
         if (!restored || restored.length === 0) return { success: false, message: '此報名已被處理' };
 
-        // Then deduct card
+        // Then deduct card(s)
         const { deductCardsFIFO } = await import('./card-utils');
-        await deductCardsFIFO(enrollment.user_id, 1, sessionDate, '重新核准單堂報名');
+        await deductCardsFIFO(enrollment.user_id, cardsPerSession, sessionDate, '重新核准單堂報名');
 
         revalidatePath('/', 'layout');
         return { success: true, message: '已重新核准單堂報名，堂卡已扣除' };
