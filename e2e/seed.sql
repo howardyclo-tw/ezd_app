@@ -262,6 +262,122 @@ ON CONFLICT (id) DO UPDATE SET
   source     = EXCLUDED.source;
 
 -- ────────────────────────────────────────────────────────────
+-- 4d. NTD Course  (pricing_mode=ntd, for course_fee order test)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.courses (id, group_id, name, description, type, teacher, room,
+                            start_time, end_time, capacity, cards_per_session,
+                            enrollment_start_at, enrollment_end_at, pricing_mode)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000023',
+  'e2e00000-0000-0000-0000-000000000010',
+  'E2E NTD Course',
+  'E2E course-fee payment test course (pricing_mode=ntd)',
+  'normal',
+  'E2E Teacher',
+  'E2E Room',
+  '17:00',
+  '18:30',
+  20,
+  0,
+  NOW() - INTERVAL '1 day',
+  NOW() + INTERVAL '30 days',
+  'ntd'
+)
+ON CONFLICT (id) DO UPDATE SET
+  group_id           = EXCLUDED.group_id,
+  name               = EXCLUDED.name,
+  description        = EXCLUDED.description,
+  type               = EXCLUDED.type,
+  teacher            = EXCLUDED.teacher,
+  room               = EXCLUDED.room,
+  start_time         = EXCLUDED.start_time,
+  end_time           = EXCLUDED.end_time,
+  capacity           = EXCLUDED.capacity,
+  cards_per_session   = EXCLUDED.cards_per_session,
+  enrollment_start_at = EXCLUDED.enrollment_start_at,
+  enrollment_end_at   = EXCLUDED.enrollment_end_at,
+  pricing_mode        = EXCLUDED.pricing_mode;
+
+-- ────────────────────────────────────────────────────────────
+-- 5a4. Sessions for E2E NTD Course (3 future sessions)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.course_sessions (id, course_id, session_date, session_number, is_cancelled)
+VALUES
+  ('e2e00000-0000-0000-0000-000000000038',
+   'e2e00000-0000-0000-0000-000000000023',
+   CURRENT_DATE + INTERVAL '9 days',  1, FALSE),
+  ('e2e00000-0000-0000-0000-000000000039',
+   'e2e00000-0000-0000-0000-000000000023',
+   CURRENT_DATE + INTERVAL '16 days', 2, FALSE),
+  ('e2e00000-0000-0000-0000-00000000003a',
+   'e2e00000-0000-0000-0000-000000000023',
+   CURRENT_DATE + INTERVAL '23 days', 3, FALSE)
+ON CONFLICT (id) DO UPDATE SET
+  course_id      = EXCLUDED.course_id,
+  session_date   = EXCLUDED.session_date,
+  session_number = EXCLUDED.session_number,
+  is_cancelled   = EXCLUDED.is_cancelled;
+
+-- ────────────────────────────────────────────────────────────
+-- 9. Course Fee Order (pending/remitted, for review-center test)
+--    E2E Member has a course_fee order with remittance info
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.orders (id, user_id, order_type, quantity, used, unit_price,
+                           total_amount, amount, status, course_group_id,
+                           remittance_bank_code, remittance_account_last5, remittance_date)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000042',
+  (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com'),
+  'course_fee',
+  1,
+  0,
+  0,
+  0,
+  800,
+  'remitted',
+  'e2e00000-0000-0000-0000-000000000010',
+  '012',
+  '54321',
+  NOW()
+)
+ON CONFLICT (id) DO UPDATE SET
+  user_id              = EXCLUDED.user_id,
+  order_type           = EXCLUDED.order_type,
+  quantity             = EXCLUDED.quantity,
+  used                 = EXCLUDED.used,
+  unit_price           = EXCLUDED.unit_price,
+  total_amount         = EXCLUDED.total_amount,
+  amount               = EXCLUDED.amount,
+  status               = EXCLUDED.status,
+  course_group_id      = EXCLUDED.course_group_id,
+  remittance_bank_code = EXCLUDED.remittance_bank_code,
+  remittance_account_last5 = EXCLUDED.remittance_account_last5,
+  remittance_date      = EXCLUDED.remittance_date;
+
+-- ────────────────────────────────────────────────────────────
+-- 10. Linked Enrollment (pending_payment, tied to the course_fee order)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.enrollments (id, course_id, user_id, status, type, session_id, source, order_id)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000062',
+  'e2e00000-0000-0000-0000-000000000023',
+  (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com'),
+  'pending_payment',
+  'full',
+  NULL,
+  'self',
+  'e2e00000-0000-0000-0000-000000000042'
+)
+ON CONFLICT (id) DO UPDATE SET
+  course_id  = EXCLUDED.course_id,
+  user_id    = EXCLUDED.user_id,
+  status     = EXCLUDED.status,
+  type       = EXCLUDED.type,
+  session_id = EXCLUDED.session_id,
+  source     = EXCLUDED.source,
+  order_id   = EXCLUDED.order_id;
+
+-- ────────────────────────────────────────────────────────────
 -- 5c. Cleanup: remove non-seed enrollments, leave requests,
 --     attendance records, card orders/transactions for idempotency
 -- ────────────────────────────────────────────────────────────
@@ -270,14 +386,16 @@ WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.co
   AND session_id IN (SELECT id FROM public.course_sessions
                      WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
                                          'e2e00000-0000-0000-0000-000000000021',
-                                         'e2e00000-0000-0000-0000-000000000022'));
+                                         'e2e00000-0000-0000-0000-000000000022',
+                                         'e2e00000-0000-0000-0000-000000000023'));
 
 DELETE FROM public.attendance_records
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
   AND session_id IN (SELECT id FROM public.course_sessions
                      WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
                                          'e2e00000-0000-0000-0000-000000000021',
-                                         'e2e00000-0000-0000-0000-000000000022'));
+                                         'e2e00000-0000-0000-0000-000000000022',
+                                         'e2e00000-0000-0000-0000-000000000023'));
 
 DELETE FROM public.enrollments
 WHERE course_id = 'e2e00000-0000-0000-0000-000000000020'
@@ -302,9 +420,14 @@ DELETE FROM public.enrollments
 WHERE course_id = 'e2e00000-0000-0000-0000-000000000022'
   AND id != 'e2e00000-0000-0000-0000-000000000061';
 
+-- Remove enrollments for the NTD course that are not seeded
+DELETE FROM public.enrollments
+WHERE course_id = 'e2e00000-0000-0000-0000-000000000023'
+  AND id != 'e2e00000-0000-0000-0000-000000000062';
+
 DELETE FROM public.orders
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
-  AND id NOT IN ('e2e00000-0000-0000-0000-000000000040', 'e2e00000-0000-0000-0000-000000000041');
+  AND id NOT IN ('e2e00000-0000-0000-0000-000000000040', 'e2e00000-0000-0000-0000-000000000041', 'e2e00000-0000-0000-0000-000000000042');
 
 DELETE FROM public.card_transactions
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')

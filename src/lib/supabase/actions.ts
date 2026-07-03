@@ -2506,19 +2506,29 @@ export async function cancelCardOrder(orderId: string): Promise<{ success: boole
     return cancelOrder(orderId);
 }
 
-/** Cancel an order (any order_type). User self-cancels a pending/remitted order.
+/** Cancel an order (any order_type). Allowed for ADMIN or the ORDER OWNER.
  *  For course_fee: linked enrollments are set to cancelled with cancel_reason. */
 export async function cancelOrder(orderId: string, reason?: string): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
-    const { data: order } = await supabase
+    // Fetch caller role
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    const isAdmin = callerProfile?.role === 'admin';
+
+    // Fetch order (use adminClient for cross-user access when admin)
+    const adminClient = createAdminClient();
+    const { data: order } = await adminClient
         .from('orders')
         .select('*')
         .eq('id', orderId)
-        .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
     if (!order) return { success: false, message: '找不到訂單' };
+
+    // Authorization: admin or order owner
+    if (!isAdmin && order.user_id !== user.id) {
+        return { success: false, message: '只有訂單本人或幹部可以取消訂單' };
+    }
 
     // Idempotency: already cancelled/rejected — nothing to do
     if (order.status === 'cancelled' || order.status === 'rejected') {
@@ -2528,7 +2538,6 @@ export async function cancelOrder(orderId: string, reason?: string): Promise<{ s
         return { success: false, message: '此收費狀態已無法取消' };
     }
 
-    const adminClient = createAdminClient();
     const { error } = await adminClient
         .from('orders')
         .update({ status: 'cancelled' })
@@ -2568,7 +2577,14 @@ export async function confirmCardOrder(orderId: string): Promise<{ success: bool
 export async function confirmOrder(orderId: string): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
-    const { data: order } = await supabase
+    // ADMIN-ONLY: financial approval action
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (callerProfile?.role !== 'admin') {
+        return { success: false, message: '只有幹部可以確認訂單' };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: order } = await adminClient
         .from('orders')
         .select('*')
         .eq('id', orderId)
@@ -2582,8 +2598,8 @@ export async function confirmOrder(orderId: string): Promise<{ success: boolean;
         return { success: false, message: '此訂單已結案，無法確認' };
     }
 
-    // Update order status
-    const { error: orderError } = await supabase
+    // Update order status (use adminClient — bypasses RLS for cross-user orders)
+    const { error: orderError } = await adminClient
         .from('orders')
         .update({
             status: 'confirmed',
@@ -2602,14 +2618,14 @@ export async function confirmOrder(orderId: string): Promise<{ success: boolean;
 
         // If membership included, upgrade user to member and assign to latest group
         if (order.include_membership) {
-            const { data: upProfile } = await supabase
+            const { data: upProfile } = await adminClient
                 .from('profiles')
                 .select('role')
                 .eq('id', order.user_id)
                 .single();
 
             // Get latest member group
-            const { data: latestGroup } = await supabase
+            const { data: latestGroup } = await adminClient
                 .from('member_groups')
                 .select('id')
                 .order('valid_until', { ascending: false })
@@ -2621,14 +2637,14 @@ export async function confirmOrder(orderId: string): Promise<{ success: boolean;
                 updateData.role = 'member';
             }
 
-            await supabase
+            await adminClient
                 .from('profiles')
                 .update(updateData)
                 .eq('id', order.user_id);
         }
 
         // Record transaction
-        await supabase.from('card_transactions').insert({
+        await adminClient.from('card_transactions').insert({
             user_id: order.user_id,
             type: 'purchase',
             amount: order.quantity,
@@ -2642,7 +2658,6 @@ export async function confirmOrder(orderId: string): Promise<{ success: boolean;
 
     } else if (order.order_type === 'course_fee') {
         // --- course_fee: flip linked enrollments to enrolled ---
-        const adminClient = createAdminClient();
         const { data: updated, error: enrollError } = await adminClient
             .from('enrollments')
             .update({ status: 'enrolled' })
@@ -2673,8 +2688,16 @@ export async function rejectCardOrder(orderId: string): Promise<{ success: boole
 export async function rejectOrder(orderId: string, reason?: string): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
-    // 1. Get order (any type)
-    const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+    // ADMIN-ONLY: financial approval action
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (callerProfile?.role !== 'admin') {
+        return { success: false, message: '只有幹部可以駁回訂單' };
+    }
+
+    const adminClient = createAdminClient();
+
+    // 1. Get order (any type) — use adminClient for cross-user access
+    const { data: order } = await adminClient.from('orders').select('*').eq('id', orderId).maybeSingle();
     if (!order) throw new Error('訂單不存在');
 
     // Status guard: reject only valid from pending/remitted
@@ -2685,8 +2708,8 @@ export async function rejectOrder(orderId: string, reason?: string): Promise<{ s
         return { success: false, message: '此訂單已結案，無法再駁回' };
     }
 
-    // 2. Update status to rejected
-    const { error } = await supabase
+    // 2. Update status to rejected (use adminClient for cross-user orders)
+    const { error } = await adminClient
         .from('orders')
         .update({
             status: 'rejected',
@@ -2704,7 +2727,6 @@ export async function rejectOrder(orderId: string, reason?: string): Promise<{ s
         await syncCardBalance(order.user_id);
     } else if (order.order_type === 'course_fee') {
         // Cancel linked enrollments (releases seats since cancelled does not occupy)
-        const adminClient = createAdminClient();
         const { error: enrollError } = await adminClient
             .from('enrollments')
             .update({
@@ -2751,7 +2773,7 @@ async function createCourseFeeOrder(args: {
         .insert({
             user_id: userId,
             order_type: 'course_fee' as const,
-            quantity: 0,          // not applicable for course_fee
+            quantity: 1,          // not applicable for course_fee; 1 to satisfy CHECK(quantity>0)
             used: 0,
             unit_price: 0,        // not applicable for course_fee
             total_amount: 0,      // not applicable for course_fee

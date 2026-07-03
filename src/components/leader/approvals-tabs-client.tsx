@@ -8,10 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { Check, Calendar, Loader2, Star, ClipboardList, X, CreditCard, User, Clock, Info, Ban } from "lucide-react";
-import { confirmCardOrder as _confirmCardOrder, rejectCardOrder as _rejectCardOrder, reviewLeaveRequest as _reviewLeaveRequest, reviewMakeupRequest as _reviewMakeupRequest, reviewTransferRequest as _reviewTransferRequest, reviewSingleEnrollment as _reviewSingleEnrollment } from '@/lib/supabase/actions';
+import { confirmCardOrder as _confirmCardOrder, rejectCardOrder as _rejectCardOrder, confirmOrder as _confirmOrder, cancelOrder as _cancelOrder, reviewLeaveRequest as _reviewLeaveRequest, reviewMakeupRequest as _reviewMakeupRequest, reviewTransferRequest as _reviewTransferRequest, reviewSingleEnrollment as _reviewSingleEnrollment } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 const confirmCardOrder = safe(_confirmCardOrder);
 const rejectCardOrder = safe(_rejectCardOrder);
+const confirmOrder = safe(_confirmOrder);
+const cancelOrder = safe(_cancelOrder);
 const reviewLeaveRequest = safe(_reviewLeaveRequest);
 const reviewMakeupRequest = safe(_reviewMakeupRequest);
 const reviewTransferRequest = safe(_reviewTransferRequest);
@@ -21,6 +23,7 @@ import { cn } from '@/lib/utils';
 
 interface ApprovalsTabsClientProps {
     cardOrders: any[];
+    courseFeeOrders: any[];
     leaves: any[];
     makeups: any[];
     transfers: any[];
@@ -28,20 +31,22 @@ interface ApprovalsTabsClientProps {
     currentUserId: string;
 }
 
-export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, singleEnrollments, currentUserId }: ApprovalsTabsClientProps) {
+export function ApprovalsTabsClient({ cardOrders, courseFeeOrders, leaves, makeups, transfers, singleEnrollments, currentUserId }: ApprovalsTabsClientProps) {
     const router = useRouter();
     const [tab, setTab] = useState('card_orders');
     const [isPending, startTransition] = useTransition();
 
     const currentList = tab === 'card_orders'
         ? cardOrders
-        : tab === 'leaves'
-            ? leaves
-            : tab === 'makeups'
-                ? makeups
-                : tab === 'transfers'
-                    ? transfers
-                    : singleEnrollments;
+        : tab === 'course_fee_orders'
+            ? courseFeeOrders
+            : tab === 'leaves'
+                ? leaves
+                : tab === 'makeups'
+                    ? makeups
+                    : tab === 'transfers'
+                        ? transfers
+                        : singleEnrollments;
 
     const handleConfirmCardOrder = async (id: string) => {
         startTransition(async () => {
@@ -75,6 +80,40 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                 }
             } catch (err) {
                 alert(err instanceof Error ? err.message : '駁回失敗');
+            }
+        });
+    };
+
+    const handleConfirmCourseFeeOrder = async (id: string) => {
+        if (!confirm('確定要確認此報名繳費訂單嗎？確認後相關報名將生效。')) return;
+
+        startTransition(async () => {
+            try {
+                const res = await confirmOrder(id);
+                if (res.success) {
+                    router.refresh();
+                } else {
+                    alert(res.message);
+                }
+            } catch (err) {
+                alert(err instanceof Error ? err.message : '確認失敗');
+            }
+        });
+    };
+
+    const handleCancelCourseFeeOrder = async (id: string) => {
+        if (!confirm('確定要取消此報名繳費訂單嗎？取消後相關報名將被撤銷。')) return;
+
+        startTransition(async () => {
+            try {
+                const res = await cancelOrder(id);
+                if (res.success) {
+                    router.refresh();
+                } else {
+                    alert(res.message);
+                }
+            } catch (err) {
+                alert(err instanceof Error ? err.message : '取消失敗');
             }
         });
     };
@@ -138,6 +177,10 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
             title: '堂卡審核說明',
             hint: '核准：核發堂卡並更新餘額\n駁回：取消訂單，已核發的堂卡會扣回餘額（不影響已報名的課程紀錄）\n駁回後可重新核准，堂卡會重新核發',
         },
+        course_fee_orders: {
+            title: '報名繳費說明',
+            hint: '確認：繳費確認後，學員的報名狀態將從「待繳費」變為「已報名」\n取消：取消訂單後，相關報名紀錄將被撤銷，名額釋出',
+        },
         leaves: {
             title: '請假審核說明',
             hint: '系統自動核准，通常不需手動操作\n駁回：撤銷請假，學員恢復為原本的出席身份\n• 若該缺席已被用於補課，須先至「補課紀錄」駁回補課才能駁回此請假\n駁回後可重新核准',
@@ -158,6 +201,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
 
     const emptyMessages: Record<string, { title: string; desc: string }> = {
         card_orders: { title: '沒有待對帳的堂卡訂單', desc: '太棒了！所有的訂單都已處理完畢。' },
+        course_fee_orders: { title: '沒有待對帳的報名繳費', desc: '目前沒有待處理的課程繳費訂單。' },
         leaves: { title: '尚無近期請假紀錄', desc: '最近 30 天內沒有請假紀錄。' },
         makeups: { title: '尚無近期補課紀錄', desc: '最近 30 天內沒有補課紀錄。' },
         transfers: { title: '尚無近期轉讓紀錄', desc: '最近 30 天內沒有轉讓紀錄。' },
@@ -169,9 +213,12 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
             {/* Filter Tabs */}
             <div className="flex justify-center mb-10 px-4 sm:px-0">
                 <Tabs defaultValue="card_orders" className="w-full sm:w-auto" onValueChange={setTab}>
-                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-5 sm:flex sm:grid-cols-none sm:w-auto">
+                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-6 sm:flex sm:grid-cols-none sm:w-auto">
                         <TabsTrigger value="card_orders" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                             堂卡訂單
+                        </TabsTrigger>
+                        <TabsTrigger value="course_fee_orders" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
+                            報名繳費
                         </TabsTrigger>
                         <TabsTrigger value="single_enrollments" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                             單堂報名
@@ -207,7 +254,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                 <Card className="border-dashed border-muted/50 bg-muted/5 mt-6">
                     <CardContent className="flex flex-col items-center justify-center py-20 text-center">
                         <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
-                            {tab === 'card_orders' ? (
+                            {(tab === 'card_orders' || tab === 'course_fee_orders') ? (
                                 <CreditCard className="h-8 w-8 text-muted-foreground/40" />
                             ) : (
                                 <ClipboardList className="h-8 w-8 text-muted-foreground/40" />
@@ -223,12 +270,13 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                 <div className="space-y-4 mt-6">
                     {currentList.map((req) => {
                         const isCardOrder = tab === 'card_orders';
+                        const isCourseFeeOrder = tab === 'course_fee_orders';
                         const isSingleEnrollment = tab === 'single_enrollments';
                         // Determine session date for expiry check
                         const sessionDate = tab === 'makeups'
                             ? req.target_sessions?.session_date
                             : req.course_sessions?.session_date;
-                        const isPast = !isCardOrder && sessionDate && sessionDate < todayStr;
+                        const isPast = !isCardOrder && !isCourseFeeOrder && sessionDate && sessionDate < todayStr;
 
                         return (
                             <Card key={req.id} className="relative overflow-hidden border-muted/50 bg-card/40 backdrop-blur-md shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
@@ -239,10 +287,11 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                                         <div className="flex items-center gap-2.5 flex-wrap">
                                             <Badge variant="outline" className={cn(
                                                 "text-[10px] font-bold uppercase tracking-wider",
-                                                isCardOrder && "bg-orange-500/10 text-orange-600 border-orange-200",
-                                                !isCardOrder && "bg-muted text-muted-foreground border-transparent"
+                                                (isCardOrder || isCourseFeeOrder) && "bg-orange-500/10 text-orange-600 border-orange-200",
+                                                (!isCardOrder && !isCourseFeeOrder) && "bg-muted text-muted-foreground border-transparent"
                                             )}>
                                                 {isCardOrder ? '堂卡購買' :
+                                                    isCourseFeeOrder ? '報名繳費' :
                                                     isSingleEnrollment ? '單堂報名' :
                                                     tab === 'leaves' ? '請假紀錄' :
                                                         tab === 'makeups' ? '補課紀錄' : '轉讓紀錄'}
@@ -250,11 +299,15 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                                             {/* Unified Status Badges */}
                                             {(req.status === 'confirmed' || req.status === 'approved' || req.status === 'enrolled') ? (
                                                 <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-transparent text-[10px] font-bold">
-                                                    {isSingleEnrollment ? '已報名' : '已核准'}
+                                                    {isSingleEnrollment ? '已報名' : isCourseFeeOrder ? '已確認' : '已核准'}
                                                 </Badge>
                                             ) : (req.status === 'rejected' || req.status === 'cancelled') ? (
                                                 <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-transparent text-[10px] font-bold">
-                                                    已駁回
+                                                    {isCourseFeeOrder ? '已取消' : '已駁回'}
+                                                </Badge>
+                                            ) : req.status === 'remitted' ? (
+                                                <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 border-transparent text-[10px] font-bold">
+                                                    已匯款
                                                 </Badge>
                                             ) : (
                                                 <Badge variant="secondary" className="bg-muted text-muted-foreground border-transparent text-[10px] font-semi-bold">
@@ -274,7 +327,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
 
                                         {/* Row 3: Course / Order Details */}
                                         <div className="flex items-start gap-2.5 text-[13px] sm:text-sm font-medium text-foreground/80 leading-relaxed">
-                                            {isCardOrder ? (
+                                            {(isCardOrder || isCourseFeeOrder) ? (
                                                 <CreditCard className="h-4 w-4 opacity-50 shrink-0 relative top-0.5" />
                                             ) : (
                                                 <Calendar className="h-4 w-4 opacity-50 shrink-0 relative top-0.5" />
@@ -314,11 +367,17 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                                                         )}
                                                     </span>
                                                 )}
+                                                {isCourseFeeOrder && (
+                                                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                        <span className="text-muted-foreground/60 mr-1.5 font-bold">[{req.course_groups?.title || '未知期別'}]</span>
+                                                        <span>報名繳費 ${req.amount ?? 0}</span>
+                                                    </span>
+                                                )}
                                             </span>
                                         </div>
 
                                         {/* Premium Remittance Info Box (Compact) */}
-                                        {isCardOrder && req.remittance_bank_code && (
+                                        {(isCardOrder || isCourseFeeOrder) && req.remittance_bank_code && (
                                             <div className="mt-3 overflow-hidden rounded-xl border border-muted/30 bg-muted/10">
                                                 <div className="flex flex-col sm:flex-row sm:items-center divide-y sm:divide-y-0 sm:divide-x divide-muted/30">
                                                     <div className="flex items-center gap-3 px-4 py-1.5 sm:py-1.5">
@@ -365,13 +424,13 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                                                 </div>
                                             </div>
                                         )}
-                                        {isCardOrder && req.status === 'pending' && (
+                                        {(isCardOrder || isCourseFeeOrder) && req.status === 'pending' && (
                                             <div className="flex items-center gap-2.5 text-[13px] font-medium text-muted-foreground/80 pl-[1.625rem] pt-1">
                                                 <Star className="h-4 w-4 shrink-0 opacity-40" />
                                                 <span className="italic">等待學員填寫匯款資訊...</span>
                                             </div>
                                         )}
-                                        {!isCardOrder && req.reason && (
+                                        {!isCardOrder && !isCourseFeeOrder && req.reason && (
                                             <div className="pl-6.5 text-[13px] text-muted-foreground/80 italic border-l-2 border-muted/50 ml-2 mt-1 py-0.5">
                                                 {req.reason}
                                             </div>
@@ -402,6 +461,28 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                                             </button>
                                         )}
 
+                                        {/* Course Fee Order actions */}
+                                        {isCourseFeeOrder && (req.status === 'pending' || req.status === 'remitted') && (
+                                            <button
+                                                disabled={isPending}
+                                                onClick={() => handleCancelCourseFeeOrder(req.id)}
+                                                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all bg-white text-red-600 shadow-sm border border-transparent hover:bg-red-50 hover:border-red-200 hover:shadow-md active:scale-[0.98] disabled:opacity-50 min-w-[76px]"
+                                            >
+                                                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                                                取消
+                                            </button>
+                                        )}
+                                        {isCourseFeeOrder && (req.status === 'pending' || req.status === 'remitted') && (
+                                            <button
+                                                disabled={isPending}
+                                                onClick={() => handleConfirmCourseFeeOrder(req.id)}
+                                                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all bg-white text-emerald-600 shadow-sm border border-transparent hover:bg-emerald-50 hover:border-emerald-200 hover:shadow-md active:scale-[0.98] disabled:opacity-50 min-w-[76px]"
+                                            >
+                                                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                                確認
+                                            </button>
+                                        )}
+
                                         {/* Single enrollment actions */}
                                         {isSingleEnrollment && req.status !== 'cancelled' && (
                                             <button
@@ -425,7 +506,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                                         )}
 
                                         {/* Other requests specific actions */}
-                                        {!isCardOrder && !isSingleEnrollment && isPast && (
+                                        {!isCardOrder && !isCourseFeeOrder && !isSingleEnrollment && isPast && (
                                             <button
                                                 disabled
                                                 className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-bold transition-all bg-muted/50 text-muted-foreground shadow-sm border border-transparent cursor-not-allowed min-w-[76px]"
@@ -434,7 +515,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                                                 已過期無法操作
                                             </button>
                                         )}
-                                        {!isCardOrder && !isSingleEnrollment && !isPast && req.status !== 'rejected' && (
+                                        {!isCardOrder && !isCourseFeeOrder && !isSingleEnrollment && !isPast && req.status !== 'rejected' && (
                                             <button
                                                 disabled={isPending}
                                                 onClick={() => handleToggleStatus(req.id, tab as any, req.status)}
@@ -444,7 +525,7 @@ export function ApprovalsTabsClient({ cardOrders, leaves, makeups, transfers, si
                                                 駁回
                                             </button>
                                         )}
-                                        {!isCardOrder && !isSingleEnrollment && !isPast && req.status === 'rejected' && (
+                                        {!isCardOrder && !isCourseFeeOrder && !isSingleEnrollment && !isPast && req.status === 'rejected' && (
                                             <button
                                                 disabled={isPending}
                                                 onClick={() => handleToggleStatus(req.id, tab as any, req.status)}

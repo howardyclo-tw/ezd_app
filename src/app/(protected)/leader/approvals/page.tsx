@@ -17,6 +17,7 @@ export default async function LeaderApprovalsPage() {
     if (profile?.role !== 'admin') redirect('/dashboard');
 
     const supabase = await createClient();
+    const adminDb = createAdminClient();
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -26,6 +27,13 @@ export default async function LeaderApprovalsPage() {
     const cardOrderQuery = supabase.from('orders')
         .select('*, profiles!card_orders_user_id_fkey(name)')
         .eq('order_type', 'card_purchase')
+        .gte('created_at', thirtyDaysAgoIso)
+        .order('created_at', { ascending: false });
+
+    // Fetch Recent Course Fee Orders (with course group title)
+    const courseFeeOrderQuery = adminDb.from('orders')
+        .select('*, profiles!card_orders_user_id_fkey(name), course_groups(title)')
+        .eq('order_type', 'course_fee')
         .gte('created_at', thirtyDaysAgoIso)
         .order('created_at', { ascending: false });
 
@@ -68,7 +76,6 @@ export default async function LeaderApprovalsPage() {
         .order('created_at', { ascending: false });
 
     // Fetch Recent Single Enrollments (use adminClient for cross-user SELECT)
-    const adminDb = createAdminClient();
     const singleEnrollmentQuery = adminDb
         .from('enrollments')
         .select(`
@@ -85,11 +92,12 @@ export default async function LeaderApprovalsPage() {
     // Start all queries in parallel
     const [
         { data: cardOrders },
+        { data: courseFeeOrders },
         { data: leaves },
         { data: makeups },
         { data: transfers },
         { data: singleEnrollments }
-    ] = await Promise.all([cardOrderQuery, leaveQuery, makeupQuery, transferQuery, singleEnrollmentQuery]);
+    ] = await Promise.all([cardOrderQuery, courseFeeOrderQuery, leaveQuery, makeupQuery, transferQuery, singleEnrollmentQuery]);
 
     return (
         <div className="container max-w-5xl py-6 space-y-6">
@@ -114,6 +122,7 @@ export default async function LeaderApprovalsPage() {
 
             <ApprovalsTabsClient
                 cardOrders={cardOrders || []}
+                courseFeeOrders={courseFeeOrders || []}
                 leaves={leaves || []}
                 makeups={makeups || []}
                 transfers={transfers || []}
