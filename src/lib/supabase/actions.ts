@@ -301,6 +301,10 @@ export async function batchEnrollInCourses(
                 return { success: false, message: `「${course.name}」已額滿` };
             }
             if (result.reason === 'insufficient_cards') {
+                if (enrolledCount > 0) {
+                    revalidatePath('/', 'layout');
+                    return { success: false, message: `已完成 ${enrolledCount} 門課程報名，但堂卡不足，剩餘課程未完成。` };
+                }
                 return { success: false, message: '堂卡餘額不足' };
             }
             throw new Error(`報名失敗: ${result.reason}`);
@@ -422,6 +426,10 @@ export async function batchEnrollInSessions(
             }
             if (result.reason === 'already_enrolled') continue;
             if (result.reason === 'insufficient_cards') {
+                if (enrolledCount > 0) {
+                    revalidatePath('/', 'layout');
+                    return { success: false, message: `已完成 ${enrolledCount} 堂報名，但堂卡不足，剩餘堂次未完成。` };
+                }
                 return { success: false, message: '堂卡餘額不足' };
             }
             throw new Error(`報名失敗: ${result.reason}`);
