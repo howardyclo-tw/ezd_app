@@ -9,7 +9,9 @@ import { loginAs } from '../fixtures/auth';
  * Precondition: card_purchase_open must be 'true' in system_config.
  * We set it via admin settings UI at the start of the test.
  *
- * Note: card-purchase state accumulates across runs (delta assertion).
+ * ISOLATION NOTE: Uses delta assertion (initialBalance + 5) and deterministic
+ * waits (alert dialog for approval, expect.poll for balance) so the test is
+ * order-independent — works regardless of other tests' balance mutations.
  */
 
 test.describe('Card Purchase Flow', () => {
@@ -141,19 +143,24 @@ test.describe('Card Purchase Flow', () => {
     // Look for the card that contains "E2E Member" and has a "核准" button.
     const orderCards = page.locator('[class*="CardContent"]').filter({ hasText: 'E2E Member' }).filter({ hasText: '5 堂卡' });
 
-    // Click the approve button on the first matching card
+    // Click the approve button on the first matching card.
+    // After approval, handleConfirmCardOrder calls router.refresh() (no alert on success),
+    // so we detect completion by waiting for the approve button to disappear.
+    let approveBtn;
     if (await orderCards.count() > 0) {
-      const approveBtn = orderCards.first().getByText('核准');
+      approveBtn = orderCards.first().getByText('核准');
       await approveBtn.click();
     } else {
       // Fallback: find the row that contains E2E Member text and click its approve button
       const memberRow = page.locator('h3:has-text("E2E Member")').first().locator('..').locator('..').locator('..');
-      await memberRow.locator('button:has-text("核准")').click();
+      approveBtn = memberRow.locator('button:has-text("核准")');
+      await approveBtn.click();
     }
 
-    // Wait for approval to process
-
-    await page.waitForTimeout(2000);
+    // Wait for the approve button to disappear — this proves the server action
+    // completed and router.refresh() fired (the order leaves the approval queue).
+    // Replaces non-deterministic waitForTimeout(2000).
+    await expect(approveBtn).not.toBeVisible({ timeout: 15000 });
 
     // ── Step 5: Verify member's balance increased ──
     await page.context().clearCookies();
@@ -162,16 +169,22 @@ test.describe('Card Purchase Flow', () => {
 
     // Go to 使用中 tab
     await page.getByRole('tab', { name: '使用中' }).click();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
 
-    // Check new balance
-    const newBalanceElement = page.locator('.text-7xl, .text-8xl').first();
-    await expect(newBalanceElement).toBeVisible();
-    const newBalanceText = await newBalanceElement.textContent();
-    const newBalance = parseInt(newBalanceText?.trim() || '0', 10);
-
-    // Balance should have increased by 5
-    expect(newBalance).toBe(initialBalance + 5);
+    // Poll the balance display until it reflects the card purchase.
+    // The alert above proves the action completed, but polling handles
+    // any residual Next.js data-cache propagation delay.
+    const expectedBalance = initialBalance + 5;
+    await expect.poll(async () => {
+      const el = page.locator('.text-7xl, .text-8xl').first();
+      await expect(el).toBeVisible();
+      const text = await el.textContent();
+      return parseInt(text?.trim() || '0', 10);
+    }, {
+      message: `Balance should increase from ${initialBalance} to ${expectedBalance}`,
+      timeout: 10_000,
+      intervals: [500, 1000, 2000, 3000],
+    }).toBe(expectedBalance);
 
     // ── Step 6: Verify FIFO expiry is displayed on the card pool ──
     // The "使用中" tab shows active (confirmed) orders. Each order card displays

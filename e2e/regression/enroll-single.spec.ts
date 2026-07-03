@@ -10,6 +10,12 @@ import { loginAs } from '../fixtures/auth';
  * The globalSetup re-seeds the DB before every suite run, so the member
  * always starts with 0 enrollments in this course and a deterministic
  * card balance.
+ *
+ * ISOLATION NOTE: The balance assertion reads initialBalance immediately
+ * before the enrollment action and asserts the delta (-1) AFTER waiting
+ * for a deterministic success indicator (the Sonner toast). This makes
+ * the test order-independent — it passes regardless of what card-purchase
+ * or other tests did to the shared E2E Member balance beforehand.
  */
 
 const GROUP_ID = 'e2e00000-0000-0000-0000-000000000010';
@@ -94,8 +100,11 @@ test.describe('Single-Session Enrollment', () => {
     await expect(confirmButton).toBeEnabled();
     await confirmButton.click();
 
-    // Wait for success toast to appear and page to settle
-    await page.waitForTimeout(3000);
+    // Wait for the success toast — this proves the server action completed,
+    // revalidatePath fired, and the DB balance is updated. Replaces the
+    // non-deterministic waitForTimeout(3000) that caused stale-read flakes.
+    const successToast = page.locator('[data-sonner-toast]', { hasText: /成功報名/ });
+    await expect(successToast).toBeVisible({ timeout: 15000 });
 
     // ── Step 6: Verify balance decreased by 1 ──
     await page.goto('/dashboard/my_cards');
@@ -103,11 +112,20 @@ test.describe('Single-Session Enrollment', () => {
     await page.getByRole('tab', { name: '使用中' }).click();
     await page.waitForTimeout(500);
 
-    const newBalanceEl = page.locator('.text-7xl, .text-8xl').first();
-    await expect(newBalanceEl).toBeVisible();
-    const newText = await newBalanceEl.textContent();
-    const newBalance = parseInt(newText?.trim() || '0', 10);
-    expect(newBalance).toBe(initialBalance - 1);
+    // Poll the balance display until it reflects the deduction.
+    // Belt-and-suspenders: the toast already proves the action completed,
+    // but polling handles any residual Next.js data-cache propagation delay.
+    const expectedBalance = initialBalance - 1;
+    await expect.poll(async () => {
+      const el = page.locator('.text-7xl, .text-8xl').first();
+      await expect(el).toBeVisible();
+      const text = await el.textContent();
+      return parseInt(text?.trim() || '0', 10);
+    }, {
+      message: `Balance should decrease from ${initialBalance} to ${expectedBalance}`,
+      timeout: 10_000,
+      intervals: [500, 1000, 2000, 3000],
+    }).toBe(expectedBalance);
 
     // ── Step 7: Verify member appears on roster ──
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
