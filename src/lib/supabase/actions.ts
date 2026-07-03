@@ -2368,7 +2368,7 @@ export async function updateSystemConfig(
 }
 
 // ------------------------------------------------------------------
-// Card Order Actions
+// Order Actions (card_purchase, course_fee, membership_fee)
 // ------------------------------------------------------------------
 
 export async function createCardOrder(quantity: number, includeMembership: boolean = false): Promise<{ success: boolean; message: string; orderId?: string }> {
@@ -2474,14 +2474,13 @@ export async function submitRemittanceInfo(
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
-    // Verify ownership
+    // Verify ownership (works for any order_type: card_purchase, course_fee, etc.)
     const { data: order } = await supabase
         .from('orders')
         .select('id')
         .eq('id', orderId)
         .eq('user_id', user.id)
         .eq('status', 'pending')
-        .eq('order_type', 'card_purchase')
         .maybeSingle();
     if (!order) throw new Error('訂單不存在或已處理');
 
@@ -2504,6 +2503,12 @@ export async function submitRemittanceInfo(
 }
 
 export async function cancelCardOrder(orderId: string): Promise<{ success: boolean; message: string }> {
+    return cancelOrder(orderId);
+}
+
+/** Cancel an order (any order_type). User self-cancels a pending/remitted order.
+ *  For course_fee: linked enrollments are set to cancelled with cancel_reason. */
+export async function cancelOrder(orderId: string, reason?: string): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
     const { data: order } = await supabase
@@ -2511,7 +2516,6 @@ export async function cancelCardOrder(orderId: string): Promise<{ success: boole
         .select('*')
         .eq('id', orderId)
         .eq('user_id', user.id)
-        .eq('order_type', 'card_purchase')
         .single();
 
     if (!order) return { success: false, message: '找不到訂單' };
@@ -2526,18 +2530,39 @@ export async function cancelCardOrder(orderId: string): Promise<{ success: boole
         .eq('id', orderId);
 
     if (error) return { success: false, message: '取消失敗' };
+
+    // For course_fee: cancel linked enrollments (releases seats since cancelled does not occupy)
+    if (order.order_type === 'course_fee') {
+        await adminClient
+            .from('enrollments')
+            .update({
+                status: 'cancelled',
+                cancel_reason: reason ?? '訂單取消',
+                cancelled_at: new Date().toISOString(),
+            })
+            .eq('order_id', orderId)
+            .in('status', ['pending_payment', 'pending_vote']);
+    }
+
     return { success: true, message: '訂單已取消' };
 }
 
-/** Admin: confirm card order and issue cards to user */
+/** Admin: confirm an order. Delegates to confirmOrder which branches on order_type. */
 export async function confirmCardOrder(orderId: string): Promise<{ success: boolean; message: string }> {
+    return confirmOrder(orderId);
+}
+
+/** Admin: confirm an order (any order_type).
+ *  card_purchase => issue cards + recompute balance (existing behavior).
+ *  course_fee => set linked enrollments to enrolled.
+ *  membership_fee => no-op side-effects (future). */
+export async function confirmOrder(orderId: string): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
     const { data: order } = await supabase
         .from('orders')
         .select('*')
         .eq('id', orderId)
-        .eq('order_type', 'card_purchase')
         .maybeSingle();
 
     if (!order) throw new Error('訂單不存在');
@@ -2555,61 +2580,90 @@ export async function confirmCardOrder(orderId: string): Promise<{ success: bool
 
     if (orderError) throw new Error(`確認訂單失敗: ${orderError.message}`);
 
-    // Sync balance from pools (respects expiry)
-    const { syncCardBalance } = await import('./card-utils');
-    const newBalance = await syncCardBalance(order.user_id);
+    // Branch on order_type for side-effects
+    if (order.order_type === 'card_purchase') {
+        // --- card_purchase: issue cards + recompute balance (existing behavior) ---
+        const { syncCardBalance } = await import('./card-utils');
+        const newBalance = await syncCardBalance(order.user_id);
 
-    // If membership included, upgrade user to member and assign to latest group
-    if (order.include_membership) {
-        const { data: upProfile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', order.user_id)
-            .single();
+        // If membership included, upgrade user to member and assign to latest group
+        if (order.include_membership) {
+            const { data: upProfile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', order.user_id)
+                .single();
 
-        // Get latest member group
-        const { data: latestGroup } = await supabase
-            .from('member_groups')
-            .select('id')
-            .order('valid_until', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            // Get latest member group
+            const { data: latestGroup } = await supabase
+                .from('member_groups')
+                .select('id')
+                .order('valid_until', { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
-        const updateData: any = { member_group_id: latestGroup?.id || null };
-        if (upProfile?.role === 'guest') {
-            updateData.role = 'member';
+            const updateData: any = { member_group_id: latestGroup?.id || null };
+            if (upProfile?.role === 'guest') {
+                updateData.role = 'member';
+            }
+
+            await supabase
+                .from('profiles')
+                .update(updateData)
+                .eq('id', order.user_id);
         }
 
-        await supabase
-            .from('profiles')
-            .update(updateData)
-            .eq('id', order.user_id);
+        // Record transaction
+        await supabase.from('card_transactions').insert({
+            user_id: order.user_id,
+            type: 'purchase',
+            amount: order.quantity,
+            balance_after: newBalance,
+            order_id: orderId,
+            note: `購買 ${order.quantity} 堂卡${order.include_membership ? '（含加入社員）' : ''}（訂單 ${orderId.slice(0, 8)}）`,
+            created_by: user.id,
+        });
+
+        return { success: true, message: `已核發 ${order.quantity} 堂卡給使用者` };
+
+    } else if (order.order_type === 'course_fee') {
+        // --- course_fee: flip linked enrollments to enrolled ---
+        const adminClient = createAdminClient();
+        const { data: updated, error: enrollError } = await adminClient
+            .from('enrollments')
+            .update({ status: 'enrolled' })
+            .eq('order_id', orderId)
+            .in('status', ['pending_payment', 'pending_vote'])
+            .select('id');
+
+        if (enrollError) throw new Error(`更新報名狀態失敗: ${enrollError.message}`);
+
+        const count = updated?.length ?? 0;
+        return { success: true, message: `已確認繳費，${count} 筆報名已生效` };
+
+    } else {
+        // membership_fee or future types — order status already updated, no extra side-effects
+        return { success: true, message: '訂單已確認' };
     }
-
-    // Record transaction
-    await supabase.from('card_transactions').insert({
-        user_id: order.user_id,
-        type: 'purchase',
-        amount: order.quantity,
-        balance_after: newBalance,
-        order_id: orderId,
-        note: `購買 ${order.quantity} 堂卡${order.include_membership ? '（含加入社員）' : ''}（訂單 ${orderId.slice(0, 8)}）`,
-        created_by: user.id,
-    });
-
-    return { success: true, message: `已核發 ${order.quantity} 堂卡給使用者` };
 }
 
-/** Admin: reject card order */
+/** Admin: reject an order. Delegates to rejectOrder which branches on order_type. */
 export async function rejectCardOrder(orderId: string): Promise<{ success: boolean; message: string }> {
+    return rejectOrder(orderId);
+}
+
+/** Admin: reject an order (any order_type).
+ *  card_purchase => sync card balance (existing behavior).
+ *  course_fee => cancel linked enrollments with reason.
+ *  membership_fee => no-op side-effects (future). */
+export async function rejectOrder(orderId: string, reason?: string): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
-    // 1. Get order and current status
-    const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).eq('order_type', 'card_purchase').maybeSingle();
+    // 1. Get order (any type)
+    const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
     if (!order) throw new Error('訂單不存在');
 
-    // 2. Update status to rejected (this removes it from the pool since status != 'confirmed')
-    // 3. Then sync balance to reflect the change
+    // 2. Update status to rejected
     const { error } = await supabase
         .from('orders')
         .update({
@@ -2621,11 +2675,76 @@ export async function rejectCardOrder(orderId: string): Promise<{ success: boole
 
     if (error) return { success: false, message: '駁回失敗' };
 
-    // Sync balance from pools (rejected orders are excluded)
-    const { syncCardBalance } = await import('./card-utils');
-    await syncCardBalance(order.user_id);
+    // 3. Branch on order_type for side-effects
+    if (order.order_type === 'card_purchase') {
+        // Sync balance from pools (rejected orders are excluded)
+        const { syncCardBalance } = await import('./card-utils');
+        await syncCardBalance(order.user_id);
+    } else if (order.order_type === 'course_fee') {
+        // Cancel linked enrollments (releases seats since cancelled does not occupy)
+        const adminClient = createAdminClient();
+        await adminClient
+            .from('enrollments')
+            .update({
+                status: 'cancelled',
+                cancel_reason: reason ?? '訂單駁回',
+                cancelled_at: new Date().toISOString(),
+            })
+            .eq('order_id', orderId)
+            .in('status', ['pending_payment', 'pending_vote', 'enrolled']);
+    }
+    // membership_fee or future types: no extra side-effects
 
     return { success: true, message: '訂單已駁回' };
+}
+
+// ------------------------------------------------------------------
+// Course Fee Order Creation
+// ------------------------------------------------------------------
+
+/** Create a course_fee order and link enrollments to it.
+ *  Called by the enrollment flow (Phase 5) when pricing_mode=ntd.
+ *  Inserts orders(order_type=course_fee, status=pending), then sets
+ *  enrollments.order_id for the given enrollmentIds. */
+export async function createCourseFeeOrder(args: {
+    userId: string;
+    courseGroupId: string;
+    amount: number;
+    enrollmentIds: string[];
+}): Promise<{ orderId: string }> {
+    const { userId, courseGroupId, amount, enrollmentIds } = args;
+    if (!enrollmentIds.length) throw new Error('必須提供至少一筆報名紀錄');
+
+    const adminClient = createAdminClient();
+
+    // Insert the order
+    const { data: order, error: orderError } = await adminClient
+        .from('orders')
+        .insert({
+            user_id: userId,
+            order_type: 'course_fee' as const,
+            quantity: 0,          // not applicable for course_fee
+            used: 0,
+            unit_price: 0,        // not applicable for course_fee
+            total_amount: 0,      // not applicable for course_fee
+            amount,               // actual NTD amount for course_fee
+            status: 'pending',
+            course_group_id: courseGroupId,
+        })
+        .select('id')
+        .single();
+
+    if (orderError || !order) throw new Error(`建立繳費單失敗: ${orderError?.message ?? 'unknown'}`);
+
+    // Link enrollments to this order
+    const { error: linkError } = await adminClient
+        .from('enrollments')
+        .update({ order_id: order.id })
+        .in('id', enrollmentIds);
+
+    if (linkError) throw new Error(`關聯報名紀錄失敗: ${linkError.message}`);
+
+    return { orderId: order.id };
 }
 
 // ------------------------------------------------------------------
