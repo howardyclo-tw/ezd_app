@@ -11,6 +11,18 @@ describe('isMemberActive', () => {
   it('member with expired group is inactive', () => {
     expect(isMemberActive({ role: 'member', member_valid_until: null, groupValidUntil: '2026-06-01' }, '2026-07-02')).toBe(false);
   });
+  it('exact-boundary date: groupValidUntil equals taipeiToday is active (>= semantics)', () => {
+    expect(isMemberActive({ role: 'member', member_valid_until: null, groupValidUntil: '2026-07-02' }, '2026-07-02')).toBe(true);
+  });
+  it('fallback: groupValidUntil null but member_valid_until future -> active', () => {
+    expect(isMemberActive({ role: 'member', member_valid_until: '2026-12-31', groupValidUntil: null }, '2026-07-02')).toBe(true);
+  });
+  it('fallback: groupValidUntil null and member_valid_until past -> inactive', () => {
+    expect(isMemberActive({ role: 'member', member_valid_until: '2026-01-01', groupValidUntil: null }, '2026-07-02')).toBe(false);
+  });
+  it('admin with future group expiry is active (same path as member)', () => {
+    expect(isMemberActive({ role: 'admin', member_valid_until: null, groupValidUntil: '2026-12-31' }, '2026-07-02')).toBe(true);
+  });
 });
 describe('resolvePrice', () => {
   const base = { cards_per_session: 2, price_member_single: 300, price_guest_single: 400, price_member_full: 1000, price_guest_full: 1400, sessionCount: 6 };
@@ -31,5 +43,14 @@ describe('resolvePrice', () => {
   });
   it('free mode always free', () => {
     expect(resolvePrice({ ...base, pricing_mode: 'free' }, false, 'single')).toEqual({ kind: 'free' });
+  });
+  it('ntd with null price throws', () => {
+    expect(() => resolvePrice({ ...base, pricing_mode: 'ntd', price_member_single: null }, true, 'single')).toThrow();
+  });
+  it('card mode cards_per_session <= 0 is free', () => {
+    expect(resolvePrice({ ...base, pricing_mode: 'card', cards_per_session: 0 }, true, 'single')).toEqual({ kind: 'free' });
+  });
+  it('ntd negative price is free', () => {
+    expect(resolvePrice({ ...base, pricing_mode: 'ntd', price_member_single: -100 }, true, 'single')).toEqual({ kind: 'free' });
   });
 });
