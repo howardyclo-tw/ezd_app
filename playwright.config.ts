@@ -5,11 +5,15 @@ import { loadEnvConfig } from '@next/env';
 loadEnvConfig(process.cwd());
 
 export default defineConfig({
+  globalSetup: './e2e/global-setup.ts',
   testDir: './e2e',
   fullyParallel: false,           // shared dev DB — serialize to keep assertions deterministic
   workers: 1,
   retries: 0,
-  timeout: 30_000,
+  timeout: 60_000,
+  expect: {
+    timeout: 15_000,              // SSR streaming may need longer for content to appear
+  },
   use: {
     baseURL: 'http://[::1]:3000',
     trace: 'on-first-retry',

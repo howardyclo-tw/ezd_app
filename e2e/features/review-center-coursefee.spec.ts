@@ -78,7 +78,7 @@ test.describe('Review Center: Course Fee Payment Tab', () => {
 
     await loginAs(page, 'admin');
     await page.goto('/leader/approvals');
-    await page.waitForLoadState('networkidle');
+
 
     // Click the course fee tab
     await page.getByRole('tab', { name: '報名繳費' }).click();

@@ -9,7 +9,7 @@ export const ACCOUNTS = {
 
 export async function loginAs(page: Page, role: keyof typeof ACCOUNTS) {
   await page.goto('/login');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
   // Wait for React hydration: the form must have React internal properties
   // This prevents native form submission racing with React event handlers

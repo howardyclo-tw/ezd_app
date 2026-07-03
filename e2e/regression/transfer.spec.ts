@@ -42,7 +42,7 @@ test.describe('Transfer', () => {
 
     // Navigate to E2E Workshop course detail
     await page.goto(`/courses/groups/${GROUP_ID}/${WORKSHOP_ID}`);
-    await page.waitForLoadState('networkidle');
+
     await expect(page.getByRole('heading', { name: 'E2E Workshop' })).toBeVisible();
 
     // The member should see "已報名全堂" since they are full-enrolled
@@ -50,6 +50,7 @@ test.describe('Transfer', () => {
 
     // Find an ENABLED transfer button (workshop has all future sessions with no quota limit).
     const allTransferButtons = page.getByRole('button', { name: '轉讓' });
+    await expect(allTransferButtons.first()).toBeVisible();
     const totalBtnCount = await allTransferButtons.count();
     expect(totalBtnCount).toBeGreaterThan(0);
 
@@ -113,12 +114,12 @@ test.describe('Transfer', () => {
     await dialog.accept();
 
     // Wait for page to refresh and verify the transfer result
-    await page.waitForLoadState('networkidle');
+
     await page.waitForTimeout(1000);
 
     // Reload to see updated roster
     await page.goto(`/courses/groups/${GROUP_ID}/${WORKSHOP_ID}`);
-    await page.waitForLoadState('networkidle');
+
 
     // Verify: the session card should now show "轉出" status for the transferred session
     const transferOutBadge = page.getByText('轉出');
@@ -154,10 +155,11 @@ test.describe('Transfer', () => {
 
     // Use the workshop course (workshop has NO quota limit, transfer buttons always enabled)
     await page.goto(`/courses/groups/${GROUP_ID}/${WORKSHOP_ID}`);
-    await page.waitForLoadState('networkidle');
+
     await expect(page.getByRole('heading', { name: 'E2E Workshop' })).toBeVisible();
 
     const transferButtons = page.getByRole('button', { name: '轉讓' });
+    await expect(transferButtons.first()).toBeVisible();
     const totalCount = await transferButtons.count();
     expect(totalCount).toBeGreaterThan(0);
 

@@ -15,7 +15,7 @@ test.describe('Admin Members Management', () => {
   test('admin can view and edit member profile (role, group, makeup quota, card pool)', async ({ page }) => {
     await loginAs(page, 'admin');
     await page.goto('/admin/members');
-    await page.waitForLoadState('networkidle');
+
 
     // ── Step 1: Verify the page loaded with title "成員管理" ──
     await expect(page.getByText('成員管理')).toBeVisible();
@@ -99,7 +99,7 @@ test.describe('Admin Members Management', () => {
 
     // Verify the dialog closed or a success toast appeared
     // After save, the dialog should close
-    await page.waitForLoadState('networkidle');
+
 
     // ── Step 10: Re-open and verify changes persisted ──
     // Click on E2E Member again
@@ -119,7 +119,7 @@ test.describe('Admin Members Management', () => {
   test('admin can view member card pool details', async ({ page }) => {
     await loginAs(page, 'admin');
     await page.goto('/admin/members');
-    await page.waitForLoadState('networkidle');
+
 
     // Open E2E Member detail
     await page.locator('text=E2E Member').first().click();

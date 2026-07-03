@@ -29,7 +29,7 @@ test.describe('Refund Count: cards_per_session', () => {
     // ── Step 1: Login as member, record initial card balance ──
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
-    await page.waitForLoadState('networkidle');
+
 
     await page.getByRole('tab', { name: '使用中' }).click();
     await page.waitForTimeout(500);
@@ -43,7 +43,7 @@ test.describe('Refund Count: cards_per_session', () => {
     await page.context().clearCookies();
     await loginAs(page, 'admin');
     await page.goto('/leader/approvals');
-    await page.waitForLoadState('networkidle');
+
 
     // Click the single enrollment tab
     await page.getByRole('tab', { name: '單堂報名' }).click();
@@ -82,7 +82,7 @@ test.describe('Refund Count: cards_per_session', () => {
       await page.context().clearCookies();
       await loginAs(page, 'member');
       await page.goto('/dashboard/my_cards');
-      await page.waitForLoadState('networkidle');
+  
 
       await page.getByRole('tab', { name: '使用中' }).click();
       await page.waitForTimeout(500);
@@ -96,7 +96,7 @@ test.describe('Refund Count: cards_per_session', () => {
       await page.context().clearCookies();
       await loginAs(page, 'admin');
       await page.goto('/leader/approvals');
-      await page.waitForLoadState('networkidle');
+  
 
       await page.getByRole('tab', { name: '單堂報名' }).click();
       await page.waitForTimeout(1000);
@@ -113,7 +113,7 @@ test.describe('Refund Count: cards_per_session', () => {
       await page.context().clearCookies();
       await loginAs(page, 'member');
       await page.goto('/dashboard/my_cards');
-      await page.waitForLoadState('networkidle');
+  
 
       await page.getByRole('tab', { name: '使用中' }).click();
       await page.waitForTimeout(500);
@@ -146,7 +146,7 @@ test.describe('Refund Count: cards_per_session', () => {
     await page.context().clearCookies();
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
-    await page.waitForLoadState('networkidle');
+
 
     await page.getByRole('tab', { name: '使用中' }).click();
     await page.waitForTimeout(500);

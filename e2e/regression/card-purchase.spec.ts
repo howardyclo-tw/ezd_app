@@ -20,13 +20,13 @@ test.describe('Card Purchase Flow', () => {
     // ── Step 0: Admin opens the purchase window via system_config ──
     await loginAs(page, 'admin');
     await page.goto('/admin/settings');
-    await page.waitForLoadState('networkidle');
+
 
     // Navigate to my_cards as member to check if purchase is open
     await page.context().clearCookies();
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
-    await page.waitForLoadState('networkidle');
+
 
     // Check if purchase button says "購買未開放"
     const purchaseButton = page.getByRole('button', { name: /立即購卡|購買未開放/ });
@@ -38,7 +38,7 @@ test.describe('Card Purchase Flow', () => {
       await page.context().clearCookies();
       await loginAs(page, 'admin');
       await page.goto('/admin/settings');
-      await page.waitForLoadState('networkidle');
+  
 
       await page.waitForTimeout(1000);
 
@@ -72,7 +72,7 @@ test.describe('Card Purchase Flow', () => {
       await page.context().clearCookies();
       await loginAs(page, 'member');
       await page.goto('/dashboard/my_cards');
-      await page.waitForLoadState('networkidle');
+  
     }
 
     // ── Step 1: Record initial balance ──
@@ -136,7 +136,7 @@ test.describe('Card Purchase Flow', () => {
     await page.context().clearCookies();
     await loginAs(page, 'admin');
     await page.goto('/leader/approvals');
-    await page.waitForLoadState('networkidle');
+
 
     // Should be on "堂卡訂單" tab by default
     await expect(page.getByText('堂卡訂單').first()).toBeVisible();
@@ -156,14 +156,14 @@ test.describe('Card Purchase Flow', () => {
     }
 
     // Wait for approval to process
-    await page.waitForLoadState('networkidle');
+
     await page.waitForTimeout(2000);
 
     // ── Step 5: Verify member's balance increased ──
     await page.context().clearCookies();
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
-    await page.waitForLoadState('networkidle');
+
 
     // Go to 使用中 tab
     await page.getByRole('tab', { name: '使用中' }).click();

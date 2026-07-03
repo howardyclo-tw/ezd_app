@@ -22,7 +22,7 @@ test.describe('Attendance & Leave', () => {
   test('admin marks a student present, saves, and verifies persistence', async ({ page }) => {
     await loginAs(page, 'admin');
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
-    await page.waitForLoadState('networkidle');
+
 
     // The "點名" button enables attendance editing for admin/leader
     const attendanceButton = page.getByRole('button', { name: '點名' });
@@ -79,7 +79,7 @@ test.describe('Attendance & Leave', () => {
 
     // Reload page and verify the marked status persisted
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
-    await page.waitForLoadState('networkidle');
+
 
     // Enter edit mode again to verify
     await page.getByRole('button', { name: '點名' }).click();
@@ -99,7 +99,7 @@ test.describe('Attendance & Leave', () => {
   test('member takes leave on a future session or verifies existing leave', async ({ page }) => {
     await loginAs(page, 'member');
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
-    await page.waitForLoadState('networkidle');
+
 
     // The member has a full enrollment (seeded), so they must appear in roster
     await expect(page.getByText('E2E Member')).toBeVisible();
@@ -143,7 +143,7 @@ test.describe('Attendance & Leave', () => {
 
       // Reload and verify
       await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
-      await page.waitForLoadState('networkidle');
+  
 
       // Should see "請假" status somewhere in the session cards
       await expect(page.locator('.snap-x').getByText('請假').first()).toBeVisible();
@@ -158,10 +158,13 @@ test.describe('Attendance & Leave', () => {
   test('leave button is disabled on sessions where leave was taken', async ({ page }) => {
     await loginAs(page, 'member');
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
-    await page.waitForLoadState('networkidle');
+
+    // Wait for SSR content to stream in before checking button state
+    await expect(page.getByText('E2E Member')).toBeVisible();
 
     // Find leave buttons -- those on sessions with existing leave should be disabled
     const leaveButtons = page.getByRole('button', { name: '請假' });
+    await expect(leaveButtons.first()).toBeVisible();
     const count = await leaveButtons.count();
     expect(count).toBeGreaterThan(0);
 
@@ -182,7 +185,7 @@ test.describe('Attendance & Leave', () => {
   test('leave button is disabled on past sessions (cannot leave past sessions)', async ({ page }) => {
     await loginAs(page, 'member');
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
-    await page.waitForLoadState('networkidle');
+
 
     // Seed provides TWO past sessions:
     //   - session 2f (CURRENT_DATE - 14 days): NO attendance record (unmarked)

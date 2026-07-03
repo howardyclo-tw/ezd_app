@@ -22,9 +22,7 @@ import { getUserIdByEmail, getAttendanceRecord } from '../fixtures/db';
  *   opens the enrollment dialog. The makeup option should be disabled (greyed out)
  *   because admin has no enrollment and thus 0 remaining makeup quota.
  *
- * Idempotency: seed.sql deletes prior makeup_requests and attendance records for
- * these courses. On re-run, the seed resets the state. The test also handles the
- * case where the member is already shown in the roster from a prior makeup.
+ * Idempotency: globalSetup re-seeds the DB before every suite run.
  */
 
 const GROUP_ID = 'e2e00000-0000-0000-0000-000000000010';
@@ -36,13 +34,12 @@ test.describe('Makeup', () => {
 
     // Navigate to E2E Single Course (member is NOT enrolled here)
     await page.goto(`/courses/groups/${GROUP_ID}/${SINGLE_COURSE_ID}`);
-    await page.waitForLoadState('networkidle');
-    await expect(page.getByText('E2E Single Course')).toBeVisible();
+
+    // Wait for SSR streaming to deliver the course heading
+    await expect(page.getByRole('heading', { name: 'E2E Single Course' })).toBeVisible();
 
     // The SessionEnrollmentDialog trigger button MUST be visible since
-    // member is not enrolled in this course (seed.sql deletes all enrollments
-    // for E2E Single Course on every run).
-    // Button text: "單堂報名 / 補課" (for normal courses)
+    // member is not enrolled in this course (seed deletes all enrollments).
     const enrollButton = page.getByRole('button', { name: /單堂報名/ });
     await expect(enrollButton).toBeVisible();
 
@@ -50,7 +47,7 @@ test.describe('Makeup', () => {
     await enrollButton.click();
 
     // The dialog should show "選擇加入方式" with both "單堂報名" and "補課申請" options
-    await expect(page.getByText('選擇加入方式')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('選擇加入方式')).toBeVisible();
 
     // The makeup option should be available (member has 1 remaining quota from absence)
     const makeupText = page.locator('p', { hasText: '補課申請' }).first();
@@ -64,12 +61,11 @@ test.describe('Makeup', () => {
     await parentDiv.click();
 
     // Dialog title should change to "補課申請"
-    await expect(page.getByText('補課申請').first()).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText('補課申請').first()).toBeVisible();
 
     // Select the first available future session
-    // Sessions are shown as "第 N 堂" with checkboxes
-    // Find a session that is NOT disabled (not past, not excluded, not full)
     const sessionItems = page.locator('[class*="rounded-2xl"][class*="border-2"]');
+    await expect(sessionItems.first()).toBeVisible();
     const sessionCount = await sessionItems.count();
     expect(sessionCount).toBeGreaterThan(0);
 
@@ -99,21 +95,17 @@ test.describe('Makeup', () => {
     const successToast = page.locator('[data-sonner-toast]', { hasText: /補課成功|成功完成/ });
     await expect(successToast.first()).toBeVisible({ timeout: 15000 });
 
-    // Wait for navigation/refresh
-    await page.waitForLoadState('networkidle');
+    // Wait for page to settle
     await page.waitForTimeout(1000);
 
     // Reload the course page to verify the makeup record
     await page.goto(`/courses/groups/${GROUP_ID}/${SINGLE_COURSE_ID}`);
-    await page.waitForLoadState('networkidle');
 
     // Verify: E2E Member should now appear in the roster of the target course
-    // The member shows up as a "補" (makeup) student in the attendance table
-    await expect(page.getByText('E2E Member')).toBeVisible({ timeout: 5000 });
+    // Scope to the table to avoid strict-mode violations (name may appear elsewhere)
+    await expect(page.getByRole('table').getByText('E2E Member')).toBeVisible();
 
     // DB-state assertion: verify an attendance_records row with status='makeup' exists
-    // for the member on a session of E2E Single Course.
-    // The first available session is e2e00000-0000-0000-0000-000000000034 (CURRENT_DATE + 8 days).
     const memberId = await getUserIdByEmail(ACCOUNTS.member.email);
     const SINGLE_SESSION_IDS = [
       'e2e00000-0000-0000-0000-000000000034',
@@ -136,24 +128,21 @@ test.describe('Makeup', () => {
 
     // Navigate to E2E Single Course
     await page.goto(`/courses/groups/${GROUP_ID}/${SINGLE_COURSE_ID}`);
-    await page.waitForLoadState('networkidle');
-    await expect(page.getByText('E2E Single Course')).toBeVisible();
+
+    // Wait for the heading to confirm SSR content is ready
+    await expect(page.getByRole('heading', { name: 'E2E Single Course' })).toBeVisible();
 
     // Admin is not enrolled, so the enrollment dialog trigger MUST be visible
-    // (seed.sql deletes all enrollments for E2E Single Course on every run)
     const enrollButton = page.getByRole('button', { name: /單堂報名/ });
     await expect(enrollButton).toBeVisible();
 
     // Open the enrollment dialog
     await enrollButton.click();
-    await expect(page.getByText('選擇加入方式')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('選擇加入方式')).toBeVisible();
 
-    // The makeup option should be DISABLED (greyed out) because admin has no
-    // full enrollment in any course in this group, and thus 0 makeup quota.
-    // Disabled state: the div has "opacity-40 cursor-not-allowed grayscale"
-    // The text should show "目前無可用補課額度"
+    // The makeup option should be DISABLED because admin has no enrollment
     const disabledIndicator = page.getByText('目前無可用補課額度');
-    await expect(disabledIndicator).toBeVisible({ timeout: 3000 });
+    await expect(disabledIndicator).toBeVisible();
 
     // Verify the makeup option container has the disabled styling
     const makeupDiv = disabledIndicator.locator('..').locator('..');
