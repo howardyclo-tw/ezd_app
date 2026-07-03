@@ -2679,7 +2679,7 @@ export async function rejectOrder(orderId: string, reason?: string): Promise<{ s
 
     // Status guard: reject only valid from pending/remitted
     if (order.status === 'confirmed') {
-        return { success: false, message: '訂單已確認，無法駁回；如需處理請改用取消' };
+        return { success: false, message: '訂單已確認，無法駁回；已確認訂單如需退費請人工處理' };
     }
     if (order.status === 'cancelled' || order.status === 'rejected') {
         return { success: false, message: '此訂單已結案，無法再駁回' };
@@ -2705,7 +2705,7 @@ export async function rejectOrder(orderId: string, reason?: string): Promise<{ s
     } else if (order.order_type === 'course_fee') {
         // Cancel linked enrollments (releases seats since cancelled does not occupy)
         const adminClient = createAdminClient();
-        await adminClient
+        const { error: enrollError } = await adminClient
             .from('enrollments')
             .update({
                 status: 'cancelled',
@@ -2714,6 +2714,10 @@ export async function rejectOrder(orderId: string, reason?: string): Promise<{ s
             })
             .eq('order_id', orderId)
             .in('status', ['pending_payment', 'pending_vote', 'enrolled']);
+
+        if (enrollError) {
+            return { success: false, message: `訂單已駁回，但更新報名狀態失敗: ${enrollError.message}` };
+        }
     }
     // membership_fee or future types: no extra side-effects
 
