@@ -50,9 +50,10 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 
 // ── Users to create ─────────────────────────────────────────────
 const USERS = [
-  { email: 'e2e-admin@mediatek.com',  password: 'mediatek', name: 'E2E Admin'  },
-  { email: 'e2e-member@mediatek.com', password: 'mediatek', name: 'E2E Member' },
-  { email: 'e2e-guest@mediatek.com',  password: 'mediatek', name: 'E2E Guest'  },
+  { email: 'e2e-admin@mediatek.com',   password: 'mediatek', name: 'E2E Admin'   },
+  { email: 'e2e-member@mediatek.com',  password: 'mediatek', name: 'E2E Member'  },
+  { email: 'e2e-member2@mediatek.com', password: 'mediatek', name: 'E2E Member2' },
+  { email: 'e2e-guest@mediatek.com',   password: 'mediatek', name: 'E2E Guest'   },
 ];
 
 async function ensureUser({ email, password, name }) {

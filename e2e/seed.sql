@@ -43,6 +43,16 @@ UPDATE public.profiles SET
   member_group_id   = 'e2e00000-0000-0000-0000-000000000001'
 WHERE id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com');
 
+-- Member2 (transfer recipient)
+UPDATE public.profiles SET
+  name              = 'E2E Member2',
+  role              = 'member',
+  card_balance      = 5,
+  makeup_quota      = 0,
+  member_valid_until = '2026-12-31',
+  member_group_id   = 'e2e00000-0000-0000-0000-000000000001'
+WHERE id = (SELECT id FROM auth.users WHERE email = 'e2e-member2@mediatek.com');
+
 -- Guest
 UPDATE public.profiles SET
   name              = 'E2E Guest',
@@ -319,6 +329,64 @@ ON CONFLICT (id) DO UPDATE SET
   is_cancelled   = EXCLUDED.is_cancelled;
 
 -- ────────────────────────────────────────────────────────────
+-- 4e. Workshop Course  (type=workshop, for transfer e2e)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.courses (id, group_id, name, description, type, teacher, room,
+                            start_time, end_time, capacity, cards_per_session,
+                            enrollment_start_at, enrollment_end_at)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000024',
+  'e2e00000-0000-0000-0000-000000000010',
+  'E2E Workshop',
+  'E2E workshop transfer test course',
+  'workshop',
+  'E2E Teacher',
+  'E2E Room',
+  '21:00',
+  '22:30',
+  20,
+  1,
+  NOW() - INTERVAL '1 day',
+  NOW() + INTERVAL '30 days'
+)
+ON CONFLICT (id) DO UPDATE SET
+  group_id           = EXCLUDED.group_id,
+  name               = EXCLUDED.name,
+  description        = EXCLUDED.description,
+  type               = EXCLUDED.type,
+  teacher            = EXCLUDED.teacher,
+  room               = EXCLUDED.room,
+  start_time         = EXCLUDED.start_time,
+  end_time           = EXCLUDED.end_time,
+  capacity           = EXCLUDED.capacity,
+  cards_per_session   = EXCLUDED.cards_per_session,
+  enrollment_start_at = EXCLUDED.enrollment_start_at,
+  enrollment_end_at   = EXCLUDED.enrollment_end_at;
+
+-- ────────────────────────────────────────────────────────────
+-- 5a5. Sessions for E2E Workshop (4 future sessions)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.course_sessions (id, course_id, session_date, session_number, is_cancelled)
+VALUES
+  ('e2e00000-0000-0000-0000-00000000003b',
+   'e2e00000-0000-0000-0000-000000000024',
+   CURRENT_DATE + INTERVAL '3 days',  1, FALSE),
+  ('e2e00000-0000-0000-0000-00000000003c',
+   'e2e00000-0000-0000-0000-000000000024',
+   CURRENT_DATE + INTERVAL '10 days', 2, FALSE),
+  ('e2e00000-0000-0000-0000-00000000003d',
+   'e2e00000-0000-0000-0000-000000000024',
+   CURRENT_DATE + INTERVAL '17 days', 3, FALSE),
+  ('e2e00000-0000-0000-0000-00000000003e',
+   'e2e00000-0000-0000-0000-000000000024',
+   CURRENT_DATE + INTERVAL '24 days', 4, FALSE)
+ON CONFLICT (id) DO UPDATE SET
+  course_id      = EXCLUDED.course_id,
+  session_date   = EXCLUDED.session_date,
+  session_number = EXCLUDED.session_number,
+  is_cancelled   = EXCLUDED.is_cancelled;
+
+-- ────────────────────────────────────────────────────────────
 -- 9. Course Fee Order (pending/remitted, for review-center test)
 --    E2E Member has a course_fee order with remittance info
 -- ────────────────────────────────────────────────────────────
@@ -381,21 +449,50 @@ ON CONFLICT (id) DO UPDATE SET
 -- 5c. Cleanup: remove non-seed enrollments, leave requests,
 --     attendance records, card orders/transactions for idempotency
 -- ────────────────────────────────────────────────────────────
+-- Cleanup makeup_requests for e2e test courses (must precede attendance cleanup)
+DELETE FROM public.makeup_requests
+WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
+  AND (original_course_id IN ('e2e00000-0000-0000-0000-000000000020',
+                               'e2e00000-0000-0000-0000-000000000021',
+                               'e2e00000-0000-0000-0000-000000000024')
+    OR target_course_id IN ('e2e00000-0000-0000-0000-000000000020',
+                             'e2e00000-0000-0000-0000-000000000021',
+                             'e2e00000-0000-0000-0000-000000000024'));
+
+-- Cleanup transfer_requests for e2e test courses
+DELETE FROM public.transfer_requests
+WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
+                     'e2e00000-0000-0000-0000-000000000021',
+                     'e2e00000-0000-0000-0000-000000000024')
+  AND (from_user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
+    OR to_user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member2@mediatek.com'));
+
 DELETE FROM public.leave_requests
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
   AND session_id IN (SELECT id FROM public.course_sessions
                      WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
                                          'e2e00000-0000-0000-0000-000000000021',
                                          'e2e00000-0000-0000-0000-000000000022',
-                                         'e2e00000-0000-0000-0000-000000000023'));
+                                         'e2e00000-0000-0000-0000-000000000023',
+                                         'e2e00000-0000-0000-0000-000000000024'));
 
+-- Cleanup attendance for member on all e2e courses (including workshop)
 DELETE FROM public.attendance_records
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
   AND session_id IN (SELECT id FROM public.course_sessions
                      WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
                                          'e2e00000-0000-0000-0000-000000000021',
                                          'e2e00000-0000-0000-0000-000000000022',
-                                         'e2e00000-0000-0000-0000-000000000023'));
+                                         'e2e00000-0000-0000-0000-000000000023',
+                                         'e2e00000-0000-0000-0000-000000000024'));
+
+-- Cleanup attendance for member2 on all e2e courses
+DELETE FROM public.attendance_records
+WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member2@mediatek.com')
+  AND session_id IN (SELECT id FROM public.course_sessions
+                     WHERE course_id IN ('e2e00000-0000-0000-0000-000000000020',
+                                         'e2e00000-0000-0000-0000-000000000021',
+                                         'e2e00000-0000-0000-0000-000000000024'));
 
 DELETE FROM public.enrollments
 WHERE course_id = 'e2e00000-0000-0000-0000-000000000020'
@@ -424,6 +521,11 @@ WHERE course_id = 'e2e00000-0000-0000-0000-000000000022'
 DELETE FROM public.enrollments
 WHERE course_id = 'e2e00000-0000-0000-0000-000000000023'
   AND id != 'e2e00000-0000-0000-0000-000000000062';
+
+-- Remove non-seed enrollments for the workshop course
+DELETE FROM public.enrollments
+WHERE course_id = 'e2e00000-0000-0000-0000-000000000024'
+  AND id != 'e2e00000-0000-0000-0000-000000000063';
 
 DELETE FROM public.orders
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com')
@@ -557,6 +659,44 @@ ON CONFLICT (id) DO UPDATE SET
   type       = EXCLUDED.type,
   session_id = EXCLUDED.session_id,
   source     = EXCLUDED.source;
+
+-- ────────────────────────────────────────────────────────────
+-- 11. Workshop enrollment (member full-enrolled for transfer tests)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.enrollments (id, course_id, user_id, status, type, session_id, source)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000063',
+  'e2e00000-0000-0000-0000-000000000024',
+  (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com'),
+  'enrolled',
+  'full',
+  NULL,
+  'self'
+)
+ON CONFLICT (id) DO UPDATE SET
+  course_id  = EXCLUDED.course_id,
+  user_id    = EXCLUDED.user_id,
+  status     = EXCLUDED.status,
+  type       = EXCLUDED.type,
+  session_id = EXCLUDED.session_id,
+  source     = EXCLUDED.source;
+
+-- ────────────────────────────────────────────────────────────
+-- 12. Absence on past session of E2E Basic Groove (makeup source)
+--     session 30 is the past session (CURRENT_DATE - 7 days)
+-- ────────────────────────────────────────────────────────────
+INSERT INTO public.attendance_records (session_id, user_id, status, marked_by, marked_at)
+VALUES (
+  'e2e00000-0000-0000-0000-000000000030',
+  (SELECT id FROM auth.users WHERE email = 'e2e-member@mediatek.com'),
+  'absent',
+  (SELECT id FROM auth.users WHERE email = 'e2e-admin@mediatek.com'),
+  NOW()
+)
+ON CONFLICT (session_id, user_id) DO UPDATE SET
+  status    = EXCLUDED.status,
+  marked_by = EXCLUDED.marked_by,
+  marked_at = EXCLUDED.marked_at;
 
 -- ============================================================
 -- Done. Verify with:

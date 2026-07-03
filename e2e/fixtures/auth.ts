@@ -1,9 +1,10 @@
 import { Page, expect } from '@playwright/test';
 
 export const ACCOUNTS = {
-  admin:  { email: 'e2e-admin@mediatek.com',  password: 'mediatek' },
-  member: { email: 'e2e-member@mediatek.com', password: 'mediatek' },
-  guest:  { email: 'e2e-guest@mediatek.com',  password: 'mediatek' },
+  admin:   { email: 'e2e-admin@mediatek.com',   password: 'mediatek' },
+  member:  { email: 'e2e-member@mediatek.com',  password: 'mediatek' },
+  member2: { email: 'e2e-member2@mediatek.com', password: 'mediatek' },
+  guest:   { email: 'e2e-guest@mediatek.com',   password: 'mediatek' },
 } as const;
 
 export async function loginAs(page: Page, role: keyof typeof ACCOUNTS) {
