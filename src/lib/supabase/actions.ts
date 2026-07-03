@@ -2123,12 +2123,51 @@ export async function updateMemberGroup(
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (profile?.role !== 'admin') throw new Error('只有幹部可以修改年度群組');
 
+    // Fetch old valid_until before updating (for cascade)
+    const { data: oldGroup } = await supabase
+        .from('member_groups')
+        .select('valid_until')
+        .eq('id', id)
+        .single();
+    const oldValidUntil = oldGroup?.valid_until;
+
     const { error } = await supabase
         .from('member_groups')
         .update({ name, valid_until: validUntil })
         .eq('id', id);
 
     if (error) throw new Error(`修改群組失敗: ${error.message}`);
+
+    // Cascade: update card_purchase orders whose expires_at matched the old valid_until
+    if (oldValidUntil && oldValidUntil !== validUntil) {
+        const adminClient = createAdminClient();
+
+        // Find members in this group
+        const { data: members } = await adminClient
+            .from('profiles')
+            .select('id')
+            .eq('member_group_id', id);
+
+        if (members && members.length > 0) {
+            const memberIds = members.map(m => m.id);
+
+            // Update confirmed card_purchase orders whose expires_at = old valid_until
+            await adminClient
+                .from('orders')
+                .update({ expires_at: validUntil })
+                .in('user_id', memberIds)
+                .eq('status', 'confirmed')
+                .eq('order_type', 'card_purchase')
+                .eq('expires_at', oldValidUntil);
+
+            // Recompute balance for each affected user
+            const { syncCardBalance } = await import('./card-utils');
+            for (const m of members) {
+                await syncCardBalance(m.id);
+            }
+        }
+    }
+
     revalidatePath('/', 'layout');
     return { success: true, message: '群組已更新' };
 }
@@ -2428,16 +2467,10 @@ export async function createCardOrder(quantity: number, includeMembership: boole
         ? parseInt(config['card_price_member'] ?? '270', 10)
         : parseInt(config['card_price_non_member'] ?? '370', 10);
 
-    // Card expiry: use latest member group's valid_until as default
-    const { data: latestGroup } = await supabase
-        .from('member_groups')
-        .select('valid_until')
-        .order('valid_until', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-    const expiresAt = latestGroup?.valid_until
-        ? new Date(latestGroup.valid_until + 'T00:00:00')
-        : new Date(new Date().getFullYear(), 11, 31); // fallback to year-end
+    // Card expiry: use buyer's own member group valid_until; fall back to year-end
+    const expiresAt = groupValidUntil
+        ? new Date(groupValidUntil + 'T00:00:00')
+        : new Date(new Date().getFullYear(), 11, 31); // fallback for guest/unassigned
 
     const membershipPrice = includeMembership ? 1800 : 0;
     const totalAmount = (quantity * unitPrice) + membershipPrice;

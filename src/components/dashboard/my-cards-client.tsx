@@ -518,7 +518,7 @@ export function MyCardsClient({
                             </div>
 
                             <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
-                                堂卡有效期至購買當年度年底，到期後無法用於報名該日期之後的課程堂次。
+                                堂卡有效期與社員資格年度同步，到期後無法用於報名該日期之後的課程堂次。
                             </p>
                         </div>
                     ) : (
