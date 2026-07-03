@@ -1,6 +1,6 @@
 /**
  * EZD App - Database TypeScript Types
- * Matches the Supabase schema defined in supabase/migrations/001_course_schema.sql
+ * Matches the Supabase schema (migrations 001–011).
  */
 
 // ------------------------------------------------------------------
@@ -16,9 +16,10 @@ export type CourseType =
   | 'style'        // 風格體驗
   | 'workshop';    // 專攻班
 
+/** Orphan type — live courses table has no status column. Kept for compatibility. */
 export type CourseStatus = 'draft' | 'published' | 'closed';
 
-export type EnrollmentStatus = 'enrolled' | 'waitlist' | 'cancelled';
+export type EnrollmentStatus = 'enrolled' | 'waitlist' | 'cancelled' | 'pending_payment' | 'pending_vote';
 export type EnrollmentSource = 'self' | 'admin' | 'card_purchase';
 
 export type AttendanceStatus =
@@ -34,7 +35,16 @@ export type RequestStatus = 'pending' | 'approved' | 'rejected';
 export type TransferStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export type CardTransactionType = 'purchase' | 'deduct' | 'refund' | 'expire' | 'admin_adjust';
-export type CardOrderStatus = 'pending' | 'remitted' | 'confirmed' | 'cancelled';
+
+export type OrderType = 'card_purchase' | 'course_fee' | 'membership_fee';
+export type OrderStatus = 'pending' | 'remitted' | 'confirmed' | 'rejected' | 'cancelled';
+
+/** @deprecated Use {@link OrderStatus} instead. */
+export type CardOrderStatus = OrderStatus;
+
+export type PricingMode = 'card' | 'ntd' | 'free';
+export type PollVoteType = 'single' | 'multi';
+export type PollStatus = 'open' | 'published';
 
 // ------------------------------------------------------------------
 // Core Entities
@@ -47,6 +57,8 @@ export interface Profile {
   role: UserRole;
   member_valid_until?: string | null; // ISO date string "YYYY-MM-DD"
   card_balance: number; // current card balance (denormalized for performance)
+  member_group_id: string | null;
+  makeup_quota: number;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +73,7 @@ export interface CourseGroup {
   period_end: string | null;   // "YYYY-MM-DD"
   registration_phase1_start: string | null; // ISO string
   registration_phase1_end: string | null;   // ISO string
+  allocation_policy: string;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
@@ -82,6 +95,13 @@ export interface Course {
   enrollment_start_at: string | null;
   enrollment_end_at: string | null;
   wiki_url: string | null;
+  pricing_mode: PricingMode;
+  price_member_single: number | null;
+  price_guest_single: number | null;
+  price_member_full: number | null;
+  price_guest_full: number | null;
+  enroll_full: boolean;
+  enroll_single: boolean;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
@@ -92,6 +112,8 @@ export interface CourseSession {
   course_id: string;
   session_date: string; // "YYYY-MM-DD"
   session_number: number;
+  is_cancelled: boolean;
+  cancel_note: string | null;
   created_at: string;
 }
 
@@ -120,6 +142,9 @@ export interface Enrollment {
   source: EnrollmentSource;
   enrolled_at: string;
   cancelled_at?: string | null;
+  wants_leader: boolean;
+  cancel_reason: string | null;
+  order_id: string | null;
 }
 
 export interface AttendanceRecord {
@@ -184,22 +209,31 @@ export interface TransferRequest {
 // Card System
 // ------------------------------------------------------------------
 
-export interface CardOrder {
+export interface Order {
   id: string;
   user_id: string;
+  order_type: OrderType;
   quantity: number;
+  used: number;
   unit_price: number; // NTD per card
   total_amount: number;
-  status: CardOrderStatus;
+  amount: number | null;
+  status: OrderStatus;
+  remittance_bank_code: string | null;
   remittance_account_last5?: string | null;
   remittance_date?: string | null;
   remittance_note?: string | null;
   confirmed_by?: string | null;
   confirmed_at?: string | null;
   expires_at?: string | null; // "YYYY-MM-DD"
+  course_group_id: string | null;
+  include_membership: boolean | null;
   created_at: string;
   updated_at: string;
 }
+
+/** @deprecated Use {@link Order} instead. */
+export type CardOrder = Order;
 
 export interface CardTransaction {
   id: string;
@@ -220,6 +254,63 @@ export interface SystemConfig {
   description?: string | null;
   updated_by?: string | null;
   updated_at: string;
+}
+
+// ------------------------------------------------------------------
+// Member Groups
+// ------------------------------------------------------------------
+
+export interface MemberGroup {
+  id: string;
+  name: string;
+  valid_until: string; // "YYYY-MM-DD"
+  created_at: string;
+}
+
+// ------------------------------------------------------------------
+// Voting / Polls
+// ------------------------------------------------------------------
+
+export interface CoursePoll {
+  id: string;
+  course_id: string;
+  title: string;
+  vote_type: PollVoteType;
+  status: PollStatus;
+  published_at: string | null;
+  published_by: string | null;
+  created_at: string;
+}
+
+export interface PollOption {
+  id: string;
+  poll_id: string;
+  label: string;
+  youtube_url: string | null;
+  is_winner: boolean;
+  sort_order: number;
+}
+
+export interface PollVote {
+  id: string;
+  poll_id: string;
+  option_id: string;
+  user_id: string;
+  enrollment_id: string | null;
+  created_at: string;
+}
+
+// ------------------------------------------------------------------
+// Penalty Overrides
+// ------------------------------------------------------------------
+
+export interface PenaltyOverride {
+  id: string;
+  user_id: string;
+  period_end: string; // "YYYY-MM-DD"
+  reason: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 // ------------------------------------------------------------------
