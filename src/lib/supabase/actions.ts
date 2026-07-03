@@ -2519,6 +2519,11 @@ export async function cancelOrder(orderId: string, reason?: string): Promise<{ s
         .single();
 
     if (!order) return { success: false, message: '找不到訂單' };
+
+    // Idempotency: already cancelled/rejected — nothing to do
+    if (order.status === 'cancelled' || order.status === 'rejected') {
+        return { success: true, message: '訂單已取消' };
+    }
     if (order.status !== 'pending' && order.status !== 'remitted') {
         return { success: false, message: '此收費狀態已無法取消' };
     }
@@ -2533,7 +2538,7 @@ export async function cancelOrder(orderId: string, reason?: string): Promise<{ s
 
     // For course_fee: cancel linked enrollments (releases seats since cancelled does not occupy)
     if (order.order_type === 'course_fee') {
-        await adminClient
+        const { error: enrollError } = await adminClient
             .from('enrollments')
             .update({
                 status: 'cancelled',
@@ -2542,6 +2547,10 @@ export async function cancelOrder(orderId: string, reason?: string): Promise<{ s
             })
             .eq('order_id', orderId)
             .in('status', ['pending_payment', 'pending_vote']);
+
+        if (enrollError) {
+            return { success: false, message: `訂單已取消，但更新報名狀態失敗: ${enrollError.message}` };
+        }
     }
 
     return { success: true, message: '訂單已取消' };
@@ -2566,7 +2575,12 @@ export async function confirmOrder(orderId: string): Promise<{ success: boolean;
         .maybeSingle();
 
     if (!order) throw new Error('訂單不存在');
+
+    // Terminal-status guard: only pending/remitted orders can be confirmed
     if (order.status === 'confirmed') return { success: false, message: '訂單已確認' };
+    if (order.status === 'cancelled' || order.status === 'rejected') {
+        return { success: false, message: '此訂單已結案，無法確認' };
+    }
 
     // Update order status
     const { error: orderError } = await supabase
@@ -2663,6 +2677,14 @@ export async function rejectOrder(orderId: string, reason?: string): Promise<{ s
     const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
     if (!order) throw new Error('訂單不存在');
 
+    // Status guard: reject only valid from pending/remitted
+    if (order.status === 'confirmed') {
+        return { success: false, message: '訂單已確認，無法駁回；如需處理請改用取消' };
+    }
+    if (order.status === 'cancelled' || order.status === 'rejected') {
+        return { success: false, message: '此訂單已結案，無法再駁回' };
+    }
+
     // 2. Update status to rejected
     const { error } = await supabase
         .from('orders')
@@ -2702,11 +2724,13 @@ export async function rejectOrder(orderId: string, reason?: string): Promise<{ s
 // Course Fee Order Creation
 // ------------------------------------------------------------------
 
-/** Create a course_fee order and link enrollments to it.
- *  Called by the enrollment flow (Phase 5) when pricing_mode=ntd.
+/** INTERNAL — not a server action; do not export.
+ *  Create a course_fee order and link enrollments to it.
+ *  Called by submitGroupEnrollment (Phase 5) when pricing_mode=ntd.
+ *  The caller is responsible for auth (getCurrentUser) before invoking.
  *  Inserts orders(order_type=course_fee, status=pending), then sets
  *  enrollments.order_id for the given enrollmentIds. */
-export async function createCourseFeeOrder(args: {
+async function createCourseFeeOrder(args: {
     userId: string;
     courseGroupId: string;
     amount: number;
