@@ -31,7 +31,6 @@ test.describe('Refund Count: cards_per_session', () => {
     await page.goto('/dashboard/my_cards');
 
     await page.getByRole('tab', { name: '使用中' }).click();
-    await page.waitForTimeout(500);
 
     const balanceEl = page.locator('.text-7xl, .text-8xl').first();
     await expect(balanceEl).toBeVisible();
@@ -45,7 +44,6 @@ test.describe('Refund Count: cards_per_session', () => {
 
     // Click the single enrollment tab
     await page.getByRole('tab', { name: '單堂報名' }).click();
-    await page.waitForTimeout(1000);
 
     // ── Step 3: Find the multi-card course enrollment and handle state ──
     // Look for the "E2E Multi-Card Course" entry in the list
@@ -74,7 +72,8 @@ test.describe('Refund Count: cards_per_session', () => {
       const approveButton = card.getByRole('button', { name: '核准' });
       await expect(approveButton).toBeVisible();
       await approveButton.click();
-      await page.waitForTimeout(3000);
+      // Wait for approve action to complete - button disappears after page refresh
+      await expect(approveButton).not.toBeVisible({ timeout: 15000 });
 
       // Re-read the balance after re-approve (it decreased by 2)
       await page.context().clearCookies();
@@ -82,7 +81,6 @@ test.describe('Refund Count: cards_per_session', () => {
       await page.goto('/dashboard/my_cards');
 
       await page.getByRole('tab', { name: '使用中' }).click();
-      await page.waitForTimeout(500);
 
       const reBalanceEl = page.locator('.text-7xl, .text-8xl').first();
       await expect(reBalanceEl).toBeVisible();
@@ -95,15 +93,15 @@ test.describe('Refund Count: cards_per_session', () => {
       await page.goto('/leader/approvals');
 
       await page.getByRole('tab', { name: '單堂報名' }).click();
-      await page.waitForTimeout(1000);
 
       const card2 = page.locator('[data-slot="card"]')
         .filter({ hasText: 'E2E Multi-Card Course' });
 
       const rejectButton = card2.getByRole('button', { name: '駁回' });
-      await expect(rejectButton).toBeVisible();
+      await expect(rejectButton).toBeVisible({ timeout: 10000 });
       await rejectButton.click();
-      await page.waitForTimeout(3000);
+      // Wait for reject action to complete - button disappears after page refresh
+      await expect(rejectButton).not.toBeVisible({ timeout: 15000 });
 
       // Verify balance increased by 2 from the re-approved state
       await page.context().clearCookies();
@@ -111,7 +109,6 @@ test.describe('Refund Count: cards_per_session', () => {
       await page.goto('/dashboard/my_cards');
 
       await page.getByRole('tab', { name: '使用中' }).click();
-      await page.waitForTimeout(500);
 
       const finalBalanceEl = page.locator('.text-7xl, .text-8xl').first();
       await expect(finalBalanceEl).toBeVisible();
@@ -134,8 +131,8 @@ test.describe('Refund Count: cards_per_session', () => {
     await expect(rejectButton).toBeVisible();
     await rejectButton.click();
 
-    // Wait for the server action to complete and page to settle
-    await page.waitForTimeout(3000);
+    // Wait for reject action to complete - button disappears after page refresh
+    await expect(rejectButton).not.toBeVisible({ timeout: 15000 });
 
     // ── Step 4: Login as member, verify balance increased by 2 ──
     await page.context().clearCookies();
@@ -143,7 +140,6 @@ test.describe('Refund Count: cards_per_session', () => {
     await page.goto('/dashboard/my_cards');
 
     await page.getByRole('tab', { name: '使用中' }).click();
-    await page.waitForTimeout(500);
 
     const newBalanceEl = page.locator('.text-7xl, .text-8xl').first();
     await expect(newBalanceEl).toBeVisible();

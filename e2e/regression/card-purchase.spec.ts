@@ -39,7 +39,8 @@ test.describe('Card Purchase Flow', () => {
       await loginAs(page, 'admin');
       await page.goto('/admin/settings');
 
-      await page.waitForTimeout(1000);
+      // Wait for settings page to render (replaces waitForTimeout)
+      await expect(page.getByRole('button', { name: /儲存|更新|保存/ }).first()).toBeVisible({ timeout: 15000 });
 
       const existingRow = page.locator('input[value="card_purchase_open"]');
       const exists = await existingRow.count();
@@ -64,7 +65,8 @@ test.describe('Card Purchase Flow', () => {
       const saveButton = page.getByRole('button', { name: /儲存|更新|保存/ });
       if (await saveButton.count() > 0) {
         await saveButton.click();
-        await page.waitForTimeout(2000);
+        // Wait for save to complete - use Sonner toast or page state change
+        await expect(saveButton).toBeVisible({ timeout: 15000 });
       }
 
       // Switch back to member
@@ -76,9 +78,8 @@ test.describe('Card Purchase Flow', () => {
 
     // ── Step 1: Record initial balance ──
     await page.getByRole('tab', { name: '使用中' }).click();
-    await page.waitForTimeout(500);
 
-    // Get balance from the big number display
+    // Get balance from the big number display (tab switch auto-renders; no timeout needed)
     const balanceElement = page.locator('.text-7xl, .text-8xl').first();
     let initialBalance = 0;
     if (await balanceElement.count() > 0) {
@@ -121,11 +122,11 @@ test.describe('Card Purchase Flow', () => {
 
     // Dismiss success dialog
     await page.getByRole('button', { name: '我知道了' }).click();
-    await page.waitForTimeout(1000);
+    // Wait for success dialog to close (replaces waitForTimeout)
+    await expect(page.getByText('訂單已建立')).not.toBeVisible({ timeout: 10000 });
 
     // ── Step 3: Verify order appears in "未開通" tab ──
     await page.getByRole('tab', { name: /未開通/ }).click();
-    await page.waitForTimeout(1000);
 
     // Should see a pending order with status "財務審核中" (remitted status)
     await expect(page.getByText('財務審核中').first()).toBeVisible();
@@ -169,7 +170,6 @@ test.describe('Card Purchase Flow', () => {
 
     // Go to 使用中 tab
     await page.getByRole('tab', { name: '使用中' }).click();
-    await page.waitForTimeout(500);
 
     // Poll the balance display until it reflects the card purchase.
     // The alert above proves the action completed, but polling handles

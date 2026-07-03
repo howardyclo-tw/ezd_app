@@ -95,10 +95,7 @@ test.describe('Makeup', () => {
     const successToast = page.locator('[data-sonner-toast]', { hasText: /補課成功|成功完成/ });
     await expect(successToast.first()).toBeVisible({ timeout: 15000 });
 
-    // Wait for page to settle
-    await page.waitForTimeout(1000);
-
-    // Reload the course page to verify the makeup record
+    // Reload the course page to verify the makeup record (toast proves action completed)
     await page.goto(`/courses/groups/${GROUP_ID}/${SINGLE_COURSE_ID}`);
 
     // Verify: E2E Member should now appear in the roster of the target course

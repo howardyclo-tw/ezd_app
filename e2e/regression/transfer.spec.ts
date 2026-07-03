@@ -88,9 +88,8 @@ test.describe('Transfer', () => {
     const searchInput = page.getByPlaceholder('搜尋社員姓名...');
     await expect(searchInput).toBeVisible();
     await searchInput.fill('E2E Member2');
-    await page.waitForTimeout(300);
 
-    // Select Member2 from the list
+    // Select Member2 from the list (toBeVisible auto-waits for search debounce)
     const member2Button = page.locator('button', { hasText: 'E2E Member2' });
     await expect(member2Button).toBeVisible({ timeout: 5000 });
     await member2Button.click();
@@ -113,16 +112,15 @@ test.describe('Transfer', () => {
     expect(alertMessage).toContain('轉讓成功');
     await dialog.accept();
 
-    // Wait for page to refresh and verify the transfer result
-
-    await page.waitForTimeout(1000);
-
-    // Reload to see updated roster
+    // Reload to see updated roster (alert proves action completed)
     await page.goto(`/courses/groups/${GROUP_ID}/${WORKSHOP_ID}`);
+
+    // Wait for SSR content to stream in
+    await expect(page.getByRole('heading', { name: 'E2E Workshop' })).toBeVisible({ timeout: 15000 });
 
     // Verify: the session card should now show "轉出" status for the transferred session
     const transferOutBadge = page.getByText('轉出');
-    await expect(transferOutBadge.first()).toBeVisible({ timeout: 5000 });
+    await expect(transferOutBadge.first()).toBeVisible({ timeout: 10000 });
 
     // Verify: Member2 should appear in the roster as a transfer_in student
     // The roster table should include Member2 with transfer_in label
@@ -185,10 +183,10 @@ test.describe('Transfer', () => {
     const searchInput = page.getByPlaceholder('搜尋社員姓名...');
     await expect(searchInput).toBeVisible();
     await searchInput.fill('E2E Guest');
-    await page.waitForTimeout(500);
 
     // Assert: the "no results" message appears (guests are filtered out server-side)
-    await expect(page.getByText('找不到符合的社員')).toBeVisible({ timeout: 3000 });
+    // toBeVisible auto-waits through the search debounce
+    await expect(page.getByText('找不到符合的社員')).toBeVisible({ timeout: 5000 });
 
     // Double-check: no button with Guest's name exists in the dialog
     const guestButton = page.locator('button', { hasText: 'E2E Guest' });

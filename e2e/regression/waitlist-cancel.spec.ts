@@ -45,11 +45,8 @@ test.describe('Waitlist Cancel', () => {
     expect(dialog.message()).toContain('已取消');
     await dialog.accept();
 
-    // Wait for page to refresh after router.refresh()
-    await page.waitForTimeout(1000);
-
-    // UI: 候補中 badge should be gone
-    await expect(page.getByText('候補中')).not.toBeVisible();
+    // Wait for the waitlist badge to disappear (proves router.refresh() completed)
+    await expect(page.getByText('候補中')).not.toBeVisible({ timeout: 15000 });
 
     // DB: verify enrollment is actually cancelled
     const memberId = await getUserIdByEmail('e2e-member2@mediatek.com');

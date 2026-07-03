@@ -42,21 +42,20 @@ test.describe('Admin Members Management', () => {
 
     // ── Step 5: Change role to 幹部 then back to 社員 ──
     await roleSelect.click();
-    await page.waitForTimeout(300);
 
-    // Select "幹部" (admin)
-    await page.getByRole('option', { name: '幹部' }).click();
-    await page.waitForTimeout(300);
+    // Select "幹部" (admin) -- wait for dropdown to open before clicking option
+    const adminOption = page.getByRole('option', { name: '幹部' });
+    await expect(adminOption).toBeVisible();
+    await adminOption.click();
 
-    // Verify it changed
-    const newRole = await roleSelect.textContent();
-    expect(newRole).toContain('幹部');
+    // Verify it changed (poll until select reflects new value)
+    await expect.poll(async () => roleSelect.textContent(), { timeout: 5000 }).toContain('幹部');
 
     // Change back to 社員 (use exact match to avoid matching 非社員)
     await roleSelect.click();
-    await page.waitForTimeout(300);
-    await page.getByRole('option', { name: '社員', exact: true }).click();
-    await page.waitForTimeout(300);
+    const memberOption = page.getByRole('option', { name: '社員', exact: true });
+    await expect(memberOption).toBeVisible();
+    await memberOption.click();
 
     // ── Step 6: Verify member group selector ──
     await expect(dialog.getByText('所屬年度群組')).toBeVisible();
@@ -93,19 +92,16 @@ test.describe('Admin Members Management', () => {
     // ── Step 9: Save changes ──
     await dialog.getByRole('button', { name: '確認變更' }).click();
 
-    // Wait for save to complete
-    await page.waitForTimeout(3000);
-
-    // Verify the dialog closed or a success toast appeared
-    // After save, the dialog should close
+    // Wait for the dialog to close after save completes (replaces waitForTimeout)
+    await expect(dialog).not.toBeVisible({ timeout: 15000 });
 
     // ── Step 10: Re-open and verify changes persisted ──
     // Click on E2E Member again
     await page.locator('text=E2E Member').first().click();
-    await page.waitForTimeout(1000);
 
-    // Verify role is still 社員 (we changed back)
+    // Wait for the edit dialog to reopen (replaces waitForTimeout)
     const dialog2 = page.getByLabel('成員帳號管理');
+    await expect(dialog2).toBeVisible({ timeout: 10000 });
     const verifyRole = dialog2.locator('button[role="combobox"]').first();
     const verifyRoleText = await verifyRole.textContent();
     expect(verifyRoleText).toContain('社員');
@@ -120,10 +116,9 @@ test.describe('Admin Members Management', () => {
 
     // Open E2E Member detail
     await page.locator('text=E2E Member').first().click();
-    await page.waitForTimeout(500);
 
-    // The card pool section should show card pools with remaining count and expiry
-    await expect(page.getByText('堂卡餘額')).toBeVisible();
+    // Wait for the dialog content to load (replaces waitForTimeout)
+    await expect(page.getByText('堂卡餘額')).toBeVisible({ timeout: 10000 });
 
     // Check if there are card pool entries showing "張" (cards) count
     const poolEntries = page.locator('text=/\\d+ 張/');

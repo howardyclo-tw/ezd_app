@@ -25,11 +25,10 @@ test.describe('Attendance & Leave', () => {
 
     // The "點名" button enables attendance editing for admin/leader
     const attendanceButton = page.getByRole('button', { name: '點名' });
-    await expect(attendanceButton).toBeVisible();
+    await expect(attendanceButton).toBeVisible({ timeout: 15000 });
     await attendanceButton.click();
-    await page.waitForTimeout(500);
 
-    // In editing mode, "儲存" and "取消" buttons should appear
+    // In editing mode, "儲存" and "取消" buttons should appear (replaces waitForTimeout)
     await expect(page.getByRole('button', { name: '儲存' })).toBeVisible();
     await expect(page.getByRole('button', { name: '取消' })).toBeVisible();
 
@@ -79,9 +78,14 @@ test.describe('Attendance & Leave', () => {
     // Reload page and verify the marked status persisted
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
 
+    // Wait for SSR content to stream in before interacting
+    const attendanceBtn2 = page.getByRole('button', { name: '點名' });
+    await expect(attendanceBtn2).toBeVisible({ timeout: 15000 });
+
     // Enter edit mode again to verify
-    await page.getByRole('button', { name: '點名' }).click();
-    await page.waitForTimeout(500);
+    await attendanceBtn2.click();
+    // Wait for edit mode to activate (replaces waitForTimeout)
+    await expect(page.getByRole('button', { name: '儲存' })).toBeVisible();
 
     // Check the same cell for present status (emerald background)
     const verifyRow = page.locator('tr', { hasText: 'E2E Member' }).first();
@@ -97,6 +101,9 @@ test.describe('Attendance & Leave', () => {
   test('member takes leave on a future session or verifies existing leave', async ({ page }) => {
     await loginAs(page, 'member');
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
+
+    // Wait for SSR content to fully stream in - the roster table proves the page is ready
+    await expect(page.getByRole('table')).toBeVisible({ timeout: 15000 });
 
     // The member has a full enrollment (seeded), so they must appear in roster
     await expect(page.getByText('E2E Member')).toBeVisible();
@@ -129,17 +136,17 @@ test.describe('Attendance & Leave', () => {
       const confirmLeave = page.getByRole('button', { name: '確認請假' });
       await expect(confirmLeave).toBeVisible();
 
-      // Register native alert() handler BEFORE clicking confirm
-      page.once('dialog', async (dlg) => {
-        await dlg.accept();
-      });
+      // Wait for the native alert() that fires on leave success
+      const leaveAlertPromise = page.waitForEvent('dialog', { timeout: 15000 });
       await confirmLeave.click();
+      const leaveAlert = await leaveAlertPromise;
+      await leaveAlert.accept();
 
-      // Wait for the alert dialog to close and the leave to process
-      await page.waitForTimeout(3000);
-
-      // Reload and verify
+      // Reload and verify persistence
       await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
+
+      // Wait for SSR content to stream in - session scroller indicates page is ready
+      await expect(page.locator('.snap-x')).toBeVisible({ timeout: 15000 });
 
       // Should see "請假" status somewhere in the session cards
       await expect(page.locator('.snap-x').getByText('請假').first()).toBeVisible();
@@ -155,7 +162,8 @@ test.describe('Attendance & Leave', () => {
     await loginAs(page, 'member');
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
 
-    // Wait for SSR content to stream in before checking button state
+    // Wait for SSR content to stream in - the roster table proves the page is ready
+    await expect(page.getByRole('table')).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('E2E Member')).toBeVisible();
 
     // Find leave buttons -- those on sessions with existing leave should be disabled
@@ -196,7 +204,7 @@ test.describe('Attendance & Leave', () => {
     // positively identify the un-marked card.
 
     const sessionScroller = page.locator('.snap-x');
-    await expect(sessionScroller).toBeVisible();
+    await expect(sessionScroller).toBeVisible({ timeout: 15000 });
 
     const sessionCards = sessionScroller.locator('> div');
     const cardCount = await sessionCards.count();

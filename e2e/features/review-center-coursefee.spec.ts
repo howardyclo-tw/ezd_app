@@ -81,11 +81,9 @@ test.describe('Review Center: Course Fee Payment Tab', () => {
 
     // Click the merged payment tab (default tab, already active)
     await page.getByRole('tab', { name: '繳費對帳' }).click();
-    await page.waitForTimeout(500);
 
     // Click the 課程費 filter chip to narrow to course_fee orders only
     await page.getByRole('button', { name: '課程費' }).click();
-    await page.waitForTimeout(500);
 
     // Verify the seeded order is visible with correct details
     const orderCard = page.locator('[data-slot="card"]')
@@ -112,14 +110,12 @@ test.describe('Review Center: Course Fee Payment Tab', () => {
     await expect(confirmBtn).toBeVisible();
     await confirmBtn.click();
 
-    // Wait for the action to complete and page to refresh
-    await page.waitForTimeout(3000);
+    // Wait for the confirm action to complete - button disappears after page refresh
+    await expect(confirmBtn).not.toBeVisible({ timeout: 15000 });
 
-    // Verify the order is now confirmed (re-click tab + filter to refresh view)
+    // Re-click tab + filter to see the updated view
     await page.getByRole('tab', { name: '繳費對帳' }).click();
-    await page.waitForTimeout(500);
     await page.getByRole('button', { name: '課程費' }).click();
-    await page.waitForTimeout(500);
 
     const updatedCard = page.locator('[data-slot="card"]')
       .filter({ hasText: 'E2E Member' })

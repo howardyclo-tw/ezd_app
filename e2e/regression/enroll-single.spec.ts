@@ -29,7 +29,6 @@ test.describe('Single-Session Enrollment', () => {
     await page.goto('/dashboard/my_cards');
 
     await page.getByRole('tab', { name: '使用中' }).click();
-    await page.waitForTimeout(500);
 
     const balanceEl = page.locator('.text-7xl, .text-8xl').first();
     await expect(balanceEl).toBeVisible();
@@ -110,7 +109,6 @@ test.describe('Single-Session Enrollment', () => {
     await page.goto('/dashboard/my_cards');
 
     await page.getByRole('tab', { name: '使用中' }).click();
-    await page.waitForTimeout(500);
 
     // Poll the balance display until it reflects the deduction.
     // Belt-and-suspenders: the toast already proves the action completed,
@@ -130,6 +128,8 @@ test.describe('Single-Session Enrollment', () => {
     // ── Step 7: Verify member appears on roster ──
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
 
+    // Wait for SSR content to stream in before checking roster
+    await expect(page.getByText('E2E Single Course')).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('E2E Member')).toBeVisible();
   });
 });
