@@ -15,9 +15,10 @@ import Link from 'next/link';
 
 // Common config keys with labels and descriptions
 const KNOWN_KEYS: Record<string, { label: string; description: string; type: 'text' | 'number' | 'boolean' | 'date' }> = {
-    card_purchase_open: { label: '購卡功能開關', description: '控制學生是否可以於個人中心申請購買堂卡', type: 'boolean' },
-    card_purchase_start: { label: '購卡開放日期', description: '開放申請購卡的起始日期 (YYYY-MM-DD)', type: 'date' },
-    card_purchase_end: { label: '購卡截止日期', description: '申請購卡的最後截止日期 (YYYY-MM-DD)', type: 'date' },
+    card_purchase_mode: { label: '購卡模式', description: 'manual = 手動開關 (預設), monthly_first_week = 每月第一個週一至週五自動開放', type: 'text' },
+    card_purchase_open: { label: '購卡功能開關', description: '控制學生是否可以於個人中心申請購買堂卡 (僅 manual 模式)', type: 'boolean' },
+    card_purchase_start: { label: '購卡開放日期', description: '開放申請購卡的起始日期 YYYY-MM-DD (僅 manual 模式)', type: 'date' },
+    card_purchase_end: { label: '購卡截止日期', description: '申請購卡的最後截止日期 YYYY-MM-DD (僅 manual 模式)', type: 'date' },
     card_price_member: { label: '社員購卡單價', description: '具備有效社員身份者，購買堂卡的每張單價 (NT$)', type: 'number' },
     card_price_non_member: { label: '非社員購卡單價', description: '一般學員或會籍過期者，購買堂卡的每張單價 (NT$)', type: 'number' },
     card_min_purchase: { label: '最低購買張數', description: '單筆購卡申請的最少張數限制 (例如：5 張)', type: 'number' },

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import { MyCardsClient } from '@/components/dashboard/my-cards-client';
+import { isCardWindowOpen } from '@/lib/card-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,12 +45,19 @@ export default async function MyCardsPage() {
     }
 
     const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
-    const purchaseStart = config['card_purchase_start'];
-    const purchaseEnd = config['card_purchase_end'];
+    const purchaseMode = config['card_purchase_mode'] ?? 'manual';
 
-    const isPurchaseOpen = config['card_purchase_open'] === 'true' &&
-        (!purchaseStart || purchaseStart.trim() === '' || todayStr >= purchaseStart) &&
-        (!purchaseEnd || purchaseEnd.trim() === '' || todayStr <= purchaseEnd);
+    let isPurchaseOpen: boolean;
+    if (purchaseMode === 'monthly_first_week') {
+        isPurchaseOpen = isCardWindowOpen(todayStr);
+    } else {
+        // Manual mode (default): existing card_purchase_open + start/end logic
+        const purchaseStart = config['card_purchase_start'];
+        const purchaseEnd = config['card_purchase_end'];
+        isPurchaseOpen = config['card_purchase_open'] === 'true' &&
+            (!purchaseStart || purchaseStart.trim() === '' || todayStr >= purchaseStart) &&
+            (!purchaseEnd || purchaseEnd.trim() === '' || todayStr <= purchaseEnd);
+    }
     const priceMember = parseInt(config['card_price_member'] ?? '270', 10);
     const priceNonMember = parseInt(config['card_price_non_member'] ?? '370', 10);
     const minPurchase = parseInt(config['card_min_purchase'] ?? '5', 10);

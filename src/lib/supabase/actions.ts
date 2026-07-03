@@ -12,6 +12,7 @@ import { computeMakeupQuota, isBeforeClass } from '@/types/database';
 import { getUserMakeupQuotaUsed, getUserTransferCount, getSystemConfig } from './queries';
 import { isMemberActive } from '@/lib/supabase/pricing';
 import { getTaipeiToday } from '@/lib/date';
+import { isCardWindowOpen, getCardPurchaseWindow } from '@/lib/card-window';
 
 
 // ------------------------------------------------------------------
@@ -2373,23 +2374,30 @@ export async function createCardOrder(quantity: number, includeMembership: boole
 
     // Check purchase window is open
     const config = await getSystemConfig();
-    const now = new Date();
-    const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(now);
+    const todayStr = getTaipeiToday();
+    const purchaseMode = config['card_purchase_mode'] ?? 'manual';
 
-    // Check master toggle
-    if (config['card_purchase_open'] !== 'true') {
-        throw new Error('堂卡購買時段尚未開放');
-    }
+    if (purchaseMode === 'monthly_first_week') {
+        // Automatic window: first Monday-to-Friday of each month
+        if (!isCardWindowOpen(todayStr)) {
+            const { start, end } = getCardPurchaseWindow(todayStr);
+            throw new Error(`購卡時段未開放，本月開放期間為 ${start} ~ ${end}`);
+        }
+    } else {
+        // Manual mode (default): use card_purchase_open + start/end toggles
+        if (config['card_purchase_open'] !== 'true') {
+            throw new Error('堂卡購買時段尚未開放');
+        }
 
-    // Check date window
-    const startDate = config['card_purchase_start'];
-    if (startDate && startDate.trim() !== '' && todayStr < startDate) {
-        throw new Error(`購卡時段尚未開始 (預計開放日期: ${startDate})`);
-    }
+        const startDate = config['card_purchase_start'];
+        if (startDate && startDate.trim() !== '' && todayStr < startDate) {
+            throw new Error(`購卡時段尚未開始 (預計開放日期: ${startDate})`);
+        }
 
-    const endDate = config['card_purchase_end'];
-    if (endDate && endDate.trim() !== '' && todayStr > endDate) {
-        throw new Error(`購卡時段已結束 (截止日期: ${endDate})`);
+        const endDate = config['card_purchase_end'];
+        if (endDate && endDate.trim() !== '' && todayStr > endDate) {
+            throw new Error(`購卡時段已結束 (截止日期: ${endDate})`);
+        }
     }
 
     const minPurchase = parseInt(config['card_min_purchase'] ?? '5', 10);
