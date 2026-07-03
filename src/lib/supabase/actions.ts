@@ -10,6 +10,8 @@ import { createClient } from './server';
 import { createAdminClient } from './admin';
 import { computeMakeupQuota, isBeforeClass } from '@/types/database';
 import { getUserMakeupQuotaUsed, getUserTransferCount, getSystemConfig } from './queries';
+import { isMemberActive } from '@/lib/supabase/pricing';
+import { getTaipeiToday } from '@/lib/date';
 
 
 // ------------------------------------------------------------------
@@ -2401,14 +2403,15 @@ export async function createCardOrder(quantity: number, includeMembership: boole
     // Get user profile to determine price
     const { data: profile } = await supabase
         .from('profiles')
-        .select('role, member_group_id, member_groups ( valid_until )')
+        .select('role, member_valid_until, member_group_id, member_groups ( valid_until )')
         .eq('id', user.id)
         .maybeSingle();
 
-    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
     const groupValidUntil = (profile?.member_groups as any)?.valid_until;
-    const isMember = profile?.role !== 'guest' &&
-        (!groupValidUntil || groupValidUntil >= today);
+    const isMember = isMemberActive(
+        { role: profile?.role ?? 'guest', member_valid_until: profile?.member_valid_until ?? null, groupValidUntil: groupValidUntil ?? null },
+        getTaipeiToday()
+    );
     const unitPrice = (isMember || includeMembership)
         ? parseInt(config['card_price_member'] ?? '270', 10)
         : parseInt(config['card_price_non_member'] ?? '370', 10);

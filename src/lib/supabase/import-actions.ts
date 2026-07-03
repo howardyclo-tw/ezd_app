@@ -3,6 +3,8 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getServerProfile } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { isMemberActive } from '@/lib/supabase/pricing';
+import { getTaipeiToday } from '@/lib/date';
 
 export async function importDataAction(type: 'members' | 'card_orders' | 'rosters' | 'course_groups', data: any[]) {
     const { profile } = await getServerProfile();
@@ -182,13 +184,17 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
 
                 const { data: profileData } = await adminClient
                     .from('profiles')
-                    .select('card_balance, role')
+                    .select('card_balance, role, member_valid_until, member_group_id, member_groups ( valid_until )')
                     .eq('id', userId)
                     .single();
 
                 const cardCount = parseInt(cards);
                 // Auto-calculate price based on member status; allow manual override
-                const isMember = profileData?.role === 'member' || profileData?.role === 'admin';
+                const groupValidUntil = (profileData?.member_groups as any)?.valid_until;
+                const isMember = isMemberActive(
+                    { role: profileData?.role ?? 'guest', member_valid_until: profileData?.member_valid_until ?? null, groupValidUntil: groupValidUntil ?? null },
+                    getTaipeiToday()
+                );
                 const unitPrice = amount ? Math.round(parseInt(amount) / cardCount) : (isMember ? memberPrice : nonMemberPrice);
                 const totalAmount = amount ? parseInt(amount) : unitPrice * cardCount;
 

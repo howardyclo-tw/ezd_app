@@ -375,15 +375,6 @@ export async function getSystemConfig(): Promise<Record<string, string>> {
     return Object.fromEntries((data ?? []).map(r => [r.key, r.value]));
 }
 
-export async function getCardPriceForUser(profile: Pick<Profile, 'role' | 'member_valid_until'>): Promise<number> {
-    const config = await getSystemConfig();
-    const isMember = profile.role !== 'guest' &&
-        (!profile.member_valid_until || new Date(profile.member_valid_until) >= new Date());
-    return isMember
-        ? parseInt(config['card_price_member'] ?? '270', 10)
-        : parseInt(config['card_price_non_member'] ?? '370', 10);
-}
-
 /** Get sessions available for makeup quota (absent/leave and not used) */
 export async function getAvailableMakeupQuotaSessions(userId: string) {
     const supabase = await createClient();
