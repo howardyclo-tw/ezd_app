@@ -123,10 +123,15 @@ ON CONFLICT (id) DO UPDATE SET
   enrollment_end_at   = EXCLUDED.enrollment_end_at;
 
 -- ────────────────────────────────────────────────────────────
--- 5. Course Sessions  (1 past + 3 future sessions)
+-- 5. Course Sessions  (2 past + 3 future sessions)
+--    Session 2f: past (-14d), NO attendance record (tests isPast guard only)
+--    Session 30: past (-7d),  has absence record   (tests isDetermined + makeup source)
 -- ────────────────────────────────────────────────────────────
 INSERT INTO public.course_sessions (id, course_id, session_date, session_number, is_cancelled)
 VALUES
+  ('e2e00000-0000-0000-0000-00000000002f',
+   'e2e00000-0000-0000-0000-000000000020',
+   CURRENT_DATE - INTERVAL '14 days', -1, FALSE),
   ('e2e00000-0000-0000-0000-000000000030',
    'e2e00000-0000-0000-0000-000000000020',
    CURRENT_DATE - INTERVAL '7 days',  0, FALSE),

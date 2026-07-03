@@ -1,14 +1,15 @@
 import { test, expect } from '@playwright/test';
-import { loginAs } from '../fixtures/auth';
+import { loginAs, ACCOUNTS } from '../fixtures/auth';
+import { getUserIdByEmail, getAttendanceRecord } from '../fixtures/db';
 
 /**
  * Regression baseline: Makeup (supplementary class enrollment)
  *
  * Pre-conditions (from seed.sql):
- *   - E2E Member is full-enrolled in E2E Basic Groove (normal, 4 sessions)
+ *   - E2E Member is full-enrolled in E2E Basic Groove (normal, 5 sessions)
  *   - Member has an absence (status=absent) on session 0 (past, -7 days)
  *   - E2E Single Course is in the same group, member is NOT enrolled there
- *   - Makeup quota for 4-session course = ceil(4/4) = 1
+ *   - Makeup quota for 5-session course = ceil(5/4) = 2, but only 1 absence => remaining = 1
  *   - Member's profiles.makeup_quota = 0 (no manual bonus)
  *
  * Happy path:
@@ -38,18 +39,12 @@ test.describe('Makeup', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.getByText('E2E Single Course')).toBeVisible();
 
-    // The SessionEnrollmentDialog trigger button should be visible since
-    // member is not enrolled in this course.
+    // The SessionEnrollmentDialog trigger button MUST be visible since
+    // member is not enrolled in this course (seed.sql deletes all enrollments
+    // for E2E Single Course on every run).
     // Button text: "單堂報名 / 補課" (for normal courses)
     const enrollButton = page.getByRole('button', { name: /單堂報名/ });
-    const enrollBtnCount = await enrollButton.count();
-
-    if (enrollBtnCount === 0) {
-      // If button is missing, member might already be full-enrolled from a prior
-      // makeup that wasn't cleaned up. Check for the member in roster instead.
-      await expect(page.getByText('已報名全堂').or(page.getByText('E2E Member'))).toBeVisible();
-      return;
-    }
+    await expect(enrollButton).toBeVisible();
 
     // Open the enrollment dialog
     await enrollButton.click();
@@ -115,6 +110,25 @@ test.describe('Makeup', () => {
     // Verify: E2E Member should now appear in the roster of the target course
     // The member shows up as a "補" (makeup) student in the attendance table
     await expect(page.getByText('E2E Member')).toBeVisible({ timeout: 5000 });
+
+    // DB-state assertion: verify an attendance_records row with status='makeup' exists
+    // for the member on a session of E2E Single Course.
+    // The first available session is e2e00000-0000-0000-0000-000000000034 (CURRENT_DATE + 8 days).
+    const memberId = await getUserIdByEmail(ACCOUNTS.member.email);
+    const SINGLE_SESSION_IDS = [
+      'e2e00000-0000-0000-0000-000000000034',
+      'e2e00000-0000-0000-0000-000000000035',
+      'e2e00000-0000-0000-0000-000000000036',
+    ];
+    let foundMakeupRecord = false;
+    for (const sid of SINGLE_SESSION_IDS) {
+      const record = await getAttendanceRecord(memberId, sid);
+      if (record?.status === 'makeup') {
+        foundMakeupRecord = true;
+        break;
+      }
+    }
+    expect(foundMakeupRecord).toBe(true);
   });
 
   test('admin without enrollment sees makeup option disabled', async ({ page }) => {
@@ -125,14 +139,10 @@ test.describe('Makeup', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.getByText('E2E Single Course')).toBeVisible();
 
-    // Admin is not enrolled, so the enrollment dialog trigger should be visible
+    // Admin is not enrolled, so the enrollment dialog trigger MUST be visible
+    // (seed.sql deletes all enrollments for E2E Single Course on every run)
     const enrollButton = page.getByRole('button', { name: /單堂報名/ });
-    const enrollBtnCount = await enrollButton.count();
-
-    if (enrollBtnCount === 0) {
-      // Admin might be full-enrolled from a prior test -- unexpected but handle gracefully
-      return;
-    }
+    await expect(enrollButton).toBeVisible();
 
     // Open the enrollment dialog
     await enrollButton.click();

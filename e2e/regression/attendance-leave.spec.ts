@@ -6,7 +6,9 @@ import { loginAs } from '../fixtures/auth';
  * 1. Admin enters edit mode, marks a student present on a clean session, saves, verifies persistence
  * 2. Member takes leave on a FUTURE session (auto-approved) -- requires enrollment
  * 3. Leave button is disabled on sessions where leave was already taken
- * 4. Leave button is disabled on PAST sessions (cannot leave past sessions)
+ * 4. Leave button is disabled on PAST sessions (cannot leave past sessions).
+ *    Uses an UNMARKED past session (no attendance record) so the block is purely isPast,
+ *    not isDetermined -- would fail if the isPast guard were removed.
  *
  * Idempotency: If the member already has leave on all future sessions (from a prior run),
  * the leave test verifies the existing leave state rather than trying to take new leave.
@@ -36,11 +38,11 @@ test.describe('Attendance & Leave', () => {
     const memberRow = page.locator('tr', { hasText: 'E2E Member' }).first();
     await expect(memberRow).toBeVisible();
 
-    // We have 4 sessions (0=past, 1,2,3=future). Columns:
-    // td[0]=name, td[1]=session0(past), td[2]=session1, td[3]=session2, td[4]=session3
-    // Target the LAST future session (td[4], session 3) to avoid collisions with leave tests.
+    // We have 5 sessions (-1=past-unmarked, 0=past-absent, 1,2,3=future). Columns:
+    // td[0]=name, td[1]=session-1(past), td[2]=session0(past), td[3]=session1, td[4]=session2, td[5]=session3
+    // Target the LAST future session (td[5], session 3) to avoid collisions with leave tests.
     const memberCells = memberRow.locator('td');
-    const targetCell = memberCells.nth(4); // session 3 (last future session)
+    const targetCell = memberCells.nth(5); // session 3 (last future session)
     await expect(targetCell).toBeVisible();
 
     // Click to toggle attendance. unmarked -> present
@@ -86,7 +88,7 @@ test.describe('Attendance & Leave', () => {
     // Check the same cell for present status (emerald background)
     const verifyRow = page.locator('tr', { hasText: 'E2E Member' }).first();
     const verifyCells = verifyRow.locator('td');
-    const verifyCell = verifyCells.nth(4);
+    const verifyCell = verifyCells.nth(5);
     const verifyCellDiv = verifyCell.locator('div').first();
     await expect(verifyCellDiv).toHaveClass(/bg-emerald/);
 
@@ -182,41 +184,54 @@ test.describe('Attendance & Leave', () => {
     await page.goto(`/courses/groups/${GROUP_ID}/${COURSE_ID}`);
     await page.waitForLoadState('networkidle');
 
-    // The member has a full enrollment and one session is in the past (CURRENT_DATE - 7 days).
-    // Session cards are rendered in the "我的出席" horizontal scroller (.snap-x).
-    // The past session card shows either "已結束" (no attendance) or a determined status
-    // badge (e.g. absent/present) depending on whether attendance was recorded.
-    // Its leave button should be disabled (isFrozen = isPast || isDetermined).
+    // Seed provides TWO past sessions:
+    //   - session 2f (CURRENT_DATE - 14 days): NO attendance record (unmarked)
+    //   - session 30 (CURRENT_DATE - 7 days):  has absence record  (determined)
+    //
+    // We target the UNMARKED past session (session 2f). Its leave button is disabled
+    // PURELY because isPast is true (isDetermined is false for unmarked sessions).
+    // If the isPast guard were removed, isFrozen would be false and the button
+    // would be enabled -- so this test would FAIL, catching the regression.
+    //
+    // The unmarked past session shows "已結束" badge text (not 出席/缺席/請假/轉出).
+    // The determined past session shows "x" (absent label). We use "已結束" to
+    // positively identify the un-marked card.
 
-    // The session cards container
     const sessionScroller = page.locator('.snap-x');
     await expect(sessionScroller).toBeVisible();
 
-    // Find a past session card. Past sessions show "已結束" when unmarked,
-    // or the attendance status label when marked (e.g. absent shows an X icon).
-    // In all cases the leave button should exist and be disabled.
     const sessionCards = sessionScroller.locator('> div');
     const cardCount = await sessionCards.count();
-    expect(cardCount).toBeGreaterThanOrEqual(2); // At least 1 past + 1 future
+    expect(cardCount).toBeGreaterThanOrEqual(3); // At least 2 past + 1 future
 
-    let pastCardFound = false;
+    // Find the card displaying "已結束" -- this is the unmarked past session.
+    // The badge text "已結束" only appears when myAttendance is "unmarked" AND isPast is true.
+    // This positively proves isDetermined is false (unmarked is not in the determined set),
+    // so the session is frozen PURELY because of isPast. If the isPast guard were removed,
+    // isFrozen would be false and the leave button would be enabled.
+    let unmarkedPastCard = null;
     for (let i = 0; i < cardCount; i++) {
       const card = sessionCards.nth(i);
-      const leaveBtn = card.getByRole('button', { name: '請假' });
-      const leaveBtnCount = await leaveBtn.count();
-      if (leaveBtnCount === 0) continue;
-      const isDisabled = await leaveBtn.isDisabled();
-      if (!isDisabled) continue;
-      // A disabled leave button on a card confirms a frozen session (past or determined).
-      // Verify by checking that this is indeed a past or determined session card
-      // (it has the muted/frozen styling from bg-neutral-900).
-      const cardClasses = await card.getAttribute('class') || '';
-      if (cardClasses.includes('bg-neutral-900') || cardClasses.includes('shadow-none')) {
-        await expect(leaveBtn).toBeDisabled();
-        pastCardFound = true;
+      const endedBadge = card.getByText('已結束', { exact: true });
+      if (await endedBadge.count() > 0) {
+        unmarkedPastCard = card;
         break;
       }
     }
-    expect(pastCardFound).toBe(true);
+
+    // The unmarked past session card MUST exist (seeded with no attendance record)
+    expect(unmarkedPastCard).not.toBeNull();
+
+    // Confirm "已結束" badge is visible -- this is the positive proof of unmarked+past
+    await expect(unmarkedPastCard!.getByText('已結束', { exact: true })).toBeVisible();
+
+    // The leave button on this unmarked past session must be disabled (due to isPast)
+    const leaveBtn = unmarkedPastCard!.getByRole('button', { name: '請假' });
+    await expect(leaveBtn).toBeVisible();
+    await expect(leaveBtn).toBeDisabled();
+
+    // Verify frozen styling (bg-neutral-900) confirms the card is rendered as frozen
+    const cardClasses = await unmarkedPastCard!.getAttribute('class') || '';
+    expect(cardClasses).toContain('bg-neutral-900');
   });
 });

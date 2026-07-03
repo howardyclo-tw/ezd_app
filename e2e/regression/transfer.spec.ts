@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { loginAs } from '../fixtures/auth';
+import { loginAs, ACCOUNTS } from '../fixtures/auth';
+import { getUserIdByEmail, getAttendanceRecord, getTransferRequests } from '../fixtures/db';
 
 /**
  * Regression baseline: Transfer (session transfer between members)
@@ -18,6 +19,14 @@ import { loginAs } from '../fixtures/auth';
  *
  * Adversarial:
  *   Guest does NOT appear in transfer candidate list (server and client filter guests out).
+ *
+ * Coverage gap (known):
+ *   This happy path exercises only the workshop (no-quota) path. The normal/special
+ *   shared-quota transfer branch (where transfers share ceil(sessions/4) quota with
+ *   makeups) is NOT e2e-covered. Using a workshop avoids ordering conflicts with the
+ *   makeup regression test that also consumes shared quota. The server action code path
+ *   (submitTransferRequest) is identical for all course types except the quota check,
+ *   so the gap is limited to the quota-enforcement branch.
  *
  * Idempotency: seed.sql cleanup deletes prior transfer_requests and attendance for
  * these courses. The test also handles the case where the session already shows
@@ -118,6 +127,26 @@ test.describe('Transfer', () => {
     // Verify: Member2 should appear in the roster as a transfer_in student
     // The roster table should include Member2 with transfer_in label
     await expect(page.getByText('E2E Member2', { exact: true })).toBeVisible({ timeout: 5000 });
+
+    // DB-state assertions: verify transfer wrote correct rows
+    const memberId = await getUserIdByEmail(ACCOUNTS.member.email);
+    const member2Id = await getUserIdByEmail(ACCOUNTS.member2.email);
+
+    // 1. transfer_requests row must exist and be approved
+    const transferReqs = await getTransferRequests(WORKSHOP_ID, memberId);
+    expect(transferReqs.length).toBeGreaterThan(0);
+    const approvedTransfer = transferReqs.find(t => t.status === 'approved' && t.to_user_id === member2Id);
+    expect(approvedTransfer).toBeDefined();
+
+    // 2. Sender should have a transfer_out attendance record on the transferred session
+    const senderAttendance = await getAttendanceRecord(memberId, approvedTransfer!.session_id);
+    expect(senderAttendance).not.toBeNull();
+    expect(senderAttendance!.status).toBe('transfer_out');
+
+    // 3. Recipient should have a transfer_in attendance record on the same session
+    const recipientAttendance = await getAttendanceRecord(member2Id, approvedTransfer!.session_id);
+    expect(recipientAttendance).not.toBeNull();
+    expect(recipientAttendance!.status).toBe('transfer_in');
   });
 
   test('guest is excluded from transfer candidate list', async ({ page }) => {
