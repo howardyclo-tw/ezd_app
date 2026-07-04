@@ -107,6 +107,9 @@ const IDS = {
     regFull1: 'e2e00000-0000-0000-0000-0000000000ca',
     regFree1: 'e2e00000-0000-0000-0000-0000000000cb',
     regFree2: 'e2e00000-0000-0000-0000-0000000000cc',
+    // Phase 5.5 single-add-enroll sessions
+    singleAddNtd1: 'e2e00000-0000-0000-0000-0000000000a4',
+    singleAddFree1: 'e2e00000-0000-0000-0000-0000000000a5',
     // Phase 5.4 resubmit-rebook sessions
     resubA1: 'e2e00000-0000-0000-0000-0000000000f1',
     resubA2: 'e2e00000-0000-0000-0000-0000000000f2',
@@ -128,6 +131,9 @@ const IDS = {
   resubCardCourseA:  'e2e00000-0000-0000-0000-0000000000e1', // card, 2 cards/session, 2 sessions
   resubCardCourseB:  'e2e00000-0000-0000-0000-0000000000e2', // card, 1 card/session, 2 sessions
   resubConfCourse:   'e2e00000-0000-0000-0000-0000000000e3', // ntd, for confirmed-order test
+  // Phase 5.5 single-add-enroll + no-self-cancel fixtures
+  singleAddNtd:      'e2e00000-0000-0000-0000-000000000029', // ntd course with single prices
+  singleAddFree:     'e2e00000-0000-0000-0000-00000000002a', // free course
   enrollments: {
     memberFull:      'e2e00000-0000-0000-0000-000000000060',
     multiSingle:     'e2e00000-0000-0000-0000-000000000061',
@@ -135,6 +141,7 @@ const IDS = {
     workshopFull:    'e2e00000-0000-0000-0000-000000000063',
     singleWaitlist: 'e2e00000-0000-0000-0000-000000000064',
     regFullSeatFiller: 'e2e00000-0000-0000-0000-000000000065', // member2 fills regFullCourse capacity
+    guestFreeEnrolled: 'e2e00000-0000-0000-0000-000000000066', // guest enrolled in free course (no-self-cancel test)
   },
   orders: {
     card10:   'e2e00000-0000-0000-0000-000000000040',
@@ -417,6 +424,33 @@ export default async function globalSetup() {
     enroll_full: true, enroll_single: true, pricing_mode: 'free',
   }, { onConflict: 'id' }));
 
+  // ── 4e. Phase 5.5 single-add-enroll + no-self-cancel fixtures ──
+  // (i) NTD course with enroll_single=true + single prices
+  check('singleAddNtd', await sb.from('courses').upsert({
+    id: IDS.singleAddNtd,
+    name: 'E2E Single-Add NTD',
+    description: 'NTD course for single-add pricing test',
+    type: 'normal', start_time: '07:00', end_time: '08:00', capacity: 20, cards_per_session: 0,
+    group_id: IDS.courseGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'ntd',
+    price_member_single: 300, price_guest_single: 400,
+    price_member_full: 800, price_guest_full: 1200,
+  }, { onConflict: 'id' }));
+
+  // (ii) Free course with enroll_single=true
+  check('singleAddFree', await sb.from('courses').upsert({
+    id: IDS.singleAddFree,
+    name: 'E2E Single-Add Free',
+    description: 'Free course for single-add pricing + no-self-cancel test',
+    type: 'normal', start_time: '06:00', end_time: '07:00', capacity: 20, cards_per_session: 0,
+    group_id: IDS.courseGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'free',
+  }, { onConflict: 'id' }));
+
   // ── 4d. Phase 5.4 resubmit-rebook fixtures ────────────────────
   check('resubGroup', await sb.from('course_groups').upsert({
     id: IDS.resubGroup,
@@ -496,6 +530,9 @@ export default async function globalSetup() {
     { id: IDS.sessions.noSingle1, course_id: IDS.noSingleCourse, session_date: addDays(today, 11), session_number: 1 },
     { id: IDS.sessions.closedWin1, course_id: IDS.closedWindowCourse, session_date: addDays(today, 13), session_number: 1 },
     { id: IDS.sessions.closedPh1, course_id: IDS.closedPhase1Course, session_date: addDays(today, 15), session_number: 1 },
+    // Phase 5.5 single-add-enroll sessions
+    { id: IDS.sessions.singleAddNtd1, course_id: IDS.singleAddNtd, session_date: addDays(today, 6), session_number: 1 },
+    { id: IDS.sessions.singleAddFree1, course_id: IDS.singleAddFree, session_date: addDays(today, 5), session_number: 1 },
     // Phase 5.3 register wizard sessions
     { id: IDS.sessions.regCardAfford1, course_id: IDS.regCardAfford, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.regCardAfford2, course_id: IDS.regCardAfford, session_date: addDays(today, 14), session_number: 2 },
@@ -664,6 +701,22 @@ export default async function globalSetup() {
     .eq('user_id', memberId)
     .eq('course_group_id', IDS.resubGroup));
 
+  // Phase 5.5 single-add-enroll courses: clean non-seed enrollments + orders
+  const singleAddCourseIds = [IDS.singleAddNtd, IDS.singleAddFree];
+  for (const saCourseId of singleAddCourseIds) {
+    const { data: saEnrolls } = await sb.from('enrollments').select('id').eq('course_id', saCourseId);
+    if (saEnrolls?.length) {
+      check(`cleanup card_tx sa ${saCourseId}`, await sb.from('card_transactions').delete()
+        .in('enrollment_id', saEnrolls.map(e => e.id)));
+      // Clean non-seed enrollments (keep guestFreeEnrolled seed)
+      check(`cleanup enroll sa ${saCourseId}`, await sb.from('enrollments').delete()
+        .eq('course_id', saCourseId)
+        .neq('id', IDS.enrollments.guestFreeEnrolled));
+    }
+  }
+  // Clean non-seed orders for member in courseGroup (ntd single-add creates orders here)
+  // Note: seed courseFee order is in SEED_ORDER_IDS, so the generic cleanup at 7g handles it
+
   // Clean poll_votes for register wizard polls (before polls cleanup)
   check('cleanup poll_votes reg', await sb.from('poll_votes').delete()
     .eq('poll_id', IDS.polls.regMvPoll));
@@ -694,6 +747,9 @@ export default async function globalSetup() {
     // Phase 5.3: seat-filler for capacity-1 regFullCourse (member2 fills the only seat)
     { id: IDS.enrollments.regFullSeatFiller, course_id: IDS.regFullCourse, user_id: member2Id,
       status: 'enrolled', type: 'full', session_id: null, source: 'self' },
+    // Phase 5.5: guest enrolled in free course (no-self-cancel adversarial test)
+    { id: IDS.enrollments.guestFreeEnrolled, course_id: IDS.singleAddFree, user_id: guestId,
+      status: 'enrolled', type: 'single', session_id: IDS.sessions.singleAddFree1, source: 'self' },
   ];
 
   for (const e of seedEnrollments) {

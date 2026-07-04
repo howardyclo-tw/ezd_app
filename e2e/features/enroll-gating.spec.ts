@@ -222,9 +222,12 @@ test.describe('Enroll Gating — server-enforced guards', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
-  // ADVERSARIAL (d): card-path enroll on non-card (ntd) course
+  // ADVERSARIAL (d): ntd course without single prices set
   // ──────────────────────────────────────────────────────────────
-  test('ADVERSARIAL: batchEnrollInSessions rejects ntd course via card path', async ({ page }) => {
+  // Since Task 5.5 replaced guardPricingMode with pricing-aware routing,
+  // ntd courses now go through the ntd path. If single prices are not set,
+  // resolvePrice rejects gracefully.
+  test('ADVERSARIAL: batchEnrollInSessions rejects ntd course without single prices', async ({ page }) => {
     await loginAs(page, 'member');
 
     const resp = await page.request.post(API_URL, {
@@ -236,13 +239,13 @@ test.describe('Enroll Gating — server-enforced guards', () => {
     });
     const result = await resp.json();
     expect(result.success).toBe(false);
-    expect(result.message).toContain('不適用堂卡報名');
+    expect(result.message).toContain('NTD price not set');
 
-    // No enrollment row created (beyond the existing seed pending_payment)
+    // No single enrollment row created (beyond the existing seed pending_payment full)
     const rows = await getEnrollments(page, memberId, NTD_COURSE_ID);
-    const cardEnrolled = (rows || []).filter((r: any) =>
-      r.type === 'single' && (r.status === 'enrolled' || r.status === 'waitlist')
+    const singleActive = (rows || []).filter((r: any) =>
+      r.type === 'single' && (r.status === 'enrolled' || r.status === 'waitlist' || r.status === 'pending_payment')
     );
-    expect(cardEnrolled.length).toBe(0);
+    expect(singleActive.length).toBe(0);
   });
 });

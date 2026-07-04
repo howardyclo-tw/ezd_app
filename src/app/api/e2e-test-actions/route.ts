@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
         } else if (action === 'batchEnrollInSessions') {
             if (!courseId || !sessionIds || !Array.isArray(sessionIds)) return NextResponse.json({ error: 'Missing courseId or sessionIds' }, { status: 400 });
             result = await actions.batchEnrollInSessions(courseId, sessionIds);
+        } else if (action === 'cancelEnrollment') {
+            if (!courseId) return NextResponse.json({ error: 'Missing courseId' }, { status: 400 });
+            result = await actions.cancelEnrollment(courseId);
         } else if (action === 'submitGroupEnrollment') {
             if (!groupId || !selections || !Array.isArray(selections)) {
                 return NextResponse.json({ error: 'Missing groupId or selections' }, { status: 400 });

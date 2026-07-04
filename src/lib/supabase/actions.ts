@@ -449,10 +449,10 @@ export async function batchEnrollInSessions(
 
     if (sessionIds.length === 0) return { success: true, message: '無可報名堂次' };
 
-    // 1. Get course and profile
+    // 1. Get course and profile (expanded for pricing identity)
     const [courseRes, profileRes] = await Promise.all([
         supabase.from('courses').select('*').eq('id', courseId).maybeSingle(),
-        supabase.from('profiles').select('card_balance').eq('id', user.id).maybeSingle(),
+        supabase.from('profiles').select('card_balance, role, member_valid_until, member_group_id').eq('id', user.id).maybeSingle(),
     ]);
 
     const course = courseRes.data;
@@ -461,81 +461,190 @@ export async function batchEnrollInSessions(
     if (!course) throw new Error('課程不存在');
     if (!profile) throw new Error('使用者資料不存在');
 
-    // ── Guards: pricing mode, enroll mode, course window ──
-    const pricingMsg = guardPricingMode(course);
-    if (pricingMsg) return { success: false, message: pricingMsg };
-
+    // ── Guards: enroll mode, course window ──
+    // (guardPricingMode removed: pricing-aware routing handles all modes)
     const modeMsg = guardEnrollSingle(course);
     if (modeMsg) return { success: false, message: modeMsg };
 
     const windowMsg = guardCourseWindow(course);
     if (windowMsg) return { success: false, message: windowMsg };
 
-    // 2. Check already enrolled sessions
+    // ── Route by pricing_mode ──
+    const pricingMode = (course.pricing_mode ?? 'card') as string;
+
+    if (pricingMode === 'card') {
+        // ════════════════════════════════════════════════════════════
+        // CARD PATH — existing behavior, kept verbatim for regression
+        // ════════════════════════════════════════════════════════════
+
+        // 2. Check already enrolled sessions
+        const { data: existing } = await supabase.from('enrollments')
+            .select('session_id')
+            .eq('course_id', courseId)
+            .eq('user_id', user.id)
+            .eq('type', 'single')
+            .eq('status', 'enrolled');
+
+        const enrolledSessionIds = new Set((existing ?? []).map(e => e.session_id));
+        const toEnrollSessionIds = sessionIds.filter(id => !enrolledSessionIds.has(id));
+
+        if (toEnrollSessionIds.length === 0) return { success: false, message: '所選堂次皆已報名' };
+
+        // 3. Get each session's date for per-session FIFO pre-check
+        const { data: sessionDateRows } = await supabase
+            .from('course_sessions')
+            .select('id, session_date')
+            .in('id', toEnrollSessionIds)
+            .order('session_date', { ascending: true });
+
+        const sessionDateMap = new Map<string, string>();
+        (sessionDateRows ?? []).forEach(s => sessionDateMap.set(s.id, s.session_date));
+
+        // Simulate per-session FIFO to accurately check availability
+        const { getAvailableCardBalance } = await import('./card-utils');
+        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+        const cardInfo = await getAvailableCardBalance(user.id, today);
+        // Copy pools for simulation
+        const simPools = cardInfo.pools
+            .filter(p => p.remaining > 0)
+            .map(p => ({ ...p, simRemaining: p.remaining }));
+
+        const sortedSessionIds = [...toEnrollSessionIds].sort((a, b) =>
+            (sessionDateMap.get(a) ?? '').localeCompare(sessionDateMap.get(b) ?? ''));
+
+        let canCover = 0;
+        for (const sid of sortedSessionIds) {
+            const sessionDate = sessionDateMap.get(sid)!;
+            let need = course.cards_per_session;
+            for (const pool of simPools) {
+                if (pool.simRemaining <= 0) continue;
+                if (pool.expires_at && pool.expires_at < sessionDate) continue;
+                const take = Math.min(pool.simRemaining, need);
+                pool.simRemaining -= take;
+                need -= take;
+                if (need <= 0) break;
+            }
+            if (need <= 0) canCover++;
+        }
+
+        if (canCover < toEnrollSessionIds.length) {
+            const expiredTotal = simPools.reduce((sum, p) => {
+                // Cards that still have remaining but are expired for at least one uncovered session
+                if (p.simRemaining > 0 && p.expires_at && p.expires_at < (sessionDateMap.get(sortedSessionIds[sortedSessionIds.length - 1]) ?? '')) {
+                    return sum + p.simRemaining;
+                }
+                return sum;
+            }, 0);
+            const expiredHint = expiredTotal > 0 ? `，有堂卡在部分堂次前到期無法使用` : '';
+            return { success: false, message: `堂卡餘額不足（可報 ${canCover} 堂，需報 ${toEnrollSessionIds.length} 堂${expiredHint}）` };
+        }
+
+        // 4. Enroll via atomic RPC (capacity check + insert + card deduction in single txn)
+        const adminClient = createAdminClient();
+        let enrolledCount = 0;
+
+        for (const sid of toEnrollSessionIds) {
+            const { data, error } = await adminClient.rpc('enroll_atomic', {
+                p_user: user.id,
+                p_course: courseId,
+                p_type: 'single',
+                p_session: sid,
+                p_status: 'enrolled',
+                p_cards_to_deduct: course.cards_per_session,
+                p_order_id: null,
+            });
+
+            if (error) throw new Error(`報名失敗: ${error.message}`);
+
+            const result = data as { ok: boolean; enrollment_id?: string; reason?: string };
+            if (!result.ok) {
+                if (result.reason === 'full') {
+                    throw new Error(`第 ${toEnrollSessionIds.indexOf(sid) + 1} 個選擇的堂次已額滿，請重新整理頁面。`);
+                }
+                if (result.reason === 'already_enrolled') continue;
+                if (result.reason === 'insufficient_cards') {
+                    if (enrolledCount > 0) {
+                        revalidatePath('/', 'layout');
+                        return { success: false, message: `已完成 ${enrolledCount} 堂報名，但堂卡不足，剩餘堂次未完成。` };
+                    }
+                    return { success: false, message: '堂卡餘額不足' };
+                }
+                throw new Error(`報名失敗: ${result.reason}`);
+            }
+            enrolledCount++;
+        }
+
+        revalidatePath('/', 'layout');
+        return { success: true, message: `成功報名 ${enrolledCount} 堂課，扣除 ${enrolledCount * course.cards_per_session} 堂卡。` };
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // NTD / FREE PATH — pricing-aware single enrollment
+    // ════════════════════════════════════════════════════════════════
+
+    // Resolve member identity for pricing
+    const adminClient = createAdminClient();
+    let groupValidUntil: string | null = null;
+    if (profile.member_group_id) {
+        const { data: memberGroup } = await adminClient.from('member_groups')
+            .select('valid_until')
+            .eq('id', profile.member_group_id)
+            .maybeSingle();
+        groupValidUntil = memberGroup?.valid_until ?? null;
+    }
+
+    const taipeiToday = getTaipeiToday();
+    const memberActive = isMemberActive(
+        { role: profile.role, member_valid_until: profile.member_valid_until ?? null, groupValidUntil },
+        taipeiToday
+    );
+
+    // Check existing enrollments (include pending_payment for ntd)
     const { data: existing } = await supabase.from('enrollments')
         .select('session_id')
         .eq('course_id', courseId)
         .eq('user_id', user.id)
         .eq('type', 'single')
-        .eq('status', 'enrolled');
+        .in('status', ['enrolled', 'pending_payment']);
 
     const enrolledSessionIds = new Set((existing ?? []).map(e => e.session_id));
     const toEnrollSessionIds = sessionIds.filter(id => !enrolledSessionIds.has(id));
 
     if (toEnrollSessionIds.length === 0) return { success: false, message: '所選堂次皆已報名' };
 
-    // 3. Get each session's date for per-session FIFO pre-check
-    const { data: sessionDateRows } = await supabase
+    // Compute session count for PricingInputs (resolvePrice ignores it for single mode, but required by type)
+    const { data: allSessions } = await supabase
         .from('course_sessions')
-        .select('id, session_date')
-        .in('id', toEnrollSessionIds)
-        .order('session_date', { ascending: true });
+        .select('id')
+        .eq('course_id', courseId);
+    const sessionCount = allSessions?.length ?? 0;
 
-    const sessionDateMap = new Map<string, string>();
-    (sessionDateRows ?? []).forEach(s => sessionDateMap.set(s.id, s.session_date));
+    const pricingInputs = {
+        pricing_mode: pricingMode as import('@/types/database').PricingMode,
+        cards_per_session: course.cards_per_session,
+        price_member_single: course.price_member_single,
+        price_guest_single: course.price_guest_single,
+        price_member_full: course.price_member_full,
+        price_guest_full: course.price_guest_full,
+        sessionCount,
+    };
 
-    // Simulate per-session FIFO to accurately check availability
-    const { getAvailableCardBalance } = await import('./card-utils');
-    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
-    const cardInfo = await getAvailableCardBalance(user.id, today);
-    // Copy pools for simulation
-    const simPools = cardInfo.pools
-        .filter(p => p.remaining > 0)
-        .map(p => ({ ...p, simRemaining: p.remaining }));
-
-    const sortedSessionIds = [...toEnrollSessionIds].sort((a, b) =>
-        (sessionDateMap.get(a) ?? '').localeCompare(sessionDateMap.get(b) ?? ''));
-
-    let canCover = 0;
-    for (const sid of sortedSessionIds) {
-        const sessionDate = sessionDateMap.get(sid)!;
-        let need = course.cards_per_session;
-        for (const pool of simPools) {
-            if (pool.simRemaining <= 0) continue;
-            if (pool.expires_at && pool.expires_at < sessionDate) continue;
-            const take = Math.min(pool.simRemaining, need);
-            pool.simRemaining -= take;
-            need -= take;
-            if (need <= 0) break;
-        }
-        if (need <= 0) canCover++;
+    let priceResult: import('@/lib/supabase/pricing').PriceResult;
+    try {
+        priceResult = resolvePrice(pricingInputs, memberActive, 'single');
+    } catch (e: unknown) {
+        return { success: false, message: e instanceof Error ? e.message : '定價錯誤' };
     }
 
-    if (canCover < toEnrollSessionIds.length) {
-        const expiredTotal = simPools.reduce((sum, p) => {
-            // Cards that still have remaining but are expired for at least one uncovered session
-            if (p.simRemaining > 0 && p.expires_at && p.expires_at < (sessionDateMap.get(sortedSessionIds[sortedSessionIds.length - 1]) ?? '')) {
-                return sum + p.simRemaining;
-            }
-            return sum;
-        }, 0);
-        const expiredHint = expiredTotal > 0 ? `，有堂卡在部分堂次前到期無法使用` : '';
-        return { success: false, message: `堂卡餘額不足（可報 ${canCover} 堂，需報 ${toEnrollSessionIds.length} 堂${expiredHint}）` };
-    }
+    // TODO (Phase 7): absence-penalty / blacklist guard for free courses.
+    // If pricing_mode=free, check whether the user is blacklisted for chronic
+    // no-shows and reject enrollment if so. Not implemented yet.
 
-    // 4. Enroll via atomic RPC (capacity check + insert + card deduction in single txn)
-    const adminClient = createAdminClient();
+    const isFree = priceResult.kind === 'free';
+    const enrollStatus = isFree ? 'enrolled' : 'pending_payment';
     let enrolledCount = 0;
+    const ntdEnrollmentIds: string[] = [];
+    let totalNtdAmount = 0;
 
     for (const sid of toEnrollSessionIds) {
         const { data, error } = await adminClient.rpc('enroll_atomic', {
@@ -543,8 +652,8 @@ export async function batchEnrollInSessions(
             p_course: courseId,
             p_type: 'single',
             p_session: sid,
-            p_status: 'enrolled',
-            p_cards_to_deduct: course.cards_per_session,
+            p_status: enrollStatus,
+            p_cards_to_deduct: 0,
             p_order_id: null,
         });
 
@@ -556,38 +665,79 @@ export async function batchEnrollInSessions(
                 throw new Error(`第 ${toEnrollSessionIds.indexOf(sid) + 1} 個選擇的堂次已額滿，請重新整理頁面。`);
             }
             if (result.reason === 'already_enrolled') continue;
-            if (result.reason === 'insufficient_cards') {
-                if (enrolledCount > 0) {
-                    revalidatePath('/', 'layout');
-                    return { success: false, message: `已完成 ${enrolledCount} 堂報名，但堂卡不足，剩餘堂次未完成。` };
-                }
-                return { success: false, message: '堂卡餘額不足' };
-            }
             throw new Error(`報名失敗: ${result.reason}`);
         }
+
         enrolledCount++;
+
+        if (!isFree && priceResult.kind === 'ntd') {
+            ntdEnrollmentIds.push(result.enrollment_id!);
+            totalNtdAmount += priceResult.amount;
+        }
     }
 
+    if (enrolledCount === 0) return { success: false, message: '所選堂次皆已報名' };
+
+    // Create course_fee order for NTD enrollments (server-resolved amount, client prices ignored)
+    if (ntdEnrollmentIds.length > 0) {
+        await createCourseFeeOrder({
+            userId: user.id,
+            courseGroupId: course.group_id,
+            amount: totalNtdAmount,
+            enrollmentIds: ntdEnrollmentIds,
+        });
+
+        revalidatePath('/', 'layout');
+        return { success: true, message: `成功報名 ${enrolledCount} 堂課，請至訂單頁面繳費。` };
+    }
+
+    // Free enrollments completed
     revalidatePath('/', 'layout');
-    return { success: true, message: `成功報名 ${enrolledCount} 堂課，扣除 ${enrolledCount * course.cards_per_session} 堂卡。` };
+    return { success: true, message: `成功報名 ${enrolledCount} 堂課。` };
 }
 
 /**
  * Cancel current user's enrollment in a course.
- * Promotes first waitlist person if applicable.
+ *
+ * Server-enforced no-self-cancel rule:
+ *   - ALLOWED: status=waitlist, or pending_payment whose linked order is NOT confirmed.
+ *   - REJECTED: status=enrolled (regardless of card/ntd/free pricing),
+ *               or pending_payment whose linked order IS confirmed.
+ *
+ * Promotes first waitlisted person when an occupying seat (pending_payment) is freed.
  */
 export async function cancelEnrollment(courseId: string): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
     const { data: enrollments } = await supabase
         .from('enrollments')
-        .select('id, status')
+        .select('id, status, order_id')
         .eq('course_id', courseId)
         .eq('user_id', user.id);
 
     const enrollment = enrollments?.find(e => e.status !== 'cancelled') || enrollments?.[0];
 
     if (!enrollment) return { success: false, message: '您未報名此課程' };
+
+    // ── Server-enforced no-self-cancel for established enrollments ──
+    if (enrollment.status === 'enrolled') {
+        return { success: false, message: '已成立的報名無法自行取消，請洽幹部或改用請假。' };
+    }
+
+    if (enrollment.status === 'pending_payment' && enrollment.order_id) {
+        // Check if the linked order is confirmed — block self-cancel if so
+        const { data: order } = await supabase
+            .from('orders')
+            .select('status')
+            .eq('id', enrollment.order_id)
+            .maybeSingle();
+
+        if (order?.status === 'confirmed') {
+            return { success: false, message: '已確認的繳費單無法自行取消，請洽幹部。' };
+        }
+    }
+
+    // Self-cancel allowed: waitlist or pending_payment with non-confirmed order
 
     // Cancel
     const { error } = await supabase
@@ -597,8 +747,9 @@ export async function cancelEnrollment(courseId: string): Promise<{ success: boo
 
     if (error) throw new Error(`取消失敗: ${error.message}`);
 
-    // Promote first waitlisted person if this was an enrolled slot
-    if (enrollment.status === 'enrolled') {
+    // Promote first waitlisted person if an occupying seat was freed
+    // (pending_payment occupies a seat; waitlist does not; enrolled is now blocked above)
+    if (enrollment.status === 'pending_payment') {
         const { data: firstWaitlist } = await supabase
             .from('enrollments')
             .select('id')
