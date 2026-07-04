@@ -10,7 +10,7 @@ import { createClient } from './server';
 import { createAdminClient } from './admin';
 import { computeMakeupQuota, isBeforeClass } from '@/types/database';
 import { getUserMakeupQuotaUsed, getUserTransferCount, getSystemConfig } from './queries';
-import { isMemberActive } from '@/lib/supabase/pricing';
+import { isMemberActive, resolvePrice } from '@/lib/supabase/pricing';
 import { getTaipeiToday } from '@/lib/date';
 import { isCardWindowOpen, getCardPurchaseWindow } from '@/lib/card-window';
 import { validatePurchaseQuantity } from '@/lib/card-purchase';
@@ -3162,4 +3162,375 @@ export async function reviewSingleEnrollment(
         revalidatePath('/', 'layout');
         return { success: true, message: '已重新核准單堂報名，堂卡已扣除' };
     }
+}
+
+// ------------------------------------------------------------------
+// Group Enrollment Wizard — submitGroupEnrollment (Phase 5.3)
+// ------------------------------------------------------------------
+
+export interface GroupEnrollmentSelection {
+    courseId: string;
+    mode: 'full';
+    wantsLeader: boolean;
+    /** Accepted in the payload shape for Task 6.2 vote-writing; NOT persisted here. */
+    votes?: Array<{ pollId: string; optionIds: string[] }>;
+}
+
+export interface GroupEnrollmentPayload {
+    groupId: string;
+    selections: GroupEnrollmentSelection[];
+    buyCards?: { quantity: number; remittance?: { bankCode: string; last5: string; remittanceDate: string; note?: string } };
+    includeMembership?: boolean;
+}
+
+export type PerCourseStatus = 'enrolled' | 'pending_payment' | 'pending_vote' | 'full' | 'rejected';
+
+export interface PerCourseResult {
+    courseId: string;
+    status: PerCourseStatus;
+    reason?: string;
+}
+
+export interface GroupEnrollmentResult {
+    perCourse: PerCourseResult[];
+    orderId?: string;
+    cardOrderId?: string;
+}
+
+/**
+ * Multi-course group enrollment wizard action.
+ *
+ * Processes each selected course independently — one course failing does NOT
+ * abort the others. Routes each course by its pricing_mode and MV-poll status.
+ *
+ * NEVER trusts client-sent amounts — all prices are server-resolved via resolvePrice.
+ */
+export async function submitGroupEnrollment(
+    payload: GroupEnrollmentPayload
+): Promise<GroupEnrollmentResult> {
+    const { user } = await getCurrentUser();
+    const adminClient = createAdminClient();
+
+    // ── 1. Auth & profile fetch ──
+    const { data: profile } = await adminClient
+        .from('profiles')
+        .select('role, member_valid_until, member_group_id, member_groups ( valid_until )')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (!profile) throw new Error('使用者資料不存在');
+
+    // ── 2. Guest guard — guests cannot full-enroll ──
+    if (profile.role === 'guest') {
+        throw new Error('非社員無法整期報名，請先加入社員。');
+    }
+
+    // ── 3. Compute isMember for pricing ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const groupValidUntil = (profile.member_groups as any)?.valid_until ?? null;
+    const taipeiToday = getTaipeiToday();
+    const memberActive = isMemberActive(
+        { role: profile.role, member_valid_until: profile.member_valid_until ?? null, groupValidUntil },
+        taipeiToday
+    );
+
+    // ── 4. Fetch all selected courses with sessions count ──
+    const courseIds = payload.selections.map(s => s.courseId);
+    const { data: courses } = await adminClient
+        .from('courses')
+        .select('*, course_sessions(id, session_date, session_number)')
+        .in('id', courseIds);
+
+    const courseMap = new Map((courses ?? []).map(c => [c.id, c]));
+
+    // ── 5. Check which courses have open polls (MV detection) ──
+    const { data: openPolls } = await adminClient
+        .from('course_polls')
+        .select('id, course_id')
+        .in('course_id', courseIds)
+        .eq('status', 'open');
+
+    const mvCourseIds = new Set((openPolls ?? []).map(p => p.course_id));
+
+    // ── 6. Check group phase1 window (single check since all courses share groupId) ──
+    const phase1Msg = await guardGroupPhase1Window(adminClient, payload.groupId);
+
+    // ── 7. Process each selection independently ──
+    const perCourse: PerCourseResult[] = [];
+    const ntdEnrollmentIds: string[] = [];
+    let ntdTotalAmount = 0;
+    const cardPendingEnrollmentIds: string[] = [];
+
+    for (const sel of payload.selections) {
+        const course = courseMap.get(sel.courseId);
+        if (!course) {
+            perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '課程不存在' });
+            continue;
+        }
+
+        // ── Guards ──
+        // Guard: enroll_full
+        const fullMsg = guardEnrollFull(course);
+        if (fullMsg) {
+            perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '此課程未開放整期報名' });
+            continue;
+        }
+
+        // Guard: group phase1 window
+        if (phase1Msg) {
+            perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: phase1Msg });
+            continue;
+        }
+
+        // ── Route by MV status ──
+        if (mvCourseIds.has(sel.courseId)) {
+            // MV course: pending_vote, no deduction, no order
+            const { data: rpcResult, error: rpcError } = await adminClient.rpc('enroll_atomic', {
+                p_user: user.id,
+                p_course: sel.courseId,
+                p_type: 'full',
+                p_session: null,
+                p_status: 'pending_vote',
+                p_cards_to_deduct: 0,
+                p_order_id: null,
+            });
+
+            if (rpcError) {
+                perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: rpcError.message });
+                continue;
+            }
+
+            const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+            if (!result.ok) {
+                if (result.reason === 'full') {
+                    perCourse.push({ courseId: sel.courseId, status: 'full' });
+                } else if (result.reason === 'already_enrolled') {
+                    perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '已報名此課程' });
+                } else {
+                    perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: result.reason });
+                }
+                continue;
+            }
+
+            // Set wants_leader
+            if (result.enrollment_id) {
+                await adminClient.from('enrollments')
+                    .update({ wants_leader: sel.wantsLeader })
+                    .eq('id', result.enrollment_id);
+            }
+
+            // TODO [Task 6.2]: persist votes from sel.votes here
+            // Vote-writing and vote-integrity guards are deferred to Task 6.2.
+
+            perCourse.push({ courseId: sel.courseId, status: 'pending_vote' });
+            continue;
+        }
+
+        // ── Route by pricing_mode ──
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sessions = (course.course_sessions as any[]) ?? [];
+        const sessionCount = sessions.length;
+        const pricingInputs = {
+            pricing_mode: course.pricing_mode as import('@/types/database').PricingMode,
+            cards_per_session: course.cards_per_session,
+            price_member_single: course.price_member_single,
+            price_guest_single: course.price_guest_single,
+            price_member_full: course.price_member_full,
+            price_guest_full: course.price_guest_full,
+            sessionCount,
+        };
+
+        let price: import('@/lib/supabase/pricing').PriceResult;
+        try {
+            price = resolvePrice(pricingInputs, memberActive, 'full');
+        } catch (e: unknown) {
+            perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: e instanceof Error ? e.message : '定價錯誤' });
+            continue;
+        }
+
+        if (price.kind === 'free') {
+            // Free course: enroll immediately
+            const { data: rpcResult, error: rpcError } = await adminClient.rpc('enroll_atomic', {
+                p_user: user.id,
+                p_course: sel.courseId,
+                p_type: 'full',
+                p_session: null,
+                p_status: 'enrolled',
+                p_cards_to_deduct: 0,
+                p_order_id: null,
+            });
+
+            if (rpcError) {
+                perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: rpcError.message });
+                continue;
+            }
+
+            const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+            if (!result.ok) {
+                if (result.reason === 'full') { perCourse.push({ courseId: sel.courseId, status: 'full' }); }
+                else if (result.reason === 'already_enrolled') { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '已報名此課程' }); }
+                else { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: result.reason }); }
+                continue;
+            }
+
+            if (result.enrollment_id) {
+                await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
+            }
+            perCourse.push({ courseId: sel.courseId, status: 'enrolled' });
+
+        } else if (price.kind === 'card') {
+            // Card course: check balance
+            const { getAvailableCardBalance } = await import('@/lib/supabase/card-utils');
+
+            // Get latest session date for expiry check
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sortedSessions = [...sessions].sort((a: any, b: any) =>
+                (b.session_date as string).localeCompare(a.session_date as string));
+            const latestSessionDate = sortedSessions[0]?.session_date ?? taipeiToday;
+
+            const cardInfo = await getAvailableCardBalance(user.id, latestSessionDate);
+            const cardsNeeded = price.cards;
+
+            if (cardInfo.available >= cardsNeeded) {
+                // Sufficient cards: enroll + deduct
+                const { data: rpcResult, error: rpcError } = await adminClient.rpc('enroll_atomic', {
+                    p_user: user.id,
+                    p_course: sel.courseId,
+                    p_type: 'full',
+                    p_session: null,
+                    p_status: 'enrolled',
+                    p_cards_to_deduct: cardsNeeded,
+                    p_order_id: null,
+                });
+
+                if (rpcError) {
+                    perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: rpcError.message });
+                    continue;
+                }
+
+                const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+                if (!result.ok) {
+                    if (result.reason === 'full') { perCourse.push({ courseId: sel.courseId, status: 'full' }); }
+                    else if (result.reason === 'already_enrolled') { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '已報名此課程' }); }
+                    else if (result.reason === 'insufficient_cards') { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '堂卡不足' }); }
+                    else { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: result.reason }); }
+                    continue;
+                }
+
+                if (result.enrollment_id) {
+                    await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
+                }
+                perCourse.push({ courseId: sel.courseId, status: 'enrolled' });
+
+            } else if (payload.buyCards) {
+                // Shortfall + buyCards: pending_payment enrollment + card order
+                const { data: rpcResult, error: rpcError } = await adminClient.rpc('enroll_atomic', {
+                    p_user: user.id,
+                    p_course: sel.courseId,
+                    p_type: 'full',
+                    p_session: null,
+                    p_status: 'pending_payment',
+                    p_cards_to_deduct: 0,
+                    p_order_id: null,
+                });
+
+                if (rpcError) {
+                    perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: rpcError.message });
+                    continue;
+                }
+
+                const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+                if (!result.ok) {
+                    if (result.reason === 'full') { perCourse.push({ courseId: sel.courseId, status: 'full' }); }
+                    else if (result.reason === 'already_enrolled') { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '已報名此課程' }); }
+                    else { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: result.reason }); }
+                    continue;
+                }
+
+                if (result.enrollment_id) {
+                    await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
+                    cardPendingEnrollmentIds.push(result.enrollment_id);
+                }
+                perCourse.push({ courseId: sel.courseId, status: 'pending_payment' });
+
+            } else {
+                // Shortfall and no buyCards: rejected
+                perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '堂卡不足' });
+            }
+
+        } else if (price.kind === 'ntd') {
+            // NTD course: pending_payment enrollment, collect for batch order
+            const { data: rpcResult, error: rpcError } = await adminClient.rpc('enroll_atomic', {
+                p_user: user.id,
+                p_course: sel.courseId,
+                p_type: 'full',
+                p_session: null,
+                p_status: 'pending_payment',
+                p_cards_to_deduct: 0,
+                p_order_id: null,
+            });
+
+            if (rpcError) {
+                perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: rpcError.message });
+                continue;
+            }
+
+            const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+            if (!result.ok) {
+                if (result.reason === 'full') { perCourse.push({ courseId: sel.courseId, status: 'full' }); }
+                else if (result.reason === 'already_enrolled') { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '已報名此課程' }); }
+                else { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: result.reason }); }
+                continue;
+            }
+
+            if (result.enrollment_id) {
+                await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
+                ntdEnrollmentIds.push(result.enrollment_id);
+            }
+            ntdTotalAmount += price.amount;
+            perCourse.push({ courseId: sel.courseId, status: 'pending_payment' });
+        }
+    }
+
+    // ── 8. Create orders for pending_payment enrollments ──
+    let orderId: string | undefined;
+    let cardOrderId: string | undefined;
+
+    // NTD: create a single course_fee order for all ntd enrollments
+    if (ntdEnrollmentIds.length > 0 && ntdTotalAmount > 0) {
+        const result = await createCourseFeeOrder({
+            userId: user.id,
+            courseGroupId: payload.groupId,
+            amount: ntdTotalAmount,
+            enrollmentIds: ntdEnrollmentIds,
+        });
+        orderId = result.orderId;
+    }
+
+    // Card shortfall: create a card_purchase order for buyCards
+    if (cardPendingEnrollmentIds.length > 0 && payload.buyCards) {
+        const { quantity, remittance } = payload.buyCards;
+        // Always create the order first to capture orderId
+        const orderRes = await createCardOrder(quantity, payload.includeMembership ?? false);
+        if (orderRes.success && orderRes.orderId) {
+            cardOrderId = orderRes.orderId;
+            // Submit remittance info if provided
+            if (remittance) {
+                await submitRemittanceInfo(
+                    orderRes.orderId,
+                    remittance.bankCode,
+                    remittance.last5,
+                    remittance.remittanceDate,
+                    remittance.note,
+                );
+            }
+            // Link card-pending enrollments to this card order
+            await adminClient.from('enrollments')
+                .update({ order_id: orderRes.orderId })
+                .in('id', cardPendingEnrollmentIds);
+        }
+    }
+
+    revalidatePath('/', 'layout');
+    return { perCourse, orderId, cardOrderId };
 }

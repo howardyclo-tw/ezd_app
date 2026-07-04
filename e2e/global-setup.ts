@@ -60,6 +60,15 @@ const IDS = {
   closedWindowCourse:'e2e00000-0000-0000-0000-000000000027', // single window in the past
   closedPhase1Course:'e2e00000-0000-0000-0000-000000000028', // full, in a closed-phase1 group
   closedPhase1Group: 'e2e00000-0000-0000-0000-000000000011', // group with phase1 ended
+  // Phase 5.3 group enrollment wizard fixtures
+  regGroup:          'e2e00000-0000-0000-0000-000000000012', // open phase1 group for register wizard
+  regCardAfford:     'e2e00000-0000-0000-0000-0000000000b1', // card course, member can afford (1 card/session, 2 sessions = 2 cards)
+  regCardShortfall:  'e2e00000-0000-0000-0000-0000000000b2', // card course, shortfall (3 cards/session, 8 sessions = 24 cards)
+  regMvCourse:       'e2e00000-0000-0000-0000-0000000000b3', // MV course with open poll
+  regNtdCourse:      'e2e00000-0000-0000-0000-0000000000b4', // ntd course with member/guest full prices
+  regNoFullCourse:   'e2e00000-0000-0000-0000-0000000000b5', // enroll_full=false
+  regFullCourse:     'e2e00000-0000-0000-0000-0000000000b6', // capacity-1 pre-filled by member2
+  regFreeCourse:     'e2e00000-0000-0000-0000-0000000000b7', // free pricing_mode course
   sessions: {
     past14:  'e2e00000-0000-0000-0000-00000000002f',
     past7:   'e2e00000-0000-0000-0000-000000000030',
@@ -81,6 +90,27 @@ const IDS = {
     noSingle1:'e2e00000-0000-0000-0000-0000000000a1',
     closedWin1:'e2e00000-0000-0000-0000-0000000000a2',
     closedPh1: 'e2e00000-0000-0000-0000-0000000000a3',
+    // Phase 5.3 register wizard sessions
+    regCardAfford1: 'e2e00000-0000-0000-0000-0000000000c1',
+    regCardAfford2: 'e2e00000-0000-0000-0000-0000000000c2',
+    regCardShortfall1: 'e2e00000-0000-0000-0000-0000000000c3',
+    regCardShortfall2: 'e2e00000-0000-0000-0000-0000000000c4',
+    regMv1: 'e2e00000-0000-0000-0000-0000000000c5',
+    regMv2: 'e2e00000-0000-0000-0000-0000000000c6',
+    regNtd1: 'e2e00000-0000-0000-0000-0000000000c7',
+    regNtd2: 'e2e00000-0000-0000-0000-0000000000c8',
+    regNoFull1: 'e2e00000-0000-0000-0000-0000000000c9',
+    regFull1: 'e2e00000-0000-0000-0000-0000000000ca',
+    regFree1: 'e2e00000-0000-0000-0000-0000000000cb',
+    regFree2: 'e2e00000-0000-0000-0000-0000000000cc',
+  },
+  // Phase 5.3 polls/options
+  polls: {
+    regMvPoll: 'e2e00000-0000-0000-0000-0000000000d1',
+  },
+  pollOptions: {
+    regMvOpt1: 'e2e00000-0000-0000-0000-0000000000d2',
+    regMvOpt2: 'e2e00000-0000-0000-0000-0000000000d3',
   },
   enrollments: {
     memberFull:      'e2e00000-0000-0000-0000-000000000060',
@@ -88,6 +118,7 @@ const IDS = {
     ntdPending:      'e2e00000-0000-0000-0000-000000000062',
     workshopFull:    'e2e00000-0000-0000-0000-000000000063',
     singleWaitlist: 'e2e00000-0000-0000-0000-000000000064',
+    regFullSeatFiller: 'e2e00000-0000-0000-0000-000000000065', // member2 fills regFullCourse capacity
   },
   orders: {
     card10:   'e2e00000-0000-0000-0000-000000000040',
@@ -271,6 +302,105 @@ export default async function globalSetup() {
     enroll_full: true, enroll_single: true, pricing_mode: 'card',
   }, { onConflict: 'id' }));
 
+  // ── 4c. Phase 5.3 register-wizard fixtures ─────────────────────
+  // Register wizard course group (open phase1)
+  check('regGroup', await sb.from('course_groups').upsert({
+    id: IDS.regGroup,
+    title: 'E2E Register Wizard Group',
+    description: 'Open-phase1 group for register wizard tests',
+    region: 'HQ',
+    period_start: today,
+    period_end: addDays(today, 90),
+    registration_phase1_start: new Date(Date.now() - 86400000).toISOString(),
+    registration_phase1_end:   new Date(Date.now() + 14 * 86400000).toISOString(),
+  }, { onConflict: 'id' }));
+
+  // (i) Card course member can afford: 1 card/session, 2 sessions = 2 cards
+  check('regCardAfford', await sb.from('courses').upsert({
+    id: IDS.regCardAfford,
+    name: 'E2E Reg Card Affordable',
+    description: 'Card course for register wizard (affordable)',
+    type: 'normal', start_time: '09:00', end_time: '10:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.regGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
+  // (ii) Card course exceeding balance: 3 cards/session, 8 sessions = 24 cards total
+  check('regCardShortfall', await sb.from('courses').upsert({
+    id: IDS.regCardShortfall,
+    name: 'E2E Reg Card Shortfall',
+    description: 'Card course for register wizard (shortfall)',
+    type: 'normal', start_time: '10:00', end_time: '11:00', capacity: 20, cards_per_session: 3,
+    group_id: IDS.regGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
+  // (iii) MV course with an open poll
+  check('regMvCourse', await sb.from('courses').upsert({
+    id: IDS.regMvCourse,
+    name: 'E2E Reg MV Course',
+    description: 'MV course for register wizard (vote-gated)',
+    type: 'normal', start_time: '11:00', end_time: '12:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.regGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
+  // (iv) NTD course with member/guest full prices set
+  check('regNtdCourse', await sb.from('courses').upsert({
+    id: IDS.regNtdCourse,
+    name: 'E2E Reg NTD Course',
+    description: 'NTD course for register wizard',
+    type: 'normal', start_time: '13:00', end_time: '14:00', capacity: 20, cards_per_session: 0,
+    group_id: IDS.regGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'ntd',
+    price_member_full: 800, price_guest_full: 1200,
+    price_member_single: 300, price_guest_single: 400,
+  }, { onConflict: 'id' }));
+
+  // (v) enroll_full=false course
+  check('regNoFullCourse', await sb.from('courses').upsert({
+    id: IDS.regNoFullCourse,
+    name: 'E2E Reg No-Full Course',
+    description: 'Course with enroll_full disabled',
+    type: 'normal', start_time: '14:00', end_time: '15:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.regGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: false, enroll_single: true, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
+  // (vi) Capacity-1 course, pre-filled by member2
+  check('regFullCourse', await sb.from('courses').upsert({
+    id: IDS.regFullCourse,
+    name: 'E2E Reg Full Course',
+    description: 'Capacity-1 course pre-filled for capacity test',
+    type: 'normal', start_time: '15:00', end_time: '16:00', capacity: 1, cards_per_session: 1,
+    group_id: IDS.regGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
+  // (vii) Free course
+  check('regFreeCourse', await sb.from('courses').upsert({
+    id: IDS.regFreeCourse,
+    name: 'E2E Reg Free Course',
+    description: 'Free pricing_mode course for register wizard',
+    type: 'normal', start_time: '16:00', end_time: '17:00', capacity: 20, cards_per_session: 0,
+    group_id: IDS.regGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'free',
+  }, { onConflict: 'id' }));
+
   // ── 5. Upsert course_sessions ─────────────────────────────────
   const sessions = [
     // Basic Groove: 2 past + 3 future
@@ -300,6 +430,19 @@ export default async function globalSetup() {
     { id: IDS.sessions.noSingle1, course_id: IDS.noSingleCourse, session_date: addDays(today, 11), session_number: 1 },
     { id: IDS.sessions.closedWin1, course_id: IDS.closedWindowCourse, session_date: addDays(today, 13), session_number: 1 },
     { id: IDS.sessions.closedPh1, course_id: IDS.closedPhase1Course, session_date: addDays(today, 15), session_number: 1 },
+    // Phase 5.3 register wizard sessions
+    { id: IDS.sessions.regCardAfford1, course_id: IDS.regCardAfford, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.regCardAfford2, course_id: IDS.regCardAfford, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.regCardShortfall1, course_id: IDS.regCardShortfall, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.regCardShortfall2, course_id: IDS.regCardShortfall, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.regMv1, course_id: IDS.regMvCourse, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.regMv2, course_id: IDS.regMvCourse, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.regNtd1, course_id: IDS.regNtdCourse, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.regNtd2, course_id: IDS.regNtdCourse, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.regNoFull1, course_id: IDS.regNoFullCourse, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.regFull1, course_id: IDS.regFullCourse, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.regFree1, course_id: IDS.regFreeCourse, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.regFree2, course_id: IDS.regFreeCourse, session_date: addDays(today, 14), session_number: 2 },
   ];
 
   for (const s of sessions) {
@@ -410,6 +553,29 @@ export default async function globalSetup() {
       .eq('course_id', gatingCourseId));
   }
 
+  // Phase 5.3 register wizard courses: clean all enrollments + card_transactions + orders
+  const regCourseIds = [IDS.regCardAfford, IDS.regCardShortfall, IDS.regMvCourse,
+    IDS.regNtdCourse, IDS.regNoFullCourse, IDS.regFullCourse, IDS.regFreeCourse];
+  for (const regCourseId of regCourseIds) {
+    const { data: regEnrolls } = await sb.from('enrollments').select('id, order_id').eq('course_id', regCourseId);
+    if (regEnrolls?.length) {
+      check(`cleanup card_tx reg ${regCourseId}`, await sb.from('card_transactions').delete()
+        .in('enrollment_id', regEnrolls.map(e => e.id)));
+      // Clean non-seed enrollments (keep the seat-filler)
+      check(`cleanup enroll reg ${regCourseId}`, await sb.from('enrollments').delete()
+        .eq('course_id', regCourseId)
+        .neq('id', IDS.enrollments.regFullSeatFiller));
+    }
+  }
+  // Clean non-seed orders for member in regGroup
+  check('cleanup reg orders member', await sb.from('orders').delete()
+    .eq('user_id', memberId)
+    .eq('course_group_id', IDS.regGroup));
+
+  // Clean poll_votes for register wizard polls (before polls cleanup)
+  check('cleanup poll_votes reg', await sb.from('poll_votes').delete()
+    .eq('poll_id', IDS.polls.regMvPoll));
+
   // 7g. Non-seed orders
   check('cleanup orders', await sb.from('orders').delete()
     .eq('user_id', memberId)
@@ -433,6 +599,9 @@ export default async function globalSetup() {
       status: 'enrolled', type: 'full', session_id: null, source: 'self' },
     { id: IDS.enrollments.singleWaitlist, course_id: IDS.singleCourse, user_id: member2Id,
       status: 'waitlist', type: 'full', session_id: null, source: 'self', waitlist_position: 1 },
+    // Phase 5.3: seat-filler for capacity-1 regFullCourse (member2 fills the only seat)
+    { id: IDS.enrollments.regFullSeatFiller, course_id: IDS.regFullCourse, user_id: member2Id,
+      status: 'enrolled', type: 'full', session_id: null, source: 'self' },
   ];
 
   for (const e of seedEnrollments) {
@@ -476,6 +645,33 @@ export default async function globalSetup() {
     user_id: memberId, type: 'purchase', amount: 2, balance_after: 12,
     order_id: IDS.orders.card2, note: 'E2E seed: 2 cards for multi-card course',
     created_by: adminId,
+  }, { onConflict: 'id' }));
+
+  // ── 10b. Phase 5.3: Upsert MV poll + options for regMvCourse ──
+  check('poll regMv', await sb.from('course_polls').upsert({
+    id: IDS.polls.regMvPoll,
+    course_id: IDS.regMvCourse,
+    title: 'E2E MV Song Poll',
+    vote_type: 'multi',
+    status: 'open',
+  }, { onConflict: 'id' }));
+
+  check('pollOption regMvOpt1', await sb.from('poll_options').upsert({
+    id: IDS.pollOptions.regMvOpt1,
+    poll_id: IDS.polls.regMvPoll,
+    label: 'Song A - Test',
+    youtube_url: 'https://youtube.com/watch?v=test1',
+    is_winner: false,
+    sort_order: 1,
+  }, { onConflict: 'id' }));
+
+  check('pollOption regMvOpt2', await sb.from('poll_options').upsert({
+    id: IDS.pollOptions.regMvOpt2,
+    poll_id: IDS.polls.regMvPoll,
+    label: 'Song B - Test',
+    youtube_url: 'https://youtube.com/watch?v=test2',
+    is_winner: false,
+    sort_order: 2,
   }, { onConflict: 'id' }));
 
   // ── 11. Upsert absence on past session ────────────────────────

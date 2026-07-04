@@ -12,7 +12,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { action, orderId, groupId, groupName, groupValidUntil,
-            courseId, courseIds, sessionIds, sessionId, enrollType } = body;
+            courseId, courseIds, sessionIds, sessionId, enrollType,
+            selections, buyCards, includeMembership } = body;
 
     if (!action) {
         return NextResponse.json({ error: 'Missing action' }, { status: 400 });
@@ -46,6 +47,16 @@ export async function POST(request: NextRequest) {
         } else if (action === 'batchEnrollInSessions') {
             if (!courseId || !sessionIds || !Array.isArray(sessionIds)) return NextResponse.json({ error: 'Missing courseId or sessionIds' }, { status: 400 });
             result = await actions.batchEnrollInSessions(courseId, sessionIds);
+        } else if (action === 'submitGroupEnrollment') {
+            if (!groupId || !selections || !Array.isArray(selections)) {
+                return NextResponse.json({ error: 'Missing groupId or selections' }, { status: 400 });
+            }
+            result = await actions.submitGroupEnrollment({
+                groupId,
+                selections,
+                buyCards,
+                includeMembership,
+            });
         } else {
             return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
         }
