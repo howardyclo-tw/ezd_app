@@ -107,6 +107,13 @@ const IDS = {
     regFull1: 'e2e00000-0000-0000-0000-0000000000ca',
     regFree1: 'e2e00000-0000-0000-0000-0000000000cb',
     regFree2: 'e2e00000-0000-0000-0000-0000000000cc',
+    // Phase 5.4 resubmit-rebook sessions
+    resubA1: 'e2e00000-0000-0000-0000-0000000000f1',
+    resubA2: 'e2e00000-0000-0000-0000-0000000000f2',
+    resubB1: 'e2e00000-0000-0000-0000-0000000000f3',
+    resubB2: 'e2e00000-0000-0000-0000-0000000000f4',
+    resubConf1: 'e2e00000-0000-0000-0000-0000000000f5',
+    resubConf2: 'e2e00000-0000-0000-0000-0000000000f6',
   },
   // Phase 5.3 polls/options
   polls: {
@@ -116,6 +123,11 @@ const IDS = {
     regMvOpt1: 'e2e00000-0000-0000-0000-0000000000d2',
     regMvOpt2: 'e2e00000-0000-0000-0000-0000000000d3',
   },
+  // Phase 5.4 resubmit-rebook fixtures
+  resubGroup:        'e2e00000-0000-0000-0000-000000000013',
+  resubCardCourseA:  'e2e00000-0000-0000-0000-0000000000e1', // card, 2 cards/session, 2 sessions
+  resubCardCourseB:  'e2e00000-0000-0000-0000-0000000000e2', // card, 1 card/session, 2 sessions
+  resubConfCourse:   'e2e00000-0000-0000-0000-0000000000e3', // ntd, for confirmed-order test
   enrollments: {
     memberFull:      'e2e00000-0000-0000-0000-000000000060',
     multiSingle:     'e2e00000-0000-0000-0000-000000000061',
@@ -405,6 +417,56 @@ export default async function globalSetup() {
     enroll_full: true, enroll_single: true, pricing_mode: 'free',
   }, { onConflict: 'id' }));
 
+  // ── 4d. Phase 5.4 resubmit-rebook fixtures ────────────────────
+  check('resubGroup', await sb.from('course_groups').upsert({
+    id: IDS.resubGroup,
+    title: 'E2E Resubmit Rebook Group',
+    description: 'Open-phase1 group for resubmit-rebook tests',
+    region: 'HQ',
+    period_start: today,
+    period_end: addDays(today, 90),
+    registration_phase1_start: new Date(Date.now() - 86400000).toISOString(),
+    registration_phase1_end:   new Date(Date.now() + 14 * 86400000).toISOString(),
+  }, { onConflict: 'id' }));
+
+  // Card course A: 2 cards/session, 2 sessions => 4 cards for full enrollment
+  check('resubCardCourseA', await sb.from('courses').upsert({
+    id: IDS.resubCardCourseA,
+    name: 'E2E Resub Card A',
+    description: 'Card course for resubmit void-and-rebook (2 cards/session)',
+    type: 'normal', start_time: '08:00', end_time: '09:00', capacity: 20, cards_per_session: 2,
+    group_id: IDS.resubGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
+  // Card course B: 1 card/session, 2 sessions => 2 cards for full enrollment
+  check('resubCardCourseB', await sb.from('courses').upsert({
+    id: IDS.resubCardCourseB,
+    name: 'E2E Resub Card B',
+    description: 'Card course for resubmit rebook target (1 card/session)',
+    type: 'normal', start_time: '09:00', end_time: '10:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.resubGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
+  // NTD course for confirmed-order refusal test
+  check('resubConfCourse', await sb.from('courses').upsert({
+    id: IDS.resubConfCourse,
+    name: 'E2E Resub Confirmed Order',
+    description: 'NTD course for resubmit confirmed-order refusal',
+    type: 'normal', start_time: '10:00', end_time: '11:00', capacity: 20, cards_per_session: 0,
+    group_id: IDS.resubGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'ntd',
+    price_member_full: 800, price_guest_full: 1200,
+    price_member_single: 300, price_guest_single: 400,
+  }, { onConflict: 'id' }));
+
   // ── 5. Upsert course_sessions ─────────────────────────────────
   const sessions = [
     // Basic Groove: 2 past + 3 future
@@ -451,6 +513,13 @@ export default async function globalSetup() {
     { id: IDS.sessions.regFull1, course_id: IDS.regFullCourse, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.regFree1, course_id: IDS.regFreeCourse, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.regFree2, course_id: IDS.regFreeCourse, session_date: addDays(today, 14), session_number: 2 },
+    // Phase 5.4 resubmit-rebook sessions
+    { id: IDS.sessions.resubA1, course_id: IDS.resubCardCourseA, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.resubA2, course_id: IDS.resubCardCourseA, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.resubB1, course_id: IDS.resubCardCourseB, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.resubB2, course_id: IDS.resubCardCourseB, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.resubConf1, course_id: IDS.resubConfCourse, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.resubConf2, course_id: IDS.resubConfCourse, session_date: addDays(today, 14), session_number: 2 },
   ];
 
   for (const s of sessions) {
@@ -579,6 +648,21 @@ export default async function globalSetup() {
   check('cleanup reg orders member', await sb.from('orders').delete()
     .eq('user_id', memberId)
     .eq('course_group_id', IDS.regGroup));
+
+  // Phase 5.4 resubmit-rebook courses: clean all enrollments + card_transactions + orders
+  const resubCourseIds = [IDS.resubCardCourseA, IDS.resubCardCourseB, IDS.resubConfCourse];
+  for (const resubCourseId of resubCourseIds) {
+    const { data: resubEnrolls } = await sb.from('enrollments').select('id, order_id').eq('course_id', resubCourseId);
+    if (resubEnrolls?.length) {
+      check(`cleanup card_tx resub ${resubCourseId}`, await sb.from('card_transactions').delete()
+        .in('enrollment_id', resubEnrolls.map(e => e.id)));
+      check(`cleanup enroll resub ${resubCourseId}`, await sb.from('enrollments').delete()
+        .eq('course_id', resubCourseId));
+    }
+  }
+  check('cleanup resub orders member', await sb.from('orders').delete()
+    .eq('user_id', memberId)
+    .eq('course_group_id', IDS.resubGroup));
 
   // Clean poll_votes for register wizard polls (before polls cleanup)
   check('cleanup poll_votes reg', await sb.from('poll_votes').delete()

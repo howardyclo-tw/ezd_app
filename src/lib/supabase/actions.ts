@@ -3563,3 +3563,57 @@ export async function submitGroupEnrollment(
     revalidatePath('/', 'layout');
     return { perCourse, orderId, cardOrderId };
 }
+
+// ------------------------------------------------------------------
+// Modify Group Enrollment — resubmitGroupEnrollment (Task 5.4)
+// ------------------------------------------------------------------
+
+/**
+ * Atomic void-and-rebook: cancel the member's prior full-term group
+ * submission (release seats, refund deducted cards, cancel linked
+ * pending/remitted orders) then re-run submitGroupEnrollment with the
+ * new selections.
+ *
+ * REFUSES if any linked order is already confirmed (paid), leaving
+ * the original submission fully intact.
+ *
+ * Atomicity: the void is a single Postgres RPC (void_group_submission)
+ * so partial failure cannot strand seats or cards.  The re-enroll uses
+ * enroll_atomic per course (same as submitGroupEnrollment).
+ *
+ * Idempotency: FOR UPDATE + conditional WHERE status IN (active) in
+ * the RPC prevents a concurrent/repeated call from double-cancelling
+ * or double-refunding.
+ */
+export async function resubmitGroupEnrollment(
+    payload: GroupEnrollmentPayload
+): Promise<{ success: false; message: string } | GroupEnrollmentResult> {
+    const { user } = await getCurrentUser();
+    const adminClient = createAdminClient();
+
+    // ── 1. Atomically void the prior submission ──
+    const { data: voidResult, error: voidError } = await adminClient.rpc('void_group_submission', {
+        p_user: user.id,
+        p_group_id: payload.groupId,
+    });
+
+    if (voidError) throw new Error(`作廢失敗: ${voidError.message}`);
+
+    const vr = voidResult as { ok: boolean; reason?: string; voided?: number; refunded_cards?: number };
+
+    if (!vr.ok) {
+        if (vr.reason === 'confirmed_order') {
+            return { success: false, message: '已有確認付款的訂單，無法作廢重報。請聯繫幹部處理。' };
+        }
+        if (vr.reason === 'no_active_submission') {
+            return { success: false, message: '找不到目前的報名資料，無法作廢重報。' };
+        }
+        return { success: false, message: `作廢失敗: ${vr.reason}` };
+    }
+
+    // ── 2. Re-enroll with the new selections ──
+    // submitGroupEnrollment handles auth, pricing, capacity, card deduction.
+    // enroll_atomic sets enrolled_at = NOW(), guaranteeing a later timestamp
+    // than the originals (which were created in an earlier transaction).
+    return await submitGroupEnrollment(payload);
+}

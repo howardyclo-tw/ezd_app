@@ -57,6 +57,16 @@ export async function POST(request: NextRequest) {
                 buyCards,
                 includeMembership,
             });
+        } else if (action === 'resubmitGroupEnrollment') {
+            if (!groupId || !selections || !Array.isArray(selections)) {
+                return NextResponse.json({ error: 'Missing groupId or selections' }, { status: 400 });
+            }
+            result = await actions.resubmitGroupEnrollment({
+                groupId,
+                selections,
+                buyCards,
+                includeMembership,
+            });
         } else {
             return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
         }
