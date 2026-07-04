@@ -768,6 +768,22 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (profile?.role !== 'admin') throw new Error('只有幹部可以建立課程');
 
+    // Normalize pricing fields
+    const pricingMode = data.pricing_mode || 'card';
+    const isNtd = pricingMode === 'ntd';
+    const enrollFull = data.enroll_full ?? true;
+    const enrollSingle = data.enroll_single ?? true;
+
+    // Defense-in-depth: reject ntd course with missing prices for enabled modes
+    if (isNtd) {
+        if (enrollSingle && (data.price_member_single == null || data.price_guest_single == null)) {
+            throw new Error('NTD 計費模式下，開放單堂報名時必須設定社員與非社員單堂價格');
+        }
+        if (enrollFull && (data.price_member_full == null || data.price_guest_full == null)) {
+            throw new Error('NTD 計費模式下，開放整期報名時必須設定社員與非社員整期價格');
+        }
+    }
+
     // 1. Insert Course
     const { data: course, error: courseError } = await supabase
         .from('courses')
@@ -782,6 +798,13 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
             end_time: data.end_time,
             capacity: data.capacity,
             cards_per_session: data.cards_per_session ?? 1,
+            pricing_mode: pricingMode,
+            price_member_single: isNtd ? (data.price_member_single ?? null) : null,
+            price_guest_single:  isNtd ? (data.price_guest_single ?? null)  : null,
+            price_member_full:   isNtd ? (data.price_member_full ?? null)   : null,
+            price_guest_full:    isNtd ? (data.price_guest_full ?? null)    : null,
+            enroll_full: enrollFull,
+            enroll_single: enrollSingle,
             enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
             enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
             created_by: user.id
@@ -827,6 +850,22 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (profile?.role !== 'admin') throw new Error('只有幹部可以更新課程');
 
+    // Normalize pricing fields
+    const pricingMode = data.pricing_mode || 'card';
+    const isNtd = pricingMode === 'ntd';
+    const enrollFull = data.enroll_full ?? true;
+    const enrollSingle = data.enroll_single ?? true;
+
+    // Defense-in-depth: reject ntd course with missing prices for enabled modes
+    if (isNtd) {
+        if (enrollSingle && (data.price_member_single == null || data.price_guest_single == null)) {
+            throw new Error('NTD 計費模式下，開放單堂報名時必須設定社員與非社員單堂價格');
+        }
+        if (enrollFull && (data.price_member_full == null || data.price_guest_full == null)) {
+            throw new Error('NTD 計費模式下，開放整期報名時必須設定社員與非社員整期價格');
+        }
+    }
+
     // 1. Update Course
     const { error: courseError } = await supabase
         .from('courses')
@@ -841,6 +880,13 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
             end_time: data.end_time,
             capacity: data.capacity,
             cards_per_session: data.cards_per_session ?? 1,
+            pricing_mode: pricingMode,
+            price_member_single: isNtd ? (data.price_member_single ?? null) : null,
+            price_guest_single:  isNtd ? (data.price_guest_single ?? null)  : null,
+            price_member_full:   isNtd ? (data.price_member_full ?? null)   : null,
+            price_guest_full:    isNtd ? (data.price_guest_full ?? null)    : null,
+            enroll_full: enrollFull,
+            enroll_single: enrollSingle,
             enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
             enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
         })

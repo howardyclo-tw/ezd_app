@@ -28,6 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, Upload, Save, X, Clock, Plus, Trash2, Pencil, AlertTriangle, PlusCircle, PencilLine, ChevronLeft, Search, Check, ChevronsUpDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { format, addDays } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -73,6 +74,12 @@ const sessionSchema = z.object({
     hasData: z.any().optional(),
 });
 
+/** Preprocess: empty/undefined/null -> null, otherwise coerce to number. */
+const optionalPrice = z.preprocess(
+    (val) => (val === '' || val === undefined || val === null) ? null : Number(val),
+    z.number().min(0, { message: '價格不能為負數' }).nullable(),
+);
+
 const courseSchema = z.object({
     groupId: z.string().min(1, { message: '請選擇所屬檔期' }),
     name: z.string().min(2, { message: '課程名稱至少 2 個字' }),
@@ -86,13 +93,56 @@ const courseSchema = z.object({
     sessions_count: z.coerce.number().min(1, { message: '至少 1 堂課' }),
     capacity: z.coerce.number().min(1, { message: '人數上限至少 1 人' }),
     cards_per_session: z.coerce.number().min(0, { message: '堂卡扣除不能為負數' }),
+    pricing_mode: z.enum(['card', 'ntd', 'free']),
+    price_member_single: optionalPrice,
+    price_guest_single: optionalPrice,
+    price_member_full: optionalPrice,
+    price_guest_full: optionalPrice,
+    enroll_full: z.boolean(),
+    enroll_single: z.boolean(),
     first_session_at: z.coerce.date({
         message: '請選擇日期',
     }),
     sessions: z.array(sessionSchema).min(1, { message: '至少需要一堂課' }),
+}).superRefine((data, ctx) => {
+    if (data.pricing_mode === 'ntd') {
+        if (data.enroll_single) {
+            if (data.price_member_single == null) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: '請輸入社員單堂價格', path: ['price_member_single'] });
+            }
+            if (data.price_guest_single == null) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: '請輸入非社員單堂價格', path: ['price_guest_single'] });
+            }
+        }
+        if (data.enroll_full) {
+            if (data.price_member_full == null) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: '請輸入社員整期價格', path: ['price_member_full'] });
+            }
+            if (data.price_guest_full == null) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: '請輸入非社員整期價格', path: ['price_guest_full'] });
+            }
+        }
+    }
 });
 
 type CourseFormValues = z.infer<typeof courseSchema>;
+
+/** Type-based pricing/enrollment defaults for NEW courses. */
+const PRICING_DEFAULTS: Record<string, {
+    pricing_mode: 'card' | 'ntd' | 'free';
+    enroll_full: boolean;
+    enroll_single: boolean;
+    price_member_single: number | null;
+    price_guest_single: number | null;
+    price_member_full: number | null;
+    price_guest_full: number | null;
+}> = {
+    normal:   { pricing_mode: 'card', enroll_full: true,  enroll_single: true,  price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
+    trial:    { pricing_mode: 'card', enroll_full: true,  enroll_single: true,  price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
+    special:  { pricing_mode: 'card', enroll_full: true,  enroll_single: true,  price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
+    workshop: { pricing_mode: 'ntd',  enroll_full: true,  enroll_single: true,  price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
+    style:    { pricing_mode: 'ntd',  enroll_full: false, enroll_single: true,  price_member_single: 0,    price_guest_single: null, price_member_full: null, price_guest_full: null },
+};
 
 function TimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     const [selectedHour, selectedMinute] = value.split(':');
@@ -265,6 +315,9 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
         }
     };
 
+    const initType = initialData?.type || 'normal';
+    const typeDefaults = PRICING_DEFAULTS[initType] || PRICING_DEFAULTS.normal;
+
     const form = useForm<CourseFormValues>({
         resolver: zodResolver(courseSchema) as any,
         defaultValues: {
@@ -272,7 +325,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             name: initialData?.name || '',
             description: initialData?.description || '',
             leader: initialData?.leader || 'none',
-            type: initialData?.type || 'normal',
+            type: initType,
             teacher: initialData?.teacher || '',
             room: initialData?.room || '',
             start_time: initialData?.start_time || '19:00',
@@ -280,6 +333,13 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             sessions_count: initialData?.sessions_count || 8,
             capacity: initialData?.capacity || 30,
             cards_per_session: initialData?.cards_per_session ?? 1,
+            pricing_mode: initialData?.pricing_mode ?? typeDefaults.pricing_mode,
+            price_member_single: initialData?.price_member_single ?? typeDefaults.price_member_single,
+            price_guest_single: initialData?.price_guest_single ?? typeDefaults.price_guest_single,
+            price_member_full: initialData?.price_member_full ?? typeDefaults.price_member_full,
+            price_guest_full: initialData?.price_guest_full ?? typeDefaults.price_guest_full,
+            enroll_full: initialData?.enroll_full ?? typeDefaults.enroll_full,
+            enroll_single: initialData?.enroll_single ?? typeDefaults.enroll_single,
             first_session_at: initialData?.first_session_at,
             sessions: initialData?.sessions || [],
         },
@@ -350,6 +410,34 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
         }
         prevFirstDate.current = firstDate;
     }, [firstDate, fields.length, setValue]);
+
+    // Watch pricing_mode + enroll switches for conditional rendering
+    const pricingMode = watch('pricing_mode');
+    const enrollFull = watch('enroll_full');
+    const enrollSingle = watch('enroll_single');
+    const courseType = watch('type');
+
+    // Apply type-based defaults when course type changes (create mode only)
+    const prevCourseType = useRef<string>(initType);
+    useEffect(() => {
+        if (isEdit) return; // never clobber stored values in edit mode
+        if (prevCourseType.current === courseType) return; // no change
+        prevCourseType.current = courseType;
+        const defaults = PRICING_DEFAULTS[courseType] || PRICING_DEFAULTS.normal;
+        setValue('pricing_mode', defaults.pricing_mode);
+        setValue('enroll_full', defaults.enroll_full);
+        setValue('enroll_single', defaults.enroll_single);
+        setValue('price_member_single', defaults.price_member_single);
+        setValue('price_guest_single', defaults.price_guest_single);
+        setValue('price_member_full', defaults.price_member_full);
+        setValue('price_guest_full', defaults.price_guest_full);
+        // Reset cards_per_session for ntd/free modes
+        if (defaults.pricing_mode !== 'card') {
+            setValue('cards_per_session', 0);
+        } else {
+            setValue('cards_per_session', 1);
+        }
+    }, [courseType, isEdit, setValue]);
 
     const onSubmit: SubmitHandler<CourseFormValues> = async (data) => {
         setIsSubmitting(true);
@@ -427,7 +515,12 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                         sessions_count: '總堂數',
                                         capacity: '人數上限',
                                         first_session_at: '第一堂課日期',
-                                        sessions: '課程進度明細 (堂數)'
+                                        sessions: '課程進度明細 (堂數)',
+                                        pricing_mode: '計費模式',
+                                        price_member_single: '社員單堂價格',
+                                        price_guest_single: '非社員單堂價格',
+                                        price_member_full: '社員整期價格',
+                                        price_guest_full: '非社員整期價格',
                                     };
 
                                     const errorFields = Object.keys(errors).map(key => {
@@ -820,22 +913,196 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                         </FormItem>
                                     )}
                                 />
-                                <FormField
-                                    control={form.control as any}
-                                    name="cards_per_session"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>每堂扣除堂卡數</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" min={0} className="h-11" {...field} />
-                                            </FormControl>
-                                            <p className="text-xs text-muted-foreground">0 = 免費，預設 1</p>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
                             </div>
 
+                            {/* Pricing & Enrollment Section */}
+                            <div className="mt-6 space-y-4 pt-6 border-t">
+                                <div className="space-y-1">
+                                    <h3 className="text-sm font-semibold text-primary">計費與報名設定</h3>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">設定課程計費模式、價格與允許的報名方式</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Pricing Mode */}
+                                    <FormField
+                                        control={form.control as any}
+                                        name="pricing_mode"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>計費模式</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="h-11" data-testid="pricing-mode-select">
+                                                            <SelectValue placeholder="選擇計費模式" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="card">堂卡</SelectItem>
+                                                        <SelectItem value="ntd">現金 (NTD)</SelectItem>
+                                                        <SelectItem value="free">免費</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    {/* Cards per session — visible only in card mode */}
+                                    {pricingMode === 'card' && (
+                                        <FormField
+                                            control={form.control as any}
+                                            name="cards_per_session"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>每堂扣除堂卡數</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="number" min={0} className="h-11" {...field} />
+                                                    </FormControl>
+                                                    <p className="text-xs text-muted-foreground">0 = 免費，預設 1</p>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
+                                </div>
+
+                                {/* Enroll switches — always visible */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control as any}
+                                        name="enroll_full"
+                                        render={({ field }) => (
+                                            <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                                                <div className="space-y-0.5">
+                                                    <FormLabel>允許整期報名</FormLabel>
+                                                    <FormDescription className="text-xs">開啟後學員可報名整期課程</FormDescription>
+                                                </div>
+                                                <FormControl>
+                                                    <Switch
+                                                        checked={field.value}
+                                                        onCheckedChange={field.onChange}
+                                                        data-testid="enroll-full-switch"
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control as any}
+                                        name="enroll_single"
+                                        render={({ field }) => (
+                                            <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                                                <div className="space-y-0.5">
+                                                    <FormLabel>允許單堂報名</FormLabel>
+                                                    <FormDescription className="text-xs">開啟後學員可報名單堂課程</FormDescription>
+                                                </div>
+                                                <FormControl>
+                                                    <Switch
+                                                        checked={field.value}
+                                                        onCheckedChange={field.onChange}
+                                                        data-testid="enroll-single-switch"
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                {/* NTD Price fields — visible only in ntd mode */}
+                                {pricingMode === 'ntd' && (
+                                    <div className="space-y-3">
+                                        <p className="text-xs font-medium text-muted-foreground">NTD 價格設定 (0 = 免費)</p>
+                                        {enrollSingle && (
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <FormField
+                                                    control={form.control as any}
+                                                    name="price_member_single"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>社員單堂價格</FormLabel>
+                                                            <FormControl>
+                                                                <Input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    className="h-11"
+                                                                    placeholder="必填"
+                                                                    value={field.value ?? ''}
+                                                                    onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control as any}
+                                                    name="price_guest_single"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>非社員單堂價格</FormLabel>
+                                                            <FormControl>
+                                                                <Input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    className="h-11"
+                                                                    placeholder="必填"
+                                                                    value={field.value ?? ''}
+                                                                    onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                        )}
+                                        {enrollFull && (
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <FormField
+                                                    control={form.control as any}
+                                                    name="price_member_full"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>社員整期價格</FormLabel>
+                                                            <FormControl>
+                                                                <Input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    className="h-11"
+                                                                    placeholder="必填"
+                                                                    value={field.value ?? ''}
+                                                                    onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control as any}
+                                                    name="price_guest_full"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>非社員整期價格</FormLabel>
+                                                            <FormControl>
+                                                                <Input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    className="h-11"
+                                                                    placeholder="必填"
+                                                                    value={field.value ?? ''}
+                                                                    onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Sessions Schedule Section */}
                             {firstDate && (
