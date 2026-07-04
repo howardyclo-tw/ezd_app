@@ -28,6 +28,74 @@ async function getCurrentUser() {
 }
 
 // ------------------------------------------------------------------
+// Enrollment guard helpers (pricing mode, enroll mode, time windows)
+// ------------------------------------------------------------------
+
+/** Reject courses whose pricing_mode !== 'card' (ntd/free use a different path). */
+function guardPricingMode(course: { pricing_mode?: string; name?: string }): string | null {
+    if (course.pricing_mode && course.pricing_mode !== 'card') {
+        return '此課程不適用堂卡報名';
+    }
+    return null;
+}
+
+/** Reject full enrollment if the course has enroll_full disabled. */
+function guardEnrollFull(course: { enroll_full?: boolean }): string | null {
+    if (course.enroll_full === false) {
+        return '此課程未開放整期報名';
+    }
+    return null;
+}
+
+/** Reject single enrollment if the course has enroll_single disabled. */
+function guardEnrollSingle(course: { enroll_single?: boolean }): string | null {
+    if (course.enroll_single === false) {
+        return '此課程未開放單堂報名';
+    }
+    return null;
+}
+
+/**
+ * Check course-group phase1 window for full enrollment.
+ * Fetches the course_groups row via group_id on the course.
+ * Returns a rejection message string or null if within window.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function guardGroupPhase1Window(
+    supabase: any,
+    courseGroupId: string | null
+): Promise<string | null> {
+    if (!courseGroupId) return null; // no group => no group window to check
+    const { data: group } = await supabase.from('course_groups')
+        .select('registration_phase1_start, registration_phase1_end')
+        .eq('id', courseGroupId)
+        .maybeSingle();
+    if (!group) return null; // group not found => skip check (shouldn't happen)
+    const now = new Date();
+    if (group.registration_phase1_start && new Date(group.registration_phase1_start) > now) {
+        return '整期報名尚未開始';
+    }
+    if (group.registration_phase1_end && new Date(group.registration_phase1_end) < now) {
+        return '整期報名已截止';
+    }
+    return null;
+}
+
+/** Check course-level enrollment window for single enrollment. */
+function guardCourseWindow(
+    course: { enrollment_start_at?: string | null; enrollment_end_at?: string | null }
+): string | null {
+    const now = new Date();
+    if (course.enrollment_start_at && new Date(course.enrollment_start_at) > now) {
+        return '單堂報名尚未開始';
+    }
+    if (course.enrollment_end_at && new Date(course.enrollment_end_at) < now) {
+        return '單堂報名已截止';
+    }
+    return null;
+}
+
+// ------------------------------------------------------------------
 // Enrollment Actions
 // ------------------------------------------------------------------
 
@@ -76,12 +144,33 @@ export async function enrollInCourse(
     if (!course) throw new Error('課程不存在');
     if (!profile) throw new Error('使用者資料不存在');
 
-    const now = new Date();
-    if (course.enrollment_start_at && new Date(course.enrollment_start_at) > now) {
-        throw new Error('報名尚未開始');
+    // ── Guards: pricing mode, enroll mode, time windows ──
+    const pricingMsg = guardPricingMode(course);
+    if (pricingMsg) return { success: false, status: 'enrolled', message: pricingMsg };
+
+    if (type === 'full') {
+        const modeMsg = guardEnrollFull(course);
+        if (modeMsg) return { success: false, status: 'enrolled', message: modeMsg };
+
+        const windowMsg = await guardGroupPhase1Window(supabase, course.group_id);
+        if (windowMsg) return { success: false, status: 'enrolled', message: windowMsg };
+    } else {
+        const modeMsg = guardEnrollSingle(course);
+        if (modeMsg) return { success: false, status: 'enrolled', message: modeMsg };
+
+        const windowMsg = guardCourseWindow(course);
+        if (windowMsg) return { success: false, status: 'enrolled', message: windowMsg };
     }
-    if (course.enrollment_end_at && new Date(course.enrollment_end_at) < now) {
-        throw new Error('報名已截止');
+
+    // Legacy course-level window check (kept for full path as additional defence)
+    if (type === 'full') {
+        const now = new Date();
+        if (course.enrollment_start_at && new Date(course.enrollment_start_at) > now) {
+            throw new Error('報名尚未開始');
+        }
+        if (course.enrollment_end_at && new Date(course.enrollment_end_at) < now) {
+            throw new Error('報名已截止');
+        }
     }
 
     // 3. Calculate cards to deduct and determine course end date for expiry check
@@ -221,6 +310,36 @@ export async function batchEnrollInCourses(
 
     if (!profile) throw new Error('使用者資料不存在');
 
+    // ── Guards: pricing mode, enroll mode ──
+    // Filter out non-card courses and courses with enroll_full disabled
+    const pricingRejected = courses.filter(c => guardPricingMode(c) !== null);
+    const modeRejected = courses.filter(c => guardEnrollFull(c) !== null);
+    const guardedCourses = courses.filter(c => guardPricingMode(c) === null && guardEnrollFull(c) === null);
+
+    if (guardedCourses.length === 0) {
+        if (pricingRejected.length > 0) return { success: false, message: '此課程不適用堂卡報名' };
+        if (modeRejected.length > 0) return { success: false, message: '此課程未開放整期報名' };
+        return { success: false, message: '所選課程皆已報名或不開放報名' };
+    }
+
+    // ── Guard: group phase1 window ──
+    // Collect unique group_ids and check their windows
+    const groupIds = [...new Set(guardedCourses.map(c => c.group_id).filter(Boolean))];
+    const closedGroupIds = new Set<string>();
+    const notStartedGroupIds = new Set<string>();
+    for (const gid of groupIds) {
+        const windowMsg = await guardGroupPhase1Window(supabase, gid);
+        if (windowMsg === '整期報名已截止') closedGroupIds.add(gid);
+        if (windowMsg === '整期報名尚未開始') notStartedGroupIds.add(gid);
+    }
+    const windowPassCourses = guardedCourses.filter(c =>
+        !closedGroupIds.has(c.group_id) && !notStartedGroupIds.has(c.group_id)
+    );
+    if (windowPassCourses.length === 0) {
+        if (closedGroupIds.size > 0) return { success: false, message: '整期報名已截止' };
+        return { success: false, message: '整期報名尚未開始' };
+    }
+
     // 2. Check each course status and already enrolled
     // For MVP/simplicity, we'll filter out already enrolled ones
     const { data: existing } = await supabase.from('enrollments')
@@ -231,15 +350,15 @@ export async function batchEnrollInCourses(
 
     const now = new Date();
     const enrolledIds = new Set((existing ?? []).map(e => e.course_id));
-    const toEnroll = courses.filter(c => {
+    const toEnroll = windowPassCourses.filter(c => {
         if (enrolledIds.has(c.id)) return false;
-        
+
         const enrollStart = c.enrollment_start_at ? new Date(c.enrollment_start_at) : null;
         const enrollEnd = c.enrollment_end_at ? new Date(c.enrollment_end_at) : null;
-        
+
         if (enrollStart && enrollStart > now) return false;
         if (enrollEnd && enrollEnd < now) return false;
-        
+
         return true;
     });
 
@@ -341,6 +460,16 @@ export async function batchEnrollInSessions(
 
     if (!course) throw new Error('課程不存在');
     if (!profile) throw new Error('使用者資料不存在');
+
+    // ── Guards: pricing mode, enroll mode, course window ──
+    const pricingMsg = guardPricingMode(course);
+    if (pricingMsg) return { success: false, message: pricingMsg };
+
+    const modeMsg = guardEnrollSingle(course);
+    if (modeMsg) return { success: false, message: modeMsg };
+
+    const windowMsg = guardCourseWindow(course);
+    if (windowMsg) return { success: false, message: windowMsg };
 
     // 2. Check already enrolled sessions
     const { data: existing } = await supabase.from('enrollments')

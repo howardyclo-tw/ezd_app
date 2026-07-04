@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { action, orderId, groupId, groupName, groupValidUntil } = body;
+    const { action, orderId, groupId, groupName, groupValidUntil,
+            courseId, courseIds, sessionIds, sessionId, enrollType } = body;
 
     if (!action) {
         return NextResponse.json({ error: 'Missing action' }, { status: 400 });
@@ -36,6 +37,15 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: 'Missing groupId, groupName, or groupValidUntil' }, { status: 400 });
             }
             result = await actions.updateMemberGroup(groupId, groupName, groupValidUntil);
+        } else if (action === 'enrollInCourse') {
+            if (!courseId) return NextResponse.json({ error: 'Missing courseId' }, { status: 400 });
+            result = await actions.enrollInCourse(courseId, enrollType || 'full', sessionId);
+        } else if (action === 'batchEnrollInCourses') {
+            if (!courseIds || !Array.isArray(courseIds)) return NextResponse.json({ error: 'Missing courseIds array' }, { status: 400 });
+            result = await actions.batchEnrollInCourses(courseIds);
+        } else if (action === 'batchEnrollInSessions') {
+            if (!courseId || !sessionIds || !Array.isArray(sessionIds)) return NextResponse.json({ error: 'Missing courseId or sessionIds' }, { status: 400 });
+            result = await actions.batchEnrollInSessions(courseId, sessionIds);
         } else {
             return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
         }

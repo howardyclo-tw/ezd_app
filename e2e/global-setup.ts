@@ -55,6 +55,11 @@ const IDS = {
   ntdCourse:   'e2e00000-0000-0000-0000-000000000023',
   workshop:    'e2e00000-0000-0000-0000-000000000024',
   oversellCourse: 'e2e00000-0000-0000-0000-000000000025',
+  // Enroll-gating fixtures
+  noSingleCourse:    'e2e00000-0000-0000-0000-000000000026', // enroll_single=false
+  closedWindowCourse:'e2e00000-0000-0000-0000-000000000027', // single window in the past
+  closedPhase1Course:'e2e00000-0000-0000-0000-000000000028', // full, in a closed-phase1 group
+  closedPhase1Group: 'e2e00000-0000-0000-0000-000000000011', // group with phase1 ended
   sessions: {
     past14:  'e2e00000-0000-0000-0000-00000000002f',
     past7:   'e2e00000-0000-0000-0000-000000000030',
@@ -73,6 +78,9 @@ const IDS = {
     ws3:     'e2e00000-0000-0000-0000-00000000003d',
     ws4:     'e2e00000-0000-0000-0000-00000000003e',
     oversell1:'e2e00000-0000-0000-0000-00000000003f',
+    noSingle1:'e2e00000-0000-0000-0000-0000000000a1',
+    closedWin1:'e2e00000-0000-0000-0000-0000000000a2',
+    closedPh1: 'e2e00000-0000-0000-0000-0000000000a3',
   },
   enrollments: {
     memberFull:      'e2e00000-0000-0000-0000-000000000060',
@@ -181,6 +189,18 @@ export default async function globalSetup() {
     registration_phase1_end:   new Date(Date.now() + 7 * 86400000).toISOString(),
   }, { onConflict: 'id' }));
 
+  // Closed-phase1 course group (phase1 ended yesterday)
+  check('course_groups closed_phase1', await sb.from('course_groups').upsert({
+    id: IDS.closedPhase1Group,
+    title: 'E2E Closed Phase1 Group',
+    description: 'Course group whose phase1 registration has ended',
+    region: 'HQ',
+    period_start: today,
+    period_end: addDays(today, 90),
+    registration_phase1_start: new Date(Date.now() - 7 * 86400000).toISOString(),
+    registration_phase1_end:   new Date(Date.now() - 86400000).toISOString(),
+  }, { onConflict: 'id' }));
+
   // ── 4. Upsert courses ─────────────────────────────────────────
   const enrollStart = new Date(Date.now() - 86400000).toISOString();
   const enrollEnd   = new Date(Date.now() + 30 * 86400000).toISOString();
@@ -212,6 +232,45 @@ export default async function globalSetup() {
     }, { onConflict: 'id' }));
   }
 
+  // ── 4b. Upsert enroll-gating test courses ─────────────────────
+  // (a) Card course, enroll_single=false (only full allowed)
+  check('course noSingle', await sb.from('courses').upsert({
+    id: IDS.noSingleCourse,
+    name: 'E2E No-Single Course',
+    description: 'Card course with single enrollment disabled',
+    type: 'normal', start_time: '10:00', end_time: '11:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.courseGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: false, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
+  // (b) Card course, enroll_single=true but enrollment window closed (past)
+  const pastEnrollEnd = new Date(Date.now() - 86400000).toISOString();
+  const pastEnrollStart = new Date(Date.now() - 14 * 86400000).toISOString();
+  check('course closedWindow', await sb.from('courses').upsert({
+    id: IDS.closedWindowCourse,
+    name: 'E2E Closed-Window Course',
+    description: 'Card course with past enrollment window',
+    type: 'normal', start_time: '11:00', end_time: '12:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.courseGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: pastEnrollStart, enrollment_end_at: pastEnrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
+  // (c) Card course in a closed-phase1 group (for full enrollment rejection)
+  check('course closedPhase1', await sb.from('courses').upsert({
+    id: IDS.closedPhase1Course,
+    name: 'E2E Closed-Phase1 Course',
+    description: 'Card course in a group whose phase1 has ended',
+    type: 'normal', start_time: '14:00', end_time: '15:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.closedPhase1Group,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
   // ── 5. Upsert course_sessions ─────────────────────────────────
   const sessions = [
     // Basic Groove: 2 past + 3 future
@@ -237,6 +296,10 @@ export default async function globalSetup() {
     { id: IDS.sessions.ws4,     course_id: IDS.workshop,     session_date: addDays(today, 24), session_number: 4 },
     // Oversell Guard: 1 future session (capacity-1 course)
     { id: IDS.sessions.oversell1, course_id: IDS.oversellCourse, session_date: addDays(today, 12), session_number: 1 },
+    // Enroll-gating fixture sessions
+    { id: IDS.sessions.noSingle1, course_id: IDS.noSingleCourse, session_date: addDays(today, 11), session_number: 1 },
+    { id: IDS.sessions.closedWin1, course_id: IDS.closedWindowCourse, session_date: addDays(today, 13), session_number: 1 },
+    { id: IDS.sessions.closedPh1, course_id: IDS.closedPhase1Course, session_date: addDays(today, 15), session_number: 1 },
   ];
 
   for (const s of sessions) {
@@ -335,6 +398,17 @@ export default async function globalSetup() {
 
   check('cleanup enroll oversell', await sb.from('enrollments').delete()
     .eq('course_id', IDS.oversellCourse));
+
+  // Enroll-gating courses: clean all enrollments + card_transactions
+  for (const gatingCourseId of [IDS.noSingleCourse, IDS.closedWindowCourse, IDS.closedPhase1Course]) {
+    const { data: gatingEnrolls } = await sb.from('enrollments').select('id').eq('course_id', gatingCourseId);
+    if (gatingEnrolls?.length) {
+      check(`cleanup card_tx gating ${gatingCourseId}`, await sb.from('card_transactions').delete()
+        .in('enrollment_id', gatingEnrolls.map(e => e.id)));
+    }
+    check(`cleanup enroll gating ${gatingCourseId}`, await sb.from('enrollments').delete()
+      .eq('course_id', gatingCourseId));
+  }
 
   // 7g. Non-seed orders
   check('cleanup orders', await sb.from('orders').delete()
