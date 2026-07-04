@@ -63,7 +63,7 @@ const IDS = {
   // Phase 5.3 group enrollment wizard fixtures
   regGroup:          'e2e00000-0000-0000-0000-000000000012', // open phase1 group for register wizard
   regCardAfford:     'e2e00000-0000-0000-0000-0000000000b1', // card course, member can afford (1 card/session, 2 sessions = 2 cards)
-  regCardShortfall:  'e2e00000-0000-0000-0000-0000000000b2', // card course, shortfall (3 cards/session, 8 sessions = 24 cards)
+  regCardShortfall:  'e2e00000-0000-0000-0000-0000000000b2', // card course, shortfall (3 cards/session, 6 sessions = 18 cards > 15 balance)
   regMvCourse:       'e2e00000-0000-0000-0000-0000000000b3', // MV course with open poll
   regNtdCourse:      'e2e00000-0000-0000-0000-0000000000b4', // ntd course with member/guest full prices
   regNoFullCourse:   'e2e00000-0000-0000-0000-0000000000b5', // enroll_full=false
@@ -95,6 +95,10 @@ const IDS = {
     regCardAfford2: 'e2e00000-0000-0000-0000-0000000000c2',
     regCardShortfall1: 'e2e00000-0000-0000-0000-0000000000c3',
     regCardShortfall2: 'e2e00000-0000-0000-0000-0000000000c4',
+    regCardShortfall3: 'e2e00000-0000-0000-0000-0000000000cd',
+    regCardShortfall4: 'e2e00000-0000-0000-0000-0000000000ce',
+    regCardShortfall5: 'e2e00000-0000-0000-0000-0000000000cf',
+    regCardShortfall6: 'e2e00000-0000-0000-0000-0000000000d0',
     regMv1: 'e2e00000-0000-0000-0000-0000000000c5',
     regMv2: 'e2e00000-0000-0000-0000-0000000000c6',
     regNtd1: 'e2e00000-0000-0000-0000-0000000000c7',
@@ -327,7 +331,7 @@ export default async function globalSetup() {
     enroll_full: true, enroll_single: true, pricing_mode: 'card',
   }, { onConflict: 'id' }));
 
-  // (ii) Card course exceeding balance: 3 cards/session, 8 sessions = 24 cards total
+  // (ii) Card course exceeding balance: 3 cards/session, 6 sessions = 18 cards total (> 15 balance)
   check('regCardShortfall', await sb.from('courses').upsert({
     id: IDS.regCardShortfall,
     name: 'E2E Reg Card Shortfall',
@@ -435,6 +439,10 @@ export default async function globalSetup() {
     { id: IDS.sessions.regCardAfford2, course_id: IDS.regCardAfford, session_date: addDays(today, 14), session_number: 2 },
     { id: IDS.sessions.regCardShortfall1, course_id: IDS.regCardShortfall, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.regCardShortfall2, course_id: IDS.regCardShortfall, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.regCardShortfall3, course_id: IDS.regCardShortfall, session_date: addDays(today, 21), session_number: 3 },
+    { id: IDS.sessions.regCardShortfall4, course_id: IDS.regCardShortfall, session_date: addDays(today, 28), session_number: 4 },
+    { id: IDS.sessions.regCardShortfall5, course_id: IDS.regCardShortfall, session_date: addDays(today, 35), session_number: 5 },
+    { id: IDS.sessions.regCardShortfall6, course_id: IDS.regCardShortfall, session_date: addDays(today, 42), session_number: 6 },
     { id: IDS.sessions.regMv1, course_id: IDS.regMvCourse, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.regMv2, course_id: IDS.regMvCourse, session_date: addDays(today, 14), session_number: 2 },
     { id: IDS.sessions.regNtd1, course_id: IDS.regNtdCourse, session_date: addDays(today, 7), session_number: 1 },

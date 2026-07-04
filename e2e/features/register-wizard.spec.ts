@@ -18,7 +18,7 @@ import { getAdminClient, getUserIdByEmail } from '../fixtures/db';
  * Fixtures (e2e/global-setup.ts):
  *   IDS.regGroup              - open-phase1 group for register wizard
  *   IDS.regCardAfford         - card, 1 card/session, 2 sessions (affordable)
- *   IDS.regCardShortfall      - card, 3 cards/session, 2 sessions (6 cards total, exceeds 15 balance)
+ *   IDS.regCardShortfall      - card, 3 cards/session, 6 sessions (18 cards total, exceeds 15 balance)
  *   IDS.regMvCourse           - MV course with open poll
  *   IDS.regNtdCourse          - ntd, price_member_full=800
  *   IDS.regNoFullCourse       - enroll_full=false
@@ -306,6 +306,105 @@ test.describe('Register Wizard — submitGroupEnrollment', () => {
         // Assert DB: no enrollment row for the full course (member has none)
         const fullEnrolls = await getEnrollments(memberId, REG_FULL_COURSE);
         expect(fullEnrolls.filter(e => e.status === 'enrolled')).toHaveLength(0);
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // T1: card shortfall + buyCards => pending_payment + card_purchase order
+    // ──────────────────────────────────────────────────────────────
+    test('MONEY: card shortfall + buyCards => pending_payment enrollment + card_purchase order linked, balance unchanged', async ({ page }) => {
+        await loginAs(page, 'member');
+        await cleanupTestData(memberId);
+
+        const BUY_QUANTITY = 5; // enough to cover 18-15=3 shortfall; meets typical min-purchase
+
+        const resp = await page.request.post(API_URL, {
+            data: {
+                action: 'submitGroupEnrollment',
+                groupId: REG_GROUP_ID,
+                selections: [
+                    { courseId: REG_CARD_SHORTFALL, mode: 'full', wantsLeader: false },
+                ],
+                buyCards: { quantity: BUY_QUANTITY },
+            },
+        });
+
+        const result = await resp.json();
+        expect(result.perCourse).toBeDefined();
+        expect(result.perCourse).toHaveLength(1);
+
+        // perCourse status must be pending_payment (not enrolled, not rejected)
+        const shortfallResult = result.perCourse[0];
+        expect(shortfallResult.courseId).toBe(REG_CARD_SHORTFALL);
+        expect(shortfallResult.status).toBe('pending_payment');
+
+        // Assert cardOrderId is returned
+        expect(result.cardOrderId).toBeTruthy();
+
+        // ── DB: enrollment row exists with status=pending_payment and order_id linked ──
+        const enrollments = await getEnrollments(memberId, REG_CARD_SHORTFALL);
+        const pendingEnroll = enrollments.find(e => e.status === 'pending_payment' && e.type === 'full');
+        expect(pendingEnroll).toBeTruthy();
+        expect(pendingEnroll!.order_id).toBeTruthy();
+        expect(pendingEnroll!.order_id).toBe(result.cardOrderId);
+
+        // ── DB: the linked order has order_type=card_purchase, correct quantity, status=pending ──
+        const sb = getAdminClient();
+        const { data: order } = await sb.from('orders')
+            .select('*')
+            .eq('id', result.cardOrderId)
+            .single();
+        expect(order).toBeTruthy();
+        expect(order!.order_type).toBe('card_purchase');
+        expect(order!.quantity).toBe(BUY_QUANTITY);
+        expect(order!.status).toBe('pending');
+
+        // ── DB: member card_balance is UNCHANGED (no immediate deduction) ──
+        const { data: profile } = await sb.from('profiles')
+            .select('card_balance')
+            .eq('id', memberId)
+            .single();
+        expect(profile!.card_balance).toBe(15);
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // T2: card shortfall + no buyCards => rejected + no enrollment
+    // ──────────────────────────────────────────────────────────────
+    test('MONEY: card shortfall + no buyCards => rejected with reason containing "堂卡不足", no enrollment row', async ({ page }) => {
+        await loginAs(page, 'member');
+        await cleanupTestData(memberId);
+
+        const resp = await page.request.post(API_URL, {
+            data: {
+                action: 'submitGroupEnrollment',
+                groupId: REG_GROUP_ID,
+                selections: [
+                    { courseId: REG_CARD_SHORTFALL, mode: 'full', wantsLeader: false },
+                ],
+                // NO buyCards
+            },
+        });
+
+        const result = await resp.json();
+        expect(result.perCourse).toBeDefined();
+        expect(result.perCourse).toHaveLength(1);
+
+        // perCourse status must be rejected with reason containing the shortfall message
+        const shortfallResult = result.perCourse[0];
+        expect(shortfallResult.courseId).toBe(REG_CARD_SHORTFALL);
+        expect(shortfallResult.status).toBe('rejected');
+        expect(shortfallResult.reason).toContain('堂卡不足');
+
+        // ── DB: NO enrollment row was created for this course ──
+        const enrollments = await getEnrollments(memberId, REG_CARD_SHORTFALL);
+        expect(enrollments.filter(e => e.status !== 'cancelled')).toHaveLength(0);
+
+        // ── DB: card_balance is unchanged ──
+        const sb = getAdminClient();
+        const { data: profile } = await sb.from('profiles')
+            .select('card_balance')
+            .eq('id', memberId)
+            .single();
+        expect(profile!.card_balance).toBe(15);
     });
 
     // ──────────────────────────────────────────────────────────────

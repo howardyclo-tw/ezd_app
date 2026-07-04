@@ -3507,28 +3507,57 @@ export async function submitGroupEnrollment(
         orderId = result.orderId;
     }
 
-    // Card shortfall: create a card_purchase order for buyCards
+    // Card shortfall: create a card_purchase order directly via adminClient.
+    // We bypass createCardOrder() because that user-facing function enforces
+    // purchase-window, quantity-unit and min-purchase validations that do not
+    // apply when buying cards as part of group enrollment.
     if (cardPendingEnrollmentIds.length > 0 && payload.buyCards) {
         const { quantity, remittance } = payload.buyCards;
-        // Always create the order first to capture orderId
-        const orderRes = await createCardOrder(quantity, payload.includeMembership ?? false);
-        if (orderRes.success && orderRes.orderId) {
-            cardOrderId = orderRes.orderId;
-            // Submit remittance info if provided
-            if (remittance) {
-                await submitRemittanceInfo(
-                    orderRes.orderId,
-                    remittance.bankCode,
-                    remittance.last5,
-                    remittance.remittanceDate,
-                    remittance.note,
-                );
-            }
-            // Link card-pending enrollments to this card order
-            await adminClient.from('enrollments')
-                .update({ order_id: orderRes.orderId })
-                .in('id', cardPendingEnrollmentIds);
+        const config = await getSystemConfig();
+        const includeMembership = payload.includeMembership ?? false;
+        const unitPrice = (memberActive || includeMembership)
+            ? parseInt(config['card_price_member'] ?? '270', 10)
+            : parseInt(config['card_price_non_member'] ?? '370', 10);
+        const membershipPrice = includeMembership ? 1800 : 0;
+        const totalAmount = (quantity * unitPrice) + membershipPrice;
+        const expiresAt = groupValidUntil ?? `${taipeiToday.slice(0, 4)}-12-31`;
+
+        const { data: cardOrder, error: cardOrderError } = await adminClient
+            .from('orders')
+            .insert({
+                user_id: user.id,
+                quantity,
+                unit_price: unitPrice,
+                total_amount: totalAmount,
+                status: 'pending',
+                include_membership: includeMembership,
+                expires_at: expiresAt,
+                order_type: 'card_purchase' as const,
+            })
+            .select('id')
+            .single();
+
+        if (cardOrderError || !cardOrder) {
+            throw new Error(`建立購卡訂單失敗: ${cardOrderError?.message ?? 'unknown'}`);
         }
+
+        cardOrderId = cardOrder.id;
+
+        // Submit remittance info if provided
+        if (remittance) {
+            await submitRemittanceInfo(
+                cardOrder.id,
+                remittance.bankCode,
+                remittance.last5,
+                remittance.remittanceDate,
+                remittance.note,
+            );
+        }
+
+        // Link card-pending enrollments to this card order
+        await adminClient.from('enrollments')
+            .update({ order_id: cardOrder.id })
+            .in('id', cardPendingEnrollmentIds);
     }
 
     revalidatePath('/', 'layout');
