@@ -56,7 +56,7 @@ function formatDate(dateStr: string) {
 
 export function SessionCard({
     groupTitle, courseName, teacher, date, time, room,
-    sessionNumber, status, waitlistPosition, isQuotaFull, href
+    sessionNumber, status, waitlistPosition, isQuotaFull, href, cancelReason
 }: SessionCardProps) {
     const avatarColor = stringToColor(teacher);
     const isExhausted = status === 'available' && isQuotaFull;

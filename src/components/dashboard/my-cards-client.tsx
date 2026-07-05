@@ -199,6 +199,8 @@ export function MyCardsClient({
                 if (res.success) {
                     toast.success(res.message ?? '訂單已取消');
                     router.refresh();
+                } else {
+                    toast.error(res.message || '取消失敗');
                 }
             } catch (err: any) {
                 toast.error(err.message || '取消失敗');
@@ -217,6 +219,8 @@ export function MyCardsClient({
                     toast.success('匯款資訊已送出');
                     setEditingOrderId(null);
                     router.refresh();
+                } else {
+                    toast.error(res.message || '送出失敗');
                 }
             } catch (err: any) {
                 toast.error(err.message || '送出失敗');
@@ -270,7 +274,7 @@ export function MyCardsClient({
                             <TabsTrigger value="payments" className="text-[12px] sm:text-sm font-bold data-[state=active]:shadow-sm focus:outline-none flex items-center gap-1.5">
                                 繳費紀錄
                                 {allOrdersSorted.filter(o => o.status === 'pending' || o.status === 'remitted').length > 0 && (
-                                    <span className="bg-amber-500/20 text-amber-600 px-1.5 py-0.5 text-[9px] rounded-full leading-none font-black">
+                                    <span className={`${ORDER_STATUS_COLORS.pending} px-1.5 py-0.5 text-[9px] rounded-full leading-none font-black`}>
                                         {allOrdersSorted.filter(o => o.status === 'pending' || o.status === 'remitted').length}
                                     </span>
                                 )}
