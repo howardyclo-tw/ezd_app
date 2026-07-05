@@ -10,12 +10,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, ChevronLeft, ChevronRight, Music, User, CreditCard, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { submitGroupEnrollment as _submitGroupEnrollment } from '@/lib/supabase/actions';
+import { submitGroupEnrollment as _submitGroupEnrollment, resubmitGroupEnrollment as _resubmitGroupEnrollment } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 import { toast } from 'sonner';
+import { ENROLLMENT_STATUS_COLORS, ENROLLMENT_STATUS_LABELS } from '@/lib/constants';
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel,
+    AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+    AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import type { PerCourseResult } from '@/lib/supabase/actions';
 
 const submitGroupEnrollment = safe(_submitGroupEnrollment);
+const resubmitGroupEnrollment = safe(_resubmitGroupEnrollment);
 
 interface PollOption {
     id: string;
@@ -56,6 +63,12 @@ export interface WizardCourse {
     poll: CoursePoll | null;
 }
 
+export interface ExistingEnrollment {
+    courseId: string;
+    courseName: string;
+    status: string;
+}
+
 interface RegisterWizardClientProps {
     groupId: string;
     groupTitle: string;
@@ -63,6 +76,7 @@ interface RegisterWizardClientProps {
     cardBalance: number;
     userRole: string;
     groupSlug: string;
+    existingEnrollments?: ExistingEnrollment[];
 }
 
 type Step = 'select' | 'mv' | 'leader' | 'payment' | 'done';
@@ -80,8 +94,11 @@ export function RegisterWizardClient({
     cardBalance,
     userRole,
     groupSlug,
+    existingEnrollments = [],
 }: RegisterWizardClientProps) {
     const router = useRouter();
+    const hasExisting = existingEnrollments.length > 0;
+    const [isModifyMode, setIsModifyMode] = useState(false);
     const [step, setStep] = useState<Step>('select');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [wantsLeader, setWantsLeader] = useState<Record<string, boolean>>({});
@@ -161,12 +178,16 @@ export function RegisterWizardClient({
                     }
                     : undefined;
 
-                const res = await submitGroupEnrollment({
+                const submitPayload = {
                     groupId,
                     selections,
                     buyCards,
                     includeMembership: includeMembership || undefined,
-                });
+                };
+
+                const res = isModifyMode
+                    ? await resubmitGroupEnrollment(submitPayload)
+                    : await submitGroupEnrollment(submitPayload);
 
                 if (res && 'perCourse' in res) {
                     setResults(res.perCourse);
@@ -188,6 +209,66 @@ export function RegisterWizardClient({
         rejected: { label: '失敗', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
     };
 
+    if (hasExisting && !isModifyMode) {
+        return (
+            <div className="container max-w-2xl py-6 space-y-6">
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-full h-9 w-9 shrink-0"
+                        onClick={() => router.push(`/courses/groups/${groupSlug}`)}
+                        aria-label="返回"
+                    >
+                        <ChevronLeft className="h-5 w-5" />
+                    </Button>
+                    <div>
+                        <h1 className="text-xl font-bold tracking-tight">目前報名</h1>
+                        <p className="text-sm text-muted-foreground">{groupTitle}</p>
+                    </div>
+                </div>
+
+                <div className="rounded-lg border bg-card p-4 space-y-3" data-testid="existing-enrollments">
+                    <h2 className="font-semibold text-sm text-muted-foreground">已報名課程</h2>
+                    <div className="space-y-2">
+                        {existingEnrollments.map(e => (
+                            <div key={e.courseId} className="flex items-center justify-between">
+                                <span className="text-sm">{e.courseName}</span>
+                                <Badge className={cn('text-xs', ENROLLMENT_STATUS_COLORS[e.status] ?? '')}>
+                                    {ENROLLMENT_STATUS_LABELS[e.status] ?? e.status}
+                                </Badge>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button className="w-full" variant="outline">修改報名</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>確定要修改報名？</AlertDialogTitle>
+                            <AlertDialogDescription className="space-y-2 [&>p]:leading-relaxed">
+                                <p>修改報名將<strong>作廢目前的報名</strong>並重新排隊。請注意：</p>
+                                <p>• 您會失去目前的報名順位（早鳥順位不保留）</p>
+                                <p>• 額滿的課程可能無法再選回</p>
+                                <p>• 已扣除的堂卡將退回，需重新計算</p>
+                                <p>• 若有已確認付款的訂單，將無法修改</p>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>取消</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => setIsModifyMode(true)}>
+                                確認修改
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
+        );
+    }
+
     return (
         <div className="container max-w-2xl py-6 space-y-6">
             {/* Header */}
@@ -202,7 +283,9 @@ export function RegisterWizardClient({
                     <ChevronLeft className="h-5 w-5" />
                 </Button>
                 <div>
-                    <h1 className="text-xl font-bold tracking-tight">整期報名</h1>
+                    <h1 className="text-xl font-bold tracking-tight">
+                        {isModifyMode ? '修改報名' : '整期報名'}
+                    </h1>
                     <p className="text-sm text-muted-foreground">{groupTitle}</p>
                 </div>
             </div>
@@ -237,10 +320,11 @@ export function RegisterWizardClient({
                     ) : (
                         <div className="space-y-3">
                             {courses.map(course => {
-                                const isDisabled = course.isFull || course.isEnrolled || !course.canEnrollFull;
+                                const effectiveEnrolled = !isModifyMode && course.isEnrolled;
+                                const isDisabled = course.isFull || effectiveEnrolled || !course.canEnrollFull;
                                 const isSelected = selectedIds.has(course.id);
                                 let disabledReason = '';
-                                if (course.isEnrolled) disabledReason = '已報名';
+                                if (effectiveEnrolled) disabledReason = '已報名';
                                 else if (course.isFull) disabledReason = '額滿';
                                 else if (course.identityLocked) disabledReason = '此課程僅開放社員報名';
                                 else if (!course.canEnrollFull) disabledReason = '未開放整期報名';

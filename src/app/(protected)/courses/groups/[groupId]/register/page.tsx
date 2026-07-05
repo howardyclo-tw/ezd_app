@@ -124,7 +124,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             .eq('group_id', groupData.id),
         supabase
             .from('enrollments')
-            .select('course_id, status')
+            .select('course_id, status, courses!enrollments_course_id_fkey ( name, group_id )')
             .eq('user_id', user.id)
             .eq('type', 'full')
             .in('status', ['enrolled', 'pending_payment', 'pending_vote']),
@@ -172,9 +172,19 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
     }
 
     // Enrolled course IDs (already enrolled/pending)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const groupEnrollments = (userEnrollments ?? []).filter((e: any) => e.courses?.group_id === groupData.id);
+
     const enrolledCourseIds = new Set(
-        (userEnrollments ?? []).map(e => e.course_id)
+        groupEnrollments.map(e => e.course_id)
     );
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existingEnrollments = groupEnrollments.map((e: any) => ({
+        courseId: e.course_id as string,
+        courseName: (e.courses?.name ?? '') as string,
+        status: e.status as string,
+    }));
 
     // Compute member status for identity-gated enrollment
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -262,6 +272,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             cardBalance={profile.card_balance}
             userRole={profile.role}
             groupSlug={groupData.slug || groupData.id}
+            existingEnrollments={existingEnrollments}
         />
     );
 }

@@ -36,3 +36,20 @@ export const ENROLL_TYPE_LABELS: Record<string, string> = {
     makeup: '補課',
     transfer_in: '轉入',
 };
+
+/** Enrollment status badges (5R.3+) */
+export const ENROLLMENT_STATUS_COLORS: Record<string, string> = {
+    enrolled: 'bg-green-500/10 text-green-600',
+    pending_payment: 'bg-amber-500/10 text-amber-600',
+    pending_vote: 'bg-blue-500/10 text-blue-600',
+    waitlist: 'bg-slate-500/10 text-slate-500',
+    cancelled: 'bg-red-500/10 text-red-500',
+};
+
+export const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
+    enrolled: '已成立',
+    pending_payment: '待繳費',
+    pending_vote: '待開票',
+    waitlist: '候補',
+    cancelled: '已取消',
+};
