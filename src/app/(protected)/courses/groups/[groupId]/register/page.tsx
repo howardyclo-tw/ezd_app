@@ -3,24 +3,12 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { notFound, redirect } from 'next/navigation';
 import { RegisterWizardClient } from './register-wizard-client';
 import { isMemberActive } from '@/lib/supabase/pricing';
-import { getTaipeiToday } from '@/lib/date';
+import { getTaipeiToday, formatTaipeiDateTime } from '@/lib/date';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, CalendarOff } from 'lucide-react';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
-
-function formatTaipeiDateTime(iso: string): string {
-    const d = new Date(iso);
-    return new Intl.DateTimeFormat('zh-TW', {
-        timeZone: 'Asia/Taipei',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    }).format(d);
-}
 
 export default async function RegisterPage({ params }: { params: Promise<{ groupId: string }> }) {
     const { groupId } = await params;

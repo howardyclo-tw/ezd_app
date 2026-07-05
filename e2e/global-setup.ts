@@ -254,6 +254,7 @@ export default async function globalSetup() {
   // ── 3. Upsert course_group ────────────────────────────────────
   check('course_groups', await sb.from('course_groups').upsert({
     id: IDS.courseGroup,
+    slug: 'e2e-main',
     title: 'E2E H2 2026 Course Group',
     description: 'Deterministic E2E test course group',
     region: 'HQ',
@@ -266,6 +267,7 @@ export default async function globalSetup() {
   // Closed-phase1 course group (phase1 ended yesterday)
   check('course_groups closed_phase1', await sb.from('course_groups').upsert({
     id: IDS.closedPhase1Group,
+    slug: 'e2e-closed-p1',
     title: 'E2E Closed Phase1 Group',
     description: 'Course group whose phase1 registration has ended',
     region: 'HQ',
@@ -994,21 +996,24 @@ export default async function globalSetup() {
     const page = await context.newPage();
 
     let loggedIn = false;
-    // Retry login up to 3 times to handle the hydration race that only
-    // affects the first ever login attempt in a cold browser context.
     for (let attempt = 1; attempt <= 3 && !loggedIn; attempt++) {
-      await page.goto('http://[::1]:3000/login');
-      // Wait for full network idle to ensure React hydration completes
-      await page.waitForLoadState('networkidle');
-      // Extra guard: wait for the submit button to be interactive
-      const submitBtn = page.getByRole('button', { name: '登入' });
-      await submitBtn.waitFor({ state: 'visible', timeout: 15000 });
-
-      await page.getByLabel('電子郵件').fill(creds.email);
-      await page.getByLabel('密碼').fill(creds.password);
-      await submitBtn.click();
-
       try {
+        await page.goto('http://[::1]:3000/login');
+        await page.waitForLoadState('networkidle');
+
+        // If already redirected to dashboard (prior attempt's login took effect), we're done
+        if (page.url().includes('/dashboard')) {
+          loggedIn = true;
+          break;
+        }
+
+        const submitBtn = page.getByRole('button', { name: '登入' });
+        await submitBtn.waitFor({ state: 'visible', timeout: 15000 });
+
+        await page.getByLabel('電子郵件').fill(creds.email);
+        await page.getByLabel('密碼').fill(creds.password);
+        await submitBtn.click();
+
         await page.waitForURL(/dashboard/, { timeout: 15000 });
         loggedIn = true;
       } catch {

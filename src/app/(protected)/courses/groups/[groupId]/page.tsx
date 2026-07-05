@@ -7,6 +7,7 @@ import { ChevronLeft, Calendar as CalendarIcon, UserPlus } from "lucide-react";
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
+import { formatTaipeiDateTime } from '@/lib/date';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,18 +32,6 @@ function formatCourseTime(course: any, sessions: any[]): string {
     const dayNames = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
     const dayName = dayNames[firstDate.getDay()];
     return `${dayName} ${course.start_time?.slice(0, 5)}-${course.end_time?.slice(0, 5)}`;
-}
-
-function formatTaipeiDateTime(iso: string): string {
-    const d = new Date(iso);
-    return new Intl.DateTimeFormat('zh-TW', {
-        timeZone: 'Asia/Taipei',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    }).format(d);
 }
 
 export default async function CourseGroupDetailPage({ params }: { params: Promise<{ groupId: string }> }) {

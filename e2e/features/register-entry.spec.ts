@@ -19,14 +19,13 @@ import { loginAs } from '../fixtures/auth';
  *   - IDS.noWindowGroup:      no registration window, slug 'e2e-nowin'
  */
 
-const MAIN_GROUP_ID   = 'e2e00000-0000-0000-0000-000000000010';
-const CLOSED_GROUP_ID = 'e2e00000-0000-0000-0000-000000000011';
+const MAIN_GROUP_SLUG = 'e2e-main';
+const CLOSED_GROUP_SLUG = 'e2e-closed-p1';
 
 test.describe('Register entry point + window states', () => {
   test('H1: open window — CTA navigates to /register', async ({ page }) => {
-    // Use guest on main courseGroup (open window, no enrollments for guest)
     await loginAs(page, 'guest');
-    await page.goto(`/courses/groups/${MAIN_GROUP_ID}`);
+    await page.goto(`/courses/groups/${MAIN_GROUP_SLUG}`);
     await expect(page.getByRole('heading', { name: 'E2E H2 2026 Course Group' })).toBeVisible({ timeout: 15000 });
 
     const cta = page.getByRole('link', { name: /整期報名/ });
@@ -37,7 +36,7 @@ test.describe('Register entry point + window states', () => {
 
   test('H2: closed window — disabled button + 已截止', async ({ page }) => {
     await loginAs(page, 'member');
-    await page.goto(`/courses/groups/${CLOSED_GROUP_ID}`);
+    await page.goto(`/courses/groups/${CLOSED_GROUP_SLUG}`);
     await expect(page.getByRole('heading', { name: 'E2E Closed Phase1 Group' })).toBeVisible({ timeout: 15000 });
 
     const btn = page.getByRole('button', { name: /整期報名已截止/ });
@@ -66,9 +65,17 @@ test.describe('Register entry point + window states', () => {
 
   test('A1: /register with closed window — friendly closed message', async ({ page }) => {
     await loginAs(page, 'member');
-    await page.goto(`/courses/groups/${CLOSED_GROUP_ID}/register`);
+    await page.goto(`/courses/groups/${CLOSED_GROUP_SLUG}/register`);
 
     await expect(page.getByText('整期報名已截止')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: /返回檔期頁面/ })).toBeVisible();
+  });
+
+  test('A3: /register with future window — friendly not-yet-open message', async ({ page }) => {
+    await loginAs(page, 'member');
+    await page.goto('/courses/groups/e2e-futwin/register');
+
+    await expect(page.getByText('整期報名尚未開放')).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('link', { name: /返回檔期頁面/ })).toBeVisible();
   });
 
