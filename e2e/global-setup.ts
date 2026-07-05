@@ -60,6 +60,9 @@ const IDS = {
   closedWindowCourse:'e2e00000-0000-0000-0000-000000000027', // single window in the past
   closedPhase1Course:'e2e00000-0000-0000-0000-000000000028', // full, in a closed-phase1 group
   closedPhase1Group: 'e2e00000-0000-0000-0000-000000000011', // group with phase1 ended
+  // Phase 5R.2 register-entry fixtures
+  noWindowGroup:     'e2e00000-0000-0000-0000-000000000015', // group with NO registration window
+  futureWindowGroup: 'e2e00000-0000-0000-0000-000000000016', // group with phase1 in the future
   // Phase 5.3 group enrollment wizard fixtures
   regGroup:          'e2e00000-0000-0000-0000-000000000012', // open phase1 group for register wizard
   regCardAfford:     'e2e00000-0000-0000-0000-0000000000b1', // card course, member can afford (1 card/session, 2 sessions = 2 cards)
@@ -272,6 +275,32 @@ export default async function globalSetup() {
     registration_phase1_end:   new Date(Date.now() - 86400000).toISOString(),
   }, { onConflict: 'id' }));
 
+  // No-window course group (no registration_phase1_start/end)
+  check('course_groups no_window', await sb.from('course_groups').upsert({
+    id: IDS.noWindowGroup,
+    slug: 'e2e-nowin',
+    title: 'E2E No Window Group',
+    description: 'Course group with no registration window configured',
+    region: 'HQ',
+    period_start: today,
+    period_end: addDays(today, 90),
+    registration_phase1_start: null,
+    registration_phase1_end: null,
+  }, { onConflict: 'id' }));
+
+  // Future-window course group (phase1 starts tomorrow)
+  check('course_groups future_window', await sb.from('course_groups').upsert({
+    id: IDS.futureWindowGroup,
+    slug: 'e2e-futwin',
+    title: 'E2E Future Window Group',
+    description: 'Course group whose registration opens tomorrow',
+    region: 'HQ',
+    period_start: today,
+    period_end: addDays(today, 90),
+    registration_phase1_start: new Date(Date.now() + 86400000).toISOString(),
+    registration_phase1_end:   new Date(Date.now() + 14 * 86400000).toISOString(),
+  }, { onConflict: 'id' }));
+
   // ── 4. Upsert courses ─────────────────────────────────────────
   const enrollStart = new Date(Date.now() - 86400000).toISOString();
   const enrollEnd   = new Date(Date.now() + 30 * 86400000).toISOString();
@@ -471,6 +500,7 @@ export default async function globalSetup() {
   // ── 4d. Phase 5.4 resubmit-rebook fixtures ────────────────────
   check('resubGroup', await sb.from('course_groups').upsert({
     id: IDS.resubGroup,
+    slug: 'e2e-resub',
     title: 'E2E Resubmit Rebook Group',
     description: 'Open-phase1 group for resubmit-rebook tests',
     region: 'HQ',
@@ -524,6 +554,7 @@ export default async function globalSetup() {
 
   check('identGroup', await sb.from('course_groups').upsert({
     id: IDS.identGroup,
+    slug: 'e2e-identity',
     title: 'E2E Identity Eligibility Group',
     description: 'Open-phase1 group for identity-eligibility tests',
     region: 'HQ',

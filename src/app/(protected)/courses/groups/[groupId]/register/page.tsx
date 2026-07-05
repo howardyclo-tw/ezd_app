@@ -4,8 +4,23 @@ import { notFound, redirect } from 'next/navigation';
 import { RegisterWizardClient } from './register-wizard-client';
 import { isMemberActive } from '@/lib/supabase/pricing';
 import { getTaipeiToday } from '@/lib/date';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, CalendarOff } from 'lucide-react';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
+
+function formatTaipeiDateTime(iso: string): string {
+    const d = new Date(iso);
+    return new Intl.DateTimeFormat('zh-TW', {
+        timeZone: 'Asia/Taipei',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    }).format(d);
+}
 
 export default async function RegisterPage({ params }: { params: Promise<{ groupId: string }> }) {
     const { groupId } = await params;
@@ -38,6 +53,63 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
     // Auto-fix URL: if accessed via UUID but has a slug, redirect
     if (isUuid && groupData.slug && groupData.slug !== groupId) {
         redirect(`/courses/groups/${groupData.slug}/register`);
+    }
+
+    const gSlug = groupData.slug || groupData.id;
+
+    // Check registration window — render closed states instead of bare errors
+    const now = new Date();
+    const hasWindow = !!(groupData.registration_phase1_start && groupData.registration_phase1_end);
+    const windowStart = hasWindow ? new Date(groupData.registration_phase1_start!) : null;
+    const windowEnd = hasWindow ? new Date(groupData.registration_phase1_end!) : null;
+
+    if (!hasWindow) {
+        return (
+            <div className="container max-w-2xl py-16 text-center space-y-4">
+                <CalendarOff className="h-12 w-12 mx-auto text-muted-foreground/40" />
+                <h2 className="text-xl font-bold">報名時段尚未設定</h2>
+                <p className="text-muted-foreground text-sm">此檔期的報名時段尚未開放，請稍後再來。</p>
+                <Button variant="outline" asChild>
+                    <Link href={`/courses/groups/${gSlug}`}>
+                        <ChevronLeft className="h-4 w-4 mr-1" />返回檔期頁面
+                    </Link>
+                </Button>
+            </div>
+        );
+    }
+
+    if (now < windowStart!) {
+        return (
+            <div className="container max-w-2xl py-16 text-center space-y-4">
+                <CalendarOff className="h-12 w-12 mx-auto text-muted-foreground/40" />
+                <h2 className="text-xl font-bold">整期報名尚未開放</h2>
+                <p className="text-muted-foreground text-sm">
+                    報名將於 {formatTaipeiDateTime(groupData.registration_phase1_start!)} 開放
+                </p>
+                <Button variant="outline" asChild>
+                    <Link href={`/courses/groups/${gSlug}`}>
+                        <ChevronLeft className="h-4 w-4 mr-1" />返回檔期頁面
+                    </Link>
+                </Button>
+            </div>
+        );
+    }
+
+    if (now > windowEnd!) {
+        return (
+            <div className="container max-w-2xl py-16 text-center space-y-4">
+                <CalendarOff className="h-12 w-12 mx-auto text-muted-foreground/40" />
+                <h2 className="text-xl font-bold">整期報名已截止</h2>
+                <p className="text-muted-foreground text-sm">
+                    報名已於 {formatTaipeiDateTime(groupData.registration_phase1_end!)} 截止。如需單堂加報，請至各課程頁操作。
+                </p>
+                <Button variant="outline" asChild>
+                    <Link href={`/courses/groups/${gSlug}`}>
+                        <ChevronLeft className="h-4 w-4 mr-1" />返回檔期頁面
+                    </Link>
+                </Button>
+            </div>
+        );
     }
 
     const adminDb = createAdminClient();

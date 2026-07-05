@@ -2,11 +2,11 @@ import { Button } from "@/components/ui/button";
 import { createAdminClient } from '@/lib/supabase/admin';
 import { computeSessionOccupancy } from '@/lib/supabase/capacity';
 import { CourseCard } from "@/components/courses/course-card";
-import { ChevronLeft, Calendar as CalendarIcon, Edit2, Plus, UserPlus } from "lucide-react";
+import { RegistrationWindowEdit } from "@/components/courses/registration-window-edit";
+import { ChevronLeft, Calendar as CalendarIcon, UserPlus } from "lucide-react";
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
-import { GroupEnrollmentDialog } from "@/components/courses/group-enrollment-dialog";
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +31,18 @@ function formatCourseTime(course: any, sessions: any[]): string {
     const dayNames = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
     const dayName = dayNames[firstDate.getDay()];
     return `${dayName} ${course.start_time?.slice(0, 5)}-${course.end_time?.slice(0, 5)}`;
+}
+
+function formatTaipeiDateTime(iso: string): string {
+    const d = new Date(iso);
+    return new Intl.DateTimeFormat('zh-TW', {
+        timeZone: 'Asia/Taipei',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    }).format(d);
 }
 
 export default async function CourseGroupDetailPage({ params }: { params: Promise<{ groupId: string }> }) {
@@ -81,16 +93,14 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
             `)
             .eq('group_id', groupData.id),
 
-        // User's existing enrollments for this group (to disable in dialog)
+        // User's existing active enrollments for this group (full-term)
         supabase
             .from('enrollments')
             .select('course_id')
             .eq('user_id', user.id)
-            .eq('status', 'enrolled')
-            .eq('type', 'full'),
+            .eq('type', 'full')
+            .in('status', ['enrolled', 'pending_payment', 'pending_vote']),
     ]);
-
-
 
     // Compute max session occupancy per course for accurate isFull check
     const adminDb = createAdminClient();
@@ -158,7 +168,7 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
     const courseCards = (courses ?? []).map(course => {
         const sessions = (course.course_sessions as any[]) ?? [];
         sessions.sort((a: any, b: any) => a.session_date.localeCompare(b.session_date));
-        
+
         const firstSession = sessions[0];
         const lastSession = sessions[sessions.length - 1];
 
@@ -212,23 +222,22 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
         ? `${formattedMin}~${formattedMax}`
         : (formattedMin || formattedMax || '檔期時間未定');
 
-    // Check registration status
+    // Registration window state machine
     const now = new Date();
-    const isPhase1Expired = groupData.registration_phase1_end && new Date(groupData.registration_phase1_end) < now;
+    const hasWindow = !!(groupData.registration_phase1_start && groupData.registration_phase1_end);
+    const windowStart = groupData.registration_phase1_start ? new Date(groupData.registration_phase1_start) : null;
+    const windowEnd = groupData.registration_phase1_end ? new Date(groupData.registration_phase1_end) : null;
 
-    // Format registration phase 1 display
-    const renderPhase1Period = () => {
-        if (!groupData.registration_phase1_start || !groupData.registration_phase1_end) return null;
-        const start = new Date(groupData.registration_phase1_start);
-        const end = new Date(groupData.registration_phase1_end);
+    type WindowState = 'not_configured' | 'not_started' | 'open' | 'closed';
+    let windowState: WindowState;
+    if (!hasWindow) windowState = 'not_configured';
+    else if (now < windowStart!) windowState = 'not_started';
+    else if (now > windowEnd!) windowState = 'closed';
+    else windowState = 'open';
 
-        // e.g. "02/20~02/25"
-        const fmt = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' });
-        const formatShortDate = (d: Date) => { const [, m, day] = fmt.format(d).split('-'); return `${m}/${day}`; };
-        return `${formatShortDate(start)}~${formatShortDate(end)}`;
-    };
-
-    const phase1Text = renderPhase1Period();
+    const hasExistingEnrollment = (userEnrollments ?? []).length > 0;
+    const hasOpenSingleEnroll = (courses ?? []).some((c: any) => c.enroll_single === true);
+    const gSlug = groupData.slug || groupData.id;
 
     return (
         <div className="container max-w-5xl py-6 space-y-4">
@@ -243,29 +252,76 @@ export default async function CourseGroupDetailPage({ params }: { params: Promis
                         <p className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 mt-0.5">
                             <CalendarIcon className="h-3.5 w-3.5" /> {inferredPeriod}
                         </p>
+                        {/* Admin: registration window info */}
+                        {isAdminOrLeader && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+                                {hasWindow ? (
+                                    <>
+                                        報名時段：{formatTaipeiDateTime(groupData.registration_phase1_start!)} ~ {formatTaipeiDateTime(groupData.registration_phase1_end!)}
+                                        <RegistrationWindowEdit
+                                            groupId={groupData.id}
+                                            groupTitle={groupData.title}
+                                            currentStart={groupData.registration_phase1_start}
+                                            currentEnd={groupData.registration_phase1_end}
+                                        />
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="text-amber-600 dark:text-amber-400">尚未設定報名時段</span>
+                                        <RegistrationWindowEdit
+                                            groupId={groupData.id}
+                                            groupTitle={groupData.title}
+                                            currentStart={null}
+                                            currentEnd={null}
+                                        />
+                                    </>
+                                )}
+                            </p>
+                        )}
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto mt-4 sm:mt-0">
-                    <GroupEnrollmentDialog
-                        groupTitle={groupData.title}
-                        cardBalance={profile?.card_balance ?? 0}
-                        isGuest={profile?.role === 'guest'}
-                        courses={(courses ?? []).map(c => {
-                            const sessions = (c.course_sessions as any[]) ?? [];
-                            const isUserEnrolled = (userEnrollments ?? []).some(ue => ue.course_id === c.id);
-
-                            return {
-                                id: c.id,
-                                name: c.name,
-                                teacher: c.teacher,
-                                sessionsCount: sessions.length,
-                                cardsPerSession: c.cards_per_session,
-                                isEnrolled: isUserEnrolled,
-                                isFull: (courseMaxOccupancy[c.id] ?? 0) >= c.capacity,
-                            };
-                        })}
-                    />
+                {/* Enrollment CTA — window-driven lifecycle */}
+                <div className="flex flex-col items-end gap-1 w-full sm:w-auto mt-4 sm:mt-0">
+                    {windowState === 'not_configured' && !isAdminOrLeader ? null : (
+                        windowState === 'not_configured' && isAdminOrLeader ? (
+                            <span className="text-xs text-muted-foreground">設定報名時段後,學員將可看到報名按鈕</span>
+                        ) : windowState === 'not_started' ? (
+                            <Button
+                                size="lg"
+                                disabled
+                                className="w-full sm:w-auto font-bold rounded-xl px-6 h-11 flex items-center gap-2.5 opacity-60"
+                            >
+                                <UserPlus className="h-5 w-5 stroke-[2.5]" />
+                                <span>整期報名 {formatTaipeiDateTime(groupData.registration_phase1_start!)} 開放</span>
+                            </Button>
+                        ) : windowState === 'open' ? (
+                            <Button
+                                size="lg"
+                                asChild
+                                className="w-full sm:w-auto font-bold bg-primary hover:bg-primary/90 text-primary-foreground border-none transition-all active:scale-95 rounded-xl px-6 h-11 flex items-center gap-2.5 shadow-lg shadow-primary/20"
+                            >
+                                <Link href={`/courses/groups/${gSlug}/register`}>
+                                    <UserPlus className="h-5 w-5 stroke-[2.5]" />
+                                    <span>{hasExistingEnrollment ? '查看/修改報名' : '整期報名'}</span>
+                                </Link>
+                            </Button>
+                        ) : /* closed */ (
+                            <div className="flex flex-col items-end gap-1">
+                                <Button
+                                    size="lg"
+                                    disabled
+                                    className="w-full sm:w-auto font-bold rounded-xl px-6 h-11 flex items-center gap-2.5 opacity-60"
+                                >
+                                    <UserPlus className="h-5 w-5 stroke-[2.5]" />
+                                    <span>整期報名已截止</span>
+                                </Button>
+                                {hasOpenSingleEnroll && (
+                                    <span className="text-xs text-muted-foreground">單堂加報請至各課程頁</span>
+                                )}
+                            </div>
+                        )
+                    )}
                 </div>
             </div>
 
