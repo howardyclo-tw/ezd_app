@@ -126,6 +126,11 @@ const IDS = {
     // Phase 5R.6 card-pool exhaustion sessions
     cardExhaust1:     'e2e00000-0000-0000-0000-0000000001c2',
     cardExhaust2:     'e2e00000-0000-0000-0000-0000000001c3',
+    // Phase 5R.8 journey sessions
+    journeyA1: 'e2e00000-0000-0000-0000-0000000001d3',
+    journeyA2: 'e2e00000-0000-0000-0000-0000000001d4',
+    journeyB1: 'e2e00000-0000-0000-0000-0000000001d5',
+    journeyB2: 'e2e00000-0000-0000-0000-0000000001d6',
     // Phase 5.4 resubmit-rebook sessions
     resubA1: 'e2e00000-0000-0000-0000-0000000000f1',
     resubA2: 'e2e00000-0000-0000-0000-0000000000f2',
@@ -159,6 +164,10 @@ const IDS = {
   singleAddFree:     'e2e00000-0000-0000-0000-00000000002a', // free course
   // Phase 5R.6: card-pool exhaustion test fixture
   cardExhaustCourse: 'e2e00000-0000-0000-0000-0000000001c1', // card, 5 cards/session, 2 future sessions = 10 needed
+  // Phase 5R.8: journey e2e dedicated fixtures
+  journeyGroup:  'e2e00000-0000-0000-0000-000000000015',
+  journeyNtdA:   'e2e00000-0000-0000-0000-0000000001d1', // ntd, for remittance flow
+  journeyNtdB:   'e2e00000-0000-0000-0000-0000000001d2', // ntd, for cancel flow
   enrollments: {
     memberFull:      'e2e00000-0000-0000-0000-000000000060',
     multiSingle:     'e2e00000-0000-0000-0000-000000000061',
@@ -654,6 +663,45 @@ export default async function globalSetup() {
     enroll_full: true, enroll_single: false, pricing_mode: 'card',
   }, { onConflict: 'id' }));
 
+  // ── 4g. Phase 5R.8 journey e2e dedicated fixtures ──────────────
+  check('journeyGroup', await sb.from('course_groups').upsert({
+    id: IDS.journeyGroup,
+    slug: 'e2e-journey',
+    title: 'E2E Journey Group',
+    description: 'Dedicated group for dual-role journey e2e tests',
+    region: 'HQ',
+    period_start: today,
+    period_end: addDays(today, 90),
+    registration_phase1_start: new Date(Date.now() - 86400000).toISOString(),
+    registration_phase1_end:   new Date(Date.now() + 14 * 86400000).toISOString(),
+  }, { onConflict: 'id' }));
+
+  check('journeyNtdA', await sb.from('courses').upsert({
+    id: IDS.journeyNtdA,
+    name: 'E2E Journey NTD A',
+    description: 'NTD course for student journey remittance flow',
+    type: 'normal', start_time: '08:00', end_time: '09:00', capacity: 20, cards_per_session: 0,
+    group_id: IDS.journeyGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'ntd',
+    price_member_full: 600, price_guest_full: 1000,
+    price_member_single: 200, price_guest_single: 350,
+  }, { onConflict: 'id' }));
+
+  check('journeyNtdB', await sb.from('courses').upsert({
+    id: IDS.journeyNtdB,
+    name: 'E2E Journey NTD B',
+    description: 'NTD course for student journey cancel flow',
+    type: 'normal', start_time: '09:00', end_time: '10:00', capacity: 20, cards_per_session: 0,
+    group_id: IDS.journeyGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'ntd',
+    price_member_full: 500, price_guest_full: 900,
+    price_member_single: 200, price_guest_single: 300,
+  }, { onConflict: 'id' }));
+
   // ── 5. Upsert course_sessions ─────────────────────────────────
   const sessions = [
     // Basic Groove: 2 past + 3 future
@@ -723,6 +771,11 @@ export default async function globalSetup() {
     // Phase 5R.6 card exhaustion: 2 future sessions × 5 cards/session = 10 cards needed
     { id: IDS.sessions.cardExhaust1, course_id: IDS.cardExhaustCourse, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.cardExhaust2, course_id: IDS.cardExhaustCourse, session_date: addDays(today, 14), session_number: 2 },
+    // Phase 5R.8 journey: 2 sessions per NTD course
+    { id: IDS.sessions.journeyA1, course_id: IDS.journeyNtdA, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.journeyA2, course_id: IDS.journeyNtdA, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.journeyB1, course_id: IDS.journeyNtdB, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.journeyB2, course_id: IDS.journeyNtdB, session_date: addDays(today, 14), session_number: 2 },
   ];
 
   for (const s of sessions) {
@@ -915,6 +968,16 @@ export default async function globalSetup() {
   check('cleanup ident orders guest', await sb.from('orders').delete()
     .eq('user_id', guestId)
     .eq('course_group_id', IDS.identGroup));
+
+  // Phase 5R.8 journey courses: clean all enrollments + orders
+  const journeyCourseIds = [IDS.journeyNtdA, IDS.journeyNtdB];
+  for (const jCourseId of journeyCourseIds) {
+    check(`cleanup enroll journey ${jCourseId}`, await sb.from('enrollments').delete()
+      .eq('course_id', jCourseId));
+  }
+  check('cleanup journey orders member', await sb.from('orders').delete()
+    .eq('user_id', memberId)
+    .eq('course_group_id', IDS.journeyGroup));
 
   // Clean poll_votes for register wizard polls (before polls cleanup)
   check('cleanup poll_votes reg', await sb.from('poll_votes').delete()

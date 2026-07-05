@@ -135,9 +135,6 @@ export default async function MyCoursesPage() {
     historyRecords.sort((a, b) => b.date.localeCompare(a.date));
 
     const upcomingSessions = (myEnrollments ?? []).flatMap((enrollment: any) => {
-        // Cancelled enrollments don't appear in upcoming
-        if (enrollment.status === 'cancelled') return [];
-
         const course = enrollment.courses;
         if (!course) return [];
 
@@ -148,6 +145,24 @@ export default async function MyCoursesPage() {
 
         const gId = group?.slug || group?.id;
         const cId = course?.slug || course?.id;
+
+        if (enrollment.status === 'cancelled') {
+            const nextSession = sessions.find((s: any) => s.session_date >= today);
+            if (!nextSession) return [];
+            return [{
+                groupTitle: group?.title ?? '未知檔期',
+                courseName: course.name,
+                teacher: course.teacher,
+                date: nextSession.session_date,
+                time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
+                room: course.room,
+                sessionNumber: 0,
+                status: 'cancelled' as const,
+                href: (gId && cId) ? `/courses/groups/${gId}/${cId}` : undefined,
+                sessionId: nextSession.id,
+                cancelReason: enrollment.cancel_reason ?? undefined,
+            }];
+        }
 
         return sessions
             .filter((s: any) => {

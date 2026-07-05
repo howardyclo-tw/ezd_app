@@ -1102,7 +1102,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                         />
                                                     </FormControl>
                                                     <FormDescription className="text-[11px]">
-                                                        {courseType === 'normal' ? '常態課預設開課後加報' : '留空=立即可報'}
+                                                        {courseType === 'normal' ? '常態課單堂預設開課後加報' : '留空=立即可報'}
                                                     </FormDescription>
                                                 </FormItem>
                                             )}

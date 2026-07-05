@@ -83,9 +83,9 @@ interface RegisterWizardClientProps {
 type Step = 'select' | 'mv' | 'leader' | 'payment' | 'done';
 
 const PRICING_BADGE_COLORS: Record<string, string> = {
-    '堂卡': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-    'NTD': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-    '免費': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+    '堂卡': 'bg-blue-500/10 text-blue-600',
+    'NTD': 'bg-amber-500/10 text-amber-600',
+    '免費': 'bg-green-500/10 text-green-600',
 };
 
 export function RegisterWizardClient({
@@ -206,11 +206,11 @@ export function RegisterWizardClient({
     };
 
     const statusLabels: Record<string, { label: string; color: string }> = {
-        enrolled: { label: '報名成功', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
-        pending_payment: { label: '待繳費', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
-        pending_vote: { label: '待選歌', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-        full: { label: '額滿', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
-        rejected: { label: '失敗', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+        enrolled: { label: '報名成功', color: 'bg-green-500/10 text-green-600' },
+        pending_payment: { label: '待繳費', color: 'bg-amber-500/10 text-amber-600' },
+        pending_vote: { label: '待選歌', color: 'bg-blue-500/10 text-blue-600' },
+        full: { label: '額滿', color: 'bg-red-500/10 text-red-500' },
+        rejected: { label: '失敗', color: 'bg-red-500/10 text-red-500' },
     };
 
     if (hasExisting && !isModifyMode) {
@@ -370,7 +370,7 @@ export function RegisterWizardClient({
                                                     {course.pricingBadge}
                                                 </Badge>
                                                 {course.isMv && (
-                                                    <Badge variant="secondary" className="text-[10px] font-bold px-1.5 py-0 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                                    <Badge variant="secondary" className="text-[10px] font-bold px-1.5 py-0 bg-purple-500/10 text-purple-600">
                                                         MV
                                                     </Badge>
                                                 )}

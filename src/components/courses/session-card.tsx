@@ -24,7 +24,7 @@ export interface SessionCardProps {
     time?: string;           // e.g. "19:30~21:30" (only for upcoming)
     room?: string;
     sessionNumber: number;
-    status: 'enrolled' | 'waitlist' | 'pending_payment' | 'pending_vote' | 'present' | 'absent' | 'leave' | 'available' | 'makeup' | 'transfer_in' | 'transfer_out';
+    status: 'enrolled' | 'waitlist' | 'pending_payment' | 'pending_vote' | 'cancelled' | 'present' | 'absent' | 'leave' | 'available' | 'makeup' | 'transfer_in' | 'transfer_out';
     waitlistPosition?: number;
     isQuotaFull?: boolean;
     href?: string;
@@ -35,6 +35,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
     enrolled: { label: '待出席', color: 'bg-muted/30 text-muted-foreground border-muted/50 ring-0' },
     pending_payment: { label: '待繳費', color: 'bg-amber-500/10 text-amber-600 ring-amber-600/20' },
     pending_vote: { label: '待開票', color: 'bg-blue-500/10 text-blue-600 ring-blue-600/20' },
+    cancelled: { label: '已取消', color: 'bg-red-500/10 text-red-500 ring-red-500/20' },
     waitlist: { label: '候補', color: 'bg-orange-500/10 text-orange-600 ring-orange-600/20' },
     ...Object.fromEntries(
         Object.entries(ATTENDANCE_LABELS)
@@ -120,6 +121,9 @@ export function SessionCard({
                             </div>
                         ) : null}
 
+                        {status === 'cancelled' && cancelReason && (
+                            <p className="text-[11px] text-red-500/80 mt-1 truncate">原因：{cancelReason}</p>
+                        )}
                     </div>
                 </div>
 

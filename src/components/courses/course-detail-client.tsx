@@ -37,7 +37,7 @@ import Link from 'next/link';
 import { SessionEnrollmentDialog } from "@/components/courses/session-enrollment-dialog";
 import { saveAttendance as _saveAttendance, assignCourseLeader as _assignCourseLeader, removeCourseLeader as _removeCourseLeader, submitLeaveRequest as _submitLeaveRequest, submitTransferRequest as _submitTransferRequest, getTransferCandidates, cancelEnrollment as _cancelEnrollment } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
-import { ATTENDANCE_COLORS, ATTENDANCE_LABELS } from '@/lib/constants';
+import { ATTENDANCE_COLORS, ATTENDANCE_LABELS, ENROLLMENT_STATUS_COLORS } from '@/lib/constants';
 
 const saveAttendance = safe(_saveAttendance);
 const assignCourseLeader = safe(_assignCourseLeader);
@@ -987,10 +987,10 @@ export function CourseDetailClient({
                                                             <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-500/30 text-amber-500 shadow-none">志願</Badge>
                                                         )}
                                                         {student.enrollmentStatus === 'pending_payment' && (
-                                                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-500/30 bg-amber-500/10 text-amber-600 shadow-none">待繳費</Badge>
+                                                            <Badge variant="outline" className={cn("text-[9px] px-1 py-0 h-4 shadow-none", ENROLLMENT_STATUS_COLORS.pending_payment)}>待繳費</Badge>
                                                         )}
                                                         {student.enrollmentStatus === 'pending_vote' && (
-                                                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-500/30 bg-blue-500/10 text-blue-600 shadow-none">待開票</Badge>
+                                                            <Badge variant="outline" className={cn("text-[9px] px-1 py-0 h-4 shadow-none", ENROLLMENT_STATUS_COLORS.pending_vote)}>待開票</Badge>
                                                         )}
                                                     </div>
                                                 </td>

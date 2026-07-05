@@ -64,11 +64,11 @@ interface MyCardsClientProps {
     bankInfo: string;
 }
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-    pending: { label: '待匯款', color: 'text-yellow-600 border-yellow-500/30 bg-yellow-500/5' },
-    remitted: { label: '財務審核中', color: 'text-orange-600 border-orange-500/30 bg-orange-500/5' },
-    confirmed: { label: '已開通', color: 'text-green-600 border-green-500/30 bg-green-500/5' },
-    cancelled: { label: '已取消', color: 'text-muted-foreground border-muted' },
+const CARD_STATUS_LABELS: Record<string, string> = {
+    pending: '待匯款',
+    remitted: '財務審核中',
+    confirmed: '已開通',
+    cancelled: '已取消',
 };
 
 export function MyCardsClient({
@@ -231,7 +231,7 @@ export function MyCardsClient({
     return (
         <>
             {/* Header Row: Title on left, Purchase Button on right */}
-            <div className="flex flex-row items-center justify-between gap-2 sm:gap-6 mb-4 px-4 sm:px-0 w-full max-w-lg mx-auto">
+            <div className="flex flex-row items-center justify-between gap-2 sm:gap-6 mb-4 px-4 sm:px-0 w-full max-w-5xl mx-auto">
                 <div className="flex items-center gap-1 -ml-2">
                     <Button variant="ghost" size="icon" asChild className="rounded-full h-10 w-10 shrink-0">
                         <Link href="/dashboard">
@@ -239,7 +239,7 @@ export function MyCardsClient({
                         </Link>
                     </Button>
                     <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-black shrink-0 shadow-sm border border-muted/20 hidden sm:flex">
+                        <div className="h-10 w-10 rounded-xl bg-muted/50 flex items-center justify-center text-foreground shrink-0 border border-muted/20">
                             <CreditCard className="h-5 w-5" />
                         </div>
                         <div className="space-y-0.5 select-none">
@@ -253,7 +253,7 @@ export function MyCardsClient({
 
                 <Button
                     size="sm"
-                    className="h-9 sm:h-10 text-xs sm:text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl shadow-md transition-all active:scale-95 px-4 sm:px-6 w-auto shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-9 sm:h-10 text-xs sm:text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md transition-all active:scale-95 px-4 sm:px-6 w-auto shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={() => {
                         setPurchaseStep(1);
                         setIsPurchaseDialogOpen(true);
@@ -266,7 +266,7 @@ export function MyCardsClient({
             </div>
 
             {/* Top-level dual tabs: 堂卡 | 繳費紀錄 */}
-            <div className="w-full max-w-lg mx-auto mt-6 sm:mt-8">
+            <div className="w-full max-w-5xl mx-auto mt-6 sm:mt-8">
                 <Tabs defaultValue="cards" className="w-full">
                     <div className="flex justify-center mb-6 px-4 sm:px-0">
                         <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-2">
@@ -308,25 +308,16 @@ export function MyCardsClient({
                                 </div>
                             ) : (
                                 <div className="space-y-6">
-                                    <Card className="bg-gradient-to-br from-card to-background border border-muted/40 shadow-2xl rounded-[2.5rem] p-8 sm:p-10 space-y-6 relative overflow-hidden group/card hover:border-orange-500/20 transition-colors duration-500 min-h-[220px] flex flex-col justify-center">
-                                        {/* Premium background hint */}
-                                        <div className="absolute -top-24 -left-24 w-64 h-64 bg-orange-500/5 blur-[100px] pointer-events-none" />
-                                        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-orange-500/[0.01] to-transparent pointer-events-none" />
-                                        
-                                        {/* Large artful icon with dynamic hover */}
-                                        <div className="absolute top-1/2 -right-16 -translate-y-[55%] opacity-[0.03] pointer-events-none group-hover/card:opacity-[0.06] transition-all duration-700">
-                                            <CreditCard className="h-80 w-80 sm:h-[28rem] sm:w-[28rem] -rotate-[15deg] text-foreground" />
+                                    <Card className="border border-muted/40 shadow-md rounded-xl p-6 sm:p-8 space-y-4 relative overflow-hidden">
+                                        <div className="space-y-1">
+                                            <h2 className="text-lg sm:text-xl font-bold tracking-tight text-muted-foreground">目前的總剩餘堂數</h2>
                                         </div>
-                                        
-                                        <div className="space-y-1 relative">
-                                            <h2 className="text-xl sm:text-2xl font-black tracking-tight opacity-90">目前的總剩餘堂數</h2>
-                                        </div>
-                                        
-                                        <div className="flex items-baseline gap-3 relative">
-                                            <p className="text-7xl sm:text-8xl font-black tracking-tighter bg-gradient-to-b from-foreground to-foreground/80 bg-clip-text">
+
+                                        <div className="flex items-baseline gap-2">
+                                            <p className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">
                                                 {balance}
                                             </p>
-                                            <span className="text-xl sm:text-2xl opacity-20 font-bold tracking-widest">堂卡</span>
+                                            <span className="text-lg sm:text-xl text-muted-foreground/40 font-bold">堂卡</span>
                                         </div>
                                         
                                         {cardPools.length > 0 && (
@@ -341,8 +332,8 @@ export function MyCardsClient({
                                                     if (expiredCount > 0) {
                                                         return (
                                                             <div className="flex items-center gap-2">
-                                                                <div className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />
-                                                                <p className="text-[11px] text-orange-600/90 font-black tracking-wide">
+                                                                <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                                                                <p className="text-[11px] text-destructive font-bold">
                                                                     扣除已過期後可用於報名：{availableBalance} 堂 ({expiredCount} 堂已過期)
                                                                 </p>
                                                             </div>
@@ -358,9 +349,9 @@ export function MyCardsClient({
                                     </Card>
 
                                     {activeOrders.map((order) => (
-                                        <Card key={order.id} className="border-muted/60 bg-muted/5 shadow-sm overflow-hidden relative group hover:border-orange-600/30 transition-all rounded-xl p-5 sm:p-6 flex flex-row items-center justify-between gap-4">
+                                        <Card key={order.id} className="border-muted/60 bg-muted/5 shadow-sm overflow-hidden relative group hover:border-primary/30 transition-all rounded-xl p-5 sm:p-6 flex flex-row items-center justify-between gap-4">
                                             <div className="space-y-1 min-w-0 flex-1">
-                                                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600/60 truncate">Purchase ID: {order.id.slice(0, 8)}</p>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 truncate">Purchase ID: {order.id.slice(0, 8)}</p>
                                                 <h3 className="text-sm sm:text-base font-bold">
                                                     已開通: {order.quantity} 堂課卡
                                                 </h3>
@@ -408,14 +399,13 @@ export function MyCardsClient({
                                 </div>
                             ) : (
                                 pendingOrders.map((order) => {
-                                    const statusInfo = STATUS_MAP[order.status] || STATUS_MAP.pending;
                                     return (
                                         <Card key={order.id} className="border-muted/60 bg-muted/5 rounded-xl overflow-hidden flex flex-col">
                                             <div className="p-5 sm:p-6 space-y-4 sm:space-y-5">
                                                 <div className="space-y-1.5 w-full">
                                                     <div className="flex items-center gap-2 mb-2">
-                                                        <Badge variant="outline" className={cn("font-bold text-[10px] h-5 px-1.5 border-none", statusInfo.color)}>
-                                                            {statusInfo.label}
+                                                        <Badge variant="outline" className={cn("font-bold text-[10px] h-5 px-1.5 border-none", ORDER_STATUS_COLORS[order.status] || ORDER_STATUS_COLORS.pending)}>
+                                                            {CARD_STATUS_LABELS[order.status] || ORDER_STATUS_LABELS[order.status] || '待匯款'}
                                                         </Badge>
                                                         <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">
                                                             Order {order.id.slice(0, 8)}
@@ -434,7 +424,7 @@ export function MyCardsClient({
                                                 {order.status === 'remitted' && (
                                                     <div className="bg-background rounded-xl p-3 sm:p-4 border border-muted/50 text-[11px] sm:text-xs flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2">
                                                         <div className="flex items-center gap-1.5 font-bold text-foreground shrink-0">
-                                                            <CheckCircle2 className="h-4 w-4 text-orange-600" />
+                                                            <CheckCircle2 className="h-4 w-4 text-primary" />
                                                             已匯款資訊
                                                         </div>
                                                         <div className="text-muted-foreground font-medium leading-relaxed sm:border-l sm:pl-4 sm:border-muted/60 flex flex-wrap items-center gap-x-4 gap-y-1.5">
@@ -479,7 +469,7 @@ export function MyCardsClient({
                                                 {order.expires_at && <span>{order.expires_at} 止</span>}
                                             </div>
                                         </div>
-                                        <Badge variant="secondary" className="font-bold border-none px-2 h-6 text-[11px]">{STATUS_MAP[order.status]?.label || '已取消'}</Badge>
+                                        <Badge variant="secondary" className="font-bold border-none px-2 h-6 text-[11px]">{CARD_STATUS_LABELS[order.status] || '已取消'}</Badge>
                                     </div>
                                 ))
                             )}
@@ -652,7 +642,7 @@ export function MyCardsClient({
                                         <p className="text-xs text-muted-foreground font-bold">單堂價格</p>
                                         <p className={cn(
                                             "font-bold text-sm transition-colors",
-                                            (isMember || includeMembership) ? "text-orange-600" : "text-foreground"
+                                            (isMember || includeMembership) ? "text-primary" : "text-foreground"
                                         )}>
                                             NT$ {(isMember || includeMembership) ? priceMember : priceNonMember}
                                         </p>
@@ -664,7 +654,7 @@ export function MyCardsClient({
                                     <div 
                                         className={cn(
                                             "flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer select-none",
-                                            includeMembership ? "bg-orange-500/10 border-orange-600/50 ring-1 ring-orange-600/20" : "bg-muted/10 hover:bg-muted/20 border-muted"
+                                            includeMembership ? "bg-primary/10 border-primary/50 ring-1 ring-primary/20" : "bg-muted/10 hover:bg-muted/20 border-muted"
                                         )}
                                         onClick={() => setIncludeMembership(!includeMembership)}
                                     >
@@ -672,7 +662,7 @@ export function MyCardsClient({
                                             <span className="text-sm font-bold flex items-center gap-2">
                                                 <div className={cn(
                                                     "h-5 w-5 rounded-full border flex items-center justify-center transition-all",
-                                                    includeMembership ? "bg-orange-600 border-orange-600" : "bg-transparent border-muted-foreground/30"
+                                                    includeMembership ? "bg-primary border-primary" : "bg-transparent border-muted-foreground/30"
                                                 )}>
                                                     {includeMembership && <Check className="h-3 w-3 text-white stroke-[4]" />}
                                                 </div>
@@ -680,13 +670,13 @@ export function MyCardsClient({
                                             </span>
                                             <span className={cn(
                                                 "text-[10px] font-medium mt-0.5 ml-7",
-                                                includeMembership ? "text-orange-600/80" : "text-muted-foreground"
+                                                includeMembership ? "text-primary/80" : "text-muted-foreground"
                                             )}>
                                                 {includeMembership ? "已享社員優惠價 NT$ 270/堂" : "加入後購卡即享社員價 NT$ 270/堂"}
                                             </span>
                                         </div>
                                         <div className="text-right">
-                                            <span className={cn("text-sm font-black", includeMembership ? "text-orange-600" : "text-foreground")}>
+                                            <span className={cn("text-sm font-black", includeMembership ? "text-primary" : "text-foreground")}>
                                                 + NT$ 1,800
                                             </span>
                                         </div>
@@ -721,9 +711,9 @@ export function MyCardsClient({
                             </div>
 
                             {/* Total */}
-                            <div className="text-center p-4 rounded-xl bg-orange-500/5 border border-orange-500/20">
+                            <div className="text-center p-4 rounded-xl bg-primary/5 border border-primary/20">
                                 <p className="text-xs text-muted-foreground font-bold mb-1">應付總額</p>
-                                <p className="text-3xl font-black text-orange-600">NT$ {totalPrice.toLocaleString()}</p>
+                                <p className="text-3xl font-black text-primary">NT$ {totalPrice.toLocaleString()}</p>
                             </div>
 
                             <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
@@ -742,7 +732,7 @@ export function MyCardsClient({
                                         maxLength={3}
                                         value={bankCode}
                                         onChange={(e) => setBankCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                                        className={`h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-orange-600/50 ${bankCode.length > 0 && bankCode.length < 3 ? 'border-red-500/50' : ''}`}
+                                        className={`h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-primary/50 ${bankCode.length > 0 && bankCode.length < 3 ? 'border-red-500/50' : ''}`}
                                     />
                                     {bankCode.length > 0 && bankCode.length < 3 && (
                                         <p className="text-[11px] text-red-500 font-bold ml-1">請輸入 3 位數銀行代碼</p>
@@ -756,7 +746,7 @@ export function MyCardsClient({
                                         maxLength={5}
                                         value={last5}
                                         onChange={(e) => setLast5(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                                        className={`h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-orange-600/50 ${last5.length > 0 && last5.length < 5 ? 'border-red-500/50' : ''}`}
+                                        className={`h-12 rounded-xl text-center text-lg font-bold border-muted-foreground/20 focus:border-primary/50 ${last5.length > 0 && last5.length < 5 ? 'border-red-500/50' : ''}`}
                                     />
                                     {last5.length > 0 && last5.length < 5 && (
                                         <p className="text-[11px] text-red-500 font-bold ml-1">請輸入完整 5 位數字（目前 {last5.length} 位）</p>
@@ -769,7 +759,7 @@ export function MyCardsClient({
                                         type="datetime-local"
                                         value={remittanceDate}
                                         onChange={(e) => setRemittanceDate(e.target.value)}
-                                        className="h-12 rounded-xl border-muted-foreground/20 focus:border-orange-600/50"
+                                        className="h-12 rounded-xl border-muted-foreground/20 focus:border-primary/50"
                                     />
                                 </div>
 
@@ -779,14 +769,14 @@ export function MyCardsClient({
                                         placeholder="例如：使用XX銀行轉帳"
                                         value={remittanceNote}
                                         onChange={(e) => setRemittanceNote(e.target.value)}
-                                        className="h-12 rounded-xl border-muted-foreground/20 focus:border-orange-600/50"
+                                        className="h-12 rounded-xl border-muted-foreground/20 focus:border-primary/50"
                                     />
                                 </div>
                             </div>
 
-                            <div className="text-center p-4 rounded-xl bg-orange-500/5 border border-orange-500/20">
+                            <div className="text-center p-4 rounded-xl bg-primary/5 border border-primary/20">
                                 <p className="text-xs text-muted-foreground font-bold mb-1">應付總額</p>
-                                <p className="text-3xl font-black text-orange-600">NT$ {totalPrice.toLocaleString()}</p>
+                                <p className="text-3xl font-black text-primary">NT$ {totalPrice.toLocaleString()}</p>
                             </div>
                         </div>
                     )}
@@ -812,14 +802,14 @@ export function MyCardsClient({
                         
                         {purchaseStep === 1 ? (
                             <Button
-                                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold h-12 rounded-xl shadow-md transition-all active:scale-95"
+                                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 rounded-xl shadow-md transition-all active:scale-95"
                                 onClick={() => setPurchaseStep(2)}
                             >
                                 下一步
                             </Button>
                         ) : (
                             <Button
-                                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold h-12 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
+                                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
                                 onClick={handlePurchase}
                                 disabled={isPending || bankCode.length < 3 || last5.length !== 5 || !remittanceDate}
                             >
@@ -846,7 +836,7 @@ export function MyCardsClient({
                     </div>
                     <DialogFooter>
                         <Button
-                            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold h-12 rounded-xl"
+                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 rounded-xl"
                             onClick={() => setIsSuccessDialogOpen(false)}
                         >
                             我知道了
