@@ -14,7 +14,9 @@ export async function POST(request: NextRequest) {
     const { action, orderId, groupId, groupName, groupValidUntil,
             courseId, courseIds, sessionIds, sessionId, enrollType,
             selections, buyCards, includeMembership,
-            bankCode, last5, remittanceDate, note } = body;
+            bankCode, last5, remittanceDate, note,
+            reason, toUserId, toUserName,
+            originalCourseId, originalSessionId, targetCourseId, targetSessionId } = body;
 
     if (!action) {
         return NextResponse.json({ error: 'Missing action' }, { status: 400 });
@@ -76,6 +78,17 @@ export async function POST(request: NextRequest) {
                 buyCards,
                 includeMembership,
             });
+        } else if (action === 'submitLeaveRequest') {
+            if (!courseId || !sessionId) return NextResponse.json({ error: 'Missing courseId or sessionId' }, { status: 400 });
+            result = await actions.submitLeaveRequest(courseId, sessionId, reason);
+        } else if (action === 'submitTransferRequest') {
+            if (!courseId || !sessionId) return NextResponse.json({ error: 'Missing courseId or sessionId' }, { status: 400 });
+            result = await actions.submitTransferRequest(courseId, sessionId, toUserId ?? null, toUserName);
+        } else if (action === 'submitMakeupRequest') {
+            if (!originalCourseId || !targetCourseId || !targetSessionId) {
+                return NextResponse.json({ error: 'Missing makeup request fields' }, { status: 400 });
+            }
+            result = await actions.submitMakeupRequest(originalCourseId, originalSessionId ?? null, targetCourseId, targetSessionId);
         } else {
             return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
         }

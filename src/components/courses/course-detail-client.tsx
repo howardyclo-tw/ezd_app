@@ -107,6 +107,8 @@ interface StudentInfo {
     type: 'official' | 'additional';
     attendance: Record<string, string>; // sessionId -> status
     enrolledSessionIds?: string[]; // For single-session enrollments tracking
+    enrollmentStatus?: 'enrolled' | 'pending_payment' | 'pending_vote';
+    wantsLeader?: boolean;
 }
 
 type AttendanceMap = Record<string, Record<string, string>>;
@@ -981,17 +983,30 @@ export function CourseDetailClient({
                                                         {student.isLeader && (
                                                             <Crown className="h-3.5 w-3.5 text-white fill-white/10 animate-in fade-in zoom-in duration-300" />
                                                         )}
+                                                        {student.wantsLeader && !student.isLeader && (
+                                                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-500/30 text-amber-500 shadow-none">志願</Badge>
+                                                        )}
+                                                        {student.enrollmentStatus === 'pending_payment' && (
+                                                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-500/30 bg-amber-500/10 text-amber-600 shadow-none">待繳費</Badge>
+                                                        )}
+                                                        {student.enrollmentStatus === 'pending_vote' && (
+                                                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-500/30 bg-blue-500/10 text-blue-600 shadow-none">待開票</Badge>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 {sessions.map(s => {
                                                     const status = attendanceState[student.id]?.[s.id] ?? 'unmarked';
+                                                    const isPending = student.enrollmentStatus === 'pending_payment' || student.enrollmentStatus === 'pending_vote';
                                                     const isFocused = focusedSessionId === s.id;
                                                     return (
                                                         <td key={s.id} className={cn(
                                                             "p-0 border-r border-muted/10 last:border-0 h-14 transition-all relative",
-                                                            isFocused && "bg-white/[0.03]"
+                                                            isFocused && "bg-white/[0.03]",
+                                                            isPending && "opacity-30"
                                                         )}>
-                                                            {renderAttendanceCell(status, student.id, s.id)}
+                                                            {isPending ? (
+                                                                <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">—</div>
+                                                            ) : renderAttendanceCell(status, student.id, s.id)}
                                                         </td>
                                                     );
                                                 })}

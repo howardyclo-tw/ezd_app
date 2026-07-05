@@ -103,12 +103,12 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         // 5b. Detailed makeup quota for this group
         getMakeupRemainingQuotaForGroup(user.id, course.group_id),
 
-        // 6. Roster (enrolled + waitlisted)
+        // 6. Roster (enrolled + waitlisted + pending)
         supabase
             .from('enrollments')
             .select('*, profiles ( id, name, role )')
             .eq('course_id', course.id)
-            .in('status', ['enrolled', 'waitlist'])
+            .in('status', ['enrolled', 'waitlist', 'pending_payment', 'pending_vote'])
             .order('enrolled_at'),
 
         // 7. Makeup students arriving in this course (adminClient for cross-user SELECT)
@@ -238,12 +238,19 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     Object.entries(enrollmentsByUser).forEach(([userId, userEnrollments]) => {
         const hasFullEnrolled = userEnrollments.some(e => e.status === 'enrolled' && e.type === 'full');
         const hasSingleEnrolled = userEnrollments.some(e => e.status === 'enrolled' && e.type === 'single');
+        const hasPendingPayment = userEnrollments.some(e => e.status === 'pending_payment');
+        const hasPendingVote = userEnrollments.some(e => e.status === 'pending_vote');
         const isEnrolled = hasFullEnrolled || hasSingleEnrolled;
+        const isPending = !isEnrolled && (hasPendingPayment || hasPendingVote);
+        const wantsLeader = userEnrollments.some(e => e.wants_leader);
 
-        if (isEnrolled) {
+        if (isEnrolled || isPending) {
             enrolledUserIds.add(userId);
             const p = userEnrollments[0].profiles;
-            const hasFull = hasFullEnrolled;
+            const hasFull = hasFullEnrolled || (isPending && userEnrollments.some(e => e.type === 'full'));
+            const enrollmentStatus = isPending
+                ? (hasPendingPayment ? 'pending_payment' : 'pending_vote')
+                : 'enrolled';
             enrollmentRoster.push({
                 id: p.id,
                 name: p.name,
@@ -251,9 +258,11 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
                 isLeader: (course.course_leaders as any[]).some((cl: any) => cl.user_id === p.id),
                 type: hasFull ? 'official' : 'additional',
                 attendance: attendanceMap[p.id] ?? {},
-                enrolledSessionIds: hasFull 
+                enrolledSessionIds: hasFull
                     ? sortedSessions.map((s: any) => s.id)
                     : userEnrollments.filter(e => e.status === 'enrolled').map(e => e.session_id).filter(Boolean),
+                enrollmentStatus,
+                wantsLeader,
             });
         }
     });

@@ -2917,7 +2917,7 @@ export async function submitRemittanceInfo(
         .select('id')
         .eq('id', orderId)
         .eq('user_id', user.id)
-        .eq('status', 'pending')
+        .in('status', ['pending', 'remitted'])
         .maybeSingle();
     if (!order) throw new Error('訂單不存在或已處理');
 
@@ -3033,6 +3033,39 @@ export async function confirmOrder(orderId: string): Promise<{ success: boolean;
     if (order.status === 'confirmed') return { success: false, message: '訂單已確認' };
     if (order.status === 'cancelled' || order.status === 'rejected') {
         return { success: false, message: '此訂單已結案，無法確認' };
+    }
+
+    // Pre-confirm guard: card_purchase with linked pending enrollments must have enough cards
+    if (order.order_type === 'card_purchase') {
+        const { data: linkedEnrollments } = await adminClient
+            .from('enrollments')
+            .select('id, course_id, courses ( cards_per_session, course_sessions ( id, session_date ) )')
+            .eq('order_id', orderId)
+            .eq('status', 'pending_payment');
+
+        if (linkedEnrollments && linkedEnrollments.length > 0) {
+            const taipeiToday = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+            let totalCardsNeeded = 0;
+            for (const e of linkedEnrollments) {
+                const course = e.courses as any;
+                const cardsPerSession = course?.cards_per_session ?? 0;
+                const futureSessions = (course?.course_sessions ?? []).filter(
+                    (s: any) => s.session_date >= taipeiToday
+                );
+                totalCardsNeeded += cardsPerSession * futureSessions.length;
+            }
+
+            const { getAvailableCardBalance } = await import('./card-utils');
+            const { available: currentAvailable } = await getAvailableCardBalance(order.user_id);
+            const projectedAvailable = currentAvailable + order.quantity;
+
+            if (projectedAvailable < totalCardsNeeded) {
+                return {
+                    success: false,
+                    message: `堂卡不足：確認後將有 ${projectedAvailable} 張，但關聯報名需要 ${totalCardsNeeded} 張。請聯繫學員處理。`,
+                };
+            }
+        }
     }
 
     // Update order status (use adminClient — bypasses RLS for cross-user orders)

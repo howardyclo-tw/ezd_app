@@ -123,6 +123,9 @@ const IDS = {
     identMemberSingle1:'e2e00000-0000-0000-0000-0000000001b7',
     identNtdNoGP1:    'e2e00000-0000-0000-0000-0000000001b8',
     identNtdNoGP2:    'e2e00000-0000-0000-0000-0000000001b9',
+    // Phase 5R.6 card-pool exhaustion sessions
+    cardExhaust1:     'e2e00000-0000-0000-0000-0000000001c2',
+    cardExhaust2:     'e2e00000-0000-0000-0000-0000000001c3',
     // Phase 5.4 resubmit-rebook sessions
     resubA1: 'e2e00000-0000-0000-0000-0000000000f1',
     resubA2: 'e2e00000-0000-0000-0000-0000000000f2',
@@ -154,6 +157,8 @@ const IDS = {
   // Phase 5.5 single-add-enroll + no-self-cancel fixtures
   singleAddNtd:      'e2e00000-0000-0000-0000-000000000029', // ntd course with single prices
   singleAddFree:     'e2e00000-0000-0000-0000-00000000002a', // free course
+  // Phase 5R.6: card-pool exhaustion test fixture
+  cardExhaustCourse: 'e2e00000-0000-0000-0000-0000000001c1', // card, 5 cards/session, 2 future sessions = 10 needed
   enrollments: {
     memberFull:      'e2e00000-0000-0000-0000-000000000060',
     multiSingle:     'e2e00000-0000-0000-0000-000000000061',
@@ -162,12 +167,14 @@ const IDS = {
     singleWaitlist: 'e2e00000-0000-0000-0000-000000000064',
     regFullSeatFiller: 'e2e00000-0000-0000-0000-000000000065', // member2 fills regFullCourse capacity
     guestFreeEnrolled: 'e2e00000-0000-0000-0000-000000000066', // guest enrolled in free course (no-self-cancel test)
+    cardExhaustPending: 'e2e00000-0000-0000-0000-000000000069', // pending_payment linked to cardExhaust order
   },
   orders: {
     card10:   'e2e00000-0000-0000-0000-000000000040',
     card2:    'e2e00000-0000-0000-0000-000000000041',
     courseFee:'e2e00000-0000-0000-0000-000000000042',
     cardCustomExpiry: 'e2e00000-0000-0000-0000-000000000043',
+    cardExhaust: 'e2e00000-0000-0000-0000-000000000046', // remitted card_purchase, qty=5, linked to cardExhaustPending
   },
   transactions: {
     purchase10: 'e2e00000-0000-0000-0000-000000000050',
@@ -175,7 +182,7 @@ const IDS = {
   },
 } as const;
 
-const SEED_ORDER_IDS = [IDS.orders.card10, IDS.orders.card2, IDS.orders.courseFee, IDS.orders.cardCustomExpiry];
+const SEED_ORDER_IDS = [IDS.orders.card10, IDS.orders.card2, IDS.orders.courseFee, IDS.orders.cardCustomExpiry, IDS.orders.cardExhaust];
 const SEED_TX_IDS = [IDS.transactions.purchase10, IDS.transactions.purchase2];
 
 /* ------------------------------------------------------------------ */
@@ -635,6 +642,18 @@ export default async function globalSetup() {
     enroll_full_identity: 'all', enroll_single_identity: 'all',
   }, { onConflict: 'id' }));
 
+  // ── 4f. Phase 5R.6 card-pool exhaustion fixture ─────────────────
+  check('cardExhaustCourse', await sb.from('courses').upsert({
+    id: IDS.cardExhaustCourse,
+    name: 'E2E Card Exhaust',
+    description: 'High-card-cost course for card-pool exhaustion test',
+    type: 'normal', start_time: '16:00', end_time: '17:00', capacity: 20, cards_per_session: 5,
+    group_id: IDS.courseGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: enrollStart, enrollment_end_at: enrollEnd,
+    enroll_full: true, enroll_single: false, pricing_mode: 'card',
+  }, { onConflict: 'id' }));
+
   // ── 5. Upsert course_sessions ─────────────────────────────────
   const sessions = [
     // Basic Groove: 2 past + 3 future
@@ -701,6 +720,9 @@ export default async function globalSetup() {
     { id: IDS.sessions.resubB2, course_id: IDS.resubCardCourseB, session_date: addDays(today, 14), session_number: 2 },
     { id: IDS.sessions.resubConf1, course_id: IDS.resubConfCourse, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.resubConf2, course_id: IDS.resubConfCourse, session_date: addDays(today, 14), session_number: 2 },
+    // Phase 5R.6 card exhaustion: 2 future sessions × 5 cards/session = 10 cards needed
+    { id: IDS.sessions.cardExhaust1, course_id: IDS.cardExhaustCourse, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.cardExhaust2, course_id: IDS.cardExhaustCourse, session_date: addDays(today, 14), session_number: 2 },
   ];
 
   for (const s of sessions) {
@@ -719,6 +741,15 @@ export default async function globalSetup() {
     course_group_id: IDS.courseGroup,
     remittance_bank_code: '012',
     remittance_account_last5: '54321',
+    remittance_date: now,
+  }, { onConflict: 'id' }));
+
+  // Card-pool exhaustion order (must exist before enrollment references it)
+  check('order cardExhaust', await sb.from('orders').upsert({
+    id: IDS.orders.cardExhaust,
+    user_id: memberId, quantity: 5, used: 0, unit_price: 270, total_amount: 1350,
+    status: 'remitted', expires_at: '2026-12-31', order_type: 'card_purchase',
+    remittance_bank_code: '808', remittance_account_last5: '99999',
     remittance_date: now,
   }, { onConflict: 'id' }));
 
@@ -799,6 +830,11 @@ export default async function globalSetup() {
 
   check('cleanup enroll oversell', await sb.from('enrollments').delete()
     .eq('course_id', IDS.oversellCourse));
+
+  // Phase 5R.6 card-pool exhaustion: clean non-seed enrollments
+  check('cleanup enroll cardExhaust', await sb.from('enrollments').delete()
+    .eq('course_id', IDS.cardExhaustCourse)
+    .neq('id', IDS.enrollments.cardExhaustPending));
 
   // Enroll-gating courses: clean all enrollments + card_transactions
   for (const gatingCourseId of [IDS.noSingleCourse, IDS.closedWindowCourse, IDS.closedPhase1Course]) {
@@ -913,6 +949,10 @@ export default async function globalSetup() {
     // Phase 5.5: guest enrolled in free course (no-self-cancel adversarial test)
     { id: IDS.enrollments.guestFreeEnrolled, course_id: IDS.singleAddFree, user_id: guestId,
       status: 'enrolled', type: 'single', session_id: IDS.sessions.singleAddFree1, source: 'self' },
+    // Phase 5R.6: pending_payment enrollment linked to card_purchase order (card-pool exhaustion test)
+    { id: IDS.enrollments.cardExhaustPending, course_id: IDS.cardExhaustCourse, user_id: memberId,
+      status: 'pending_payment', type: 'full', session_id: null, source: 'self',
+      order_id: IDS.orders.cardExhaust },
   ];
 
   for (const e of seedEnrollments) {
