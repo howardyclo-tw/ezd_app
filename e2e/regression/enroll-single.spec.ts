@@ -30,7 +30,7 @@ test.describe('Single-Session Enrollment', () => {
 
     await page.getByRole('tab', { name: '使用中' }).click();
 
-    const balanceEl = page.locator('.text-7xl, .text-8xl').first();
+    const balanceEl = page.locator('[data-testid="card-balance"]');
     await expect(balanceEl).toBeVisible();
     const balText = await balanceEl.textContent();
     const initialBalance = parseInt(balText?.trim() || '0', 10);
@@ -115,7 +115,7 @@ test.describe('Single-Session Enrollment', () => {
     // but polling handles any residual Next.js data-cache propagation delay.
     const expectedBalance = initialBalance - 1;
     await expect.poll(async () => {
-      const el = page.locator('.text-7xl, .text-8xl').first();
+      const el = page.locator('[data-testid="card-balance"]');
       await expect(el).toBeVisible();
       const text = await el.textContent();
       return parseInt(text?.trim() || '0', 10);

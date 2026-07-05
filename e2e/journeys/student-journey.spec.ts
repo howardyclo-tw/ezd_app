@@ -3,7 +3,7 @@ import { loginAs } from '../fixtures/auth';
 import { getAdminClient } from '../fixtures/db';
 
 const API_URL = 'http://[::1]:3000/api/e2e-test-actions';
-const JOURNEY_GROUP = 'e2e00000-0000-0000-0000-000000000015';
+const JOURNEY_GROUP = 'e2e00000-0000-0000-0000-0000000001e0';
 const JOURNEY_NTD_A = 'e2e00000-0000-0000-0000-0000000001d1';
 const JOURNEY_NTD_B = 'e2e00000-0000-0000-0000-0000000001d2';
 

@@ -314,7 +314,7 @@ export function MyCardsClient({
                                         </div>
 
                                         <div className="flex items-baseline gap-2">
-                                            <p className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">
+                                            <p data-testid="card-balance" className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">
                                                 {balance}
                                             </p>
                                             <span className="text-lg sm:text-xl text-muted-foreground/40 font-bold">堂卡</span>
@@ -696,7 +696,7 @@ export function MyCardsClient({
                                     <Minus className="h-5 w-5" />
                                 </Button>
                                 <div className="text-center">
-                                    <p className="text-5xl font-black tracking-tighter">{purchaseQty}</p>
+                                    <p data-testid="purchase-qty" className="text-5xl font-black tracking-tighter">{purchaseQty}</p>
                                     <p className="text-xs text-muted-foreground font-bold mt-1">堂卡</p>
                                 </div>
                                 <Button

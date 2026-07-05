@@ -37,6 +37,9 @@ async function cleanupResubmitData(memberId: string) {
     }
     await sb.from('orders').delete()
         .eq('user_id', memberId).eq('course_group_id', RESUB_GROUP_ID);
+    await sb.from('orders').update({ used: 0 }).eq('id', 'e2e00000-0000-0000-0000-000000000040');
+    await sb.from('orders').update({ used: 2 }).eq('id', 'e2e00000-0000-0000-0000-000000000041');
+    await sb.from('orders').update({ used: 0 }).eq('id', 'e2e00000-0000-0000-0000-000000000043');
     await sb.from('profiles').update({ card_balance: 15 }).eq('id', memberId);
 }
 

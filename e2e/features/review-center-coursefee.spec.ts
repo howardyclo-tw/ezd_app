@@ -88,13 +88,13 @@ test.describe('Review Center: Course Fee Payment Tab', () => {
     // Verify the seeded order is visible with correct details
     const orderCard = page.locator('[data-slot="card"]')
       .filter({ hasText: 'E2E Member' })
-      .filter({ hasText: '報名繳費' });
+      .filter({ hasText: '報名繳費' })
+      .filter({ hasText: '54321' });
     await expect(orderCard).toBeVisible({ timeout: 10000 });
 
     // Verify order details: amount, remittance info
     await expect(orderCard.getByText('$800')).toBeVisible();
     await expect(orderCard.getByText('012')).toBeVisible();
-    await expect(orderCard.getByText('54321')).toBeVisible();
 
     // Verify course group title in the group header (orders are grouped by 檔期)
     await expect(page.getByText('E2E H2 2026 Course Group')).toBeVisible();
@@ -119,7 +119,8 @@ test.describe('Review Center: Course Fee Payment Tab', () => {
 
     const updatedCard = page.locator('[data-slot="card"]')
       .filter({ hasText: 'E2E Member' })
-      .filter({ hasText: '報名繳費' });
+      .filter({ hasText: '報名繳費' })
+      .filter({ hasText: '54321' });
     await expect(updatedCard.getByText('已確認')).toBeVisible({ timeout: 10000 });
 
     // Verify DB state: order=confirmed, enrollment=enrolled

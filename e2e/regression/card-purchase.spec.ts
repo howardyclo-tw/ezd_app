@@ -80,7 +80,7 @@ test.describe('Card Purchase Flow', () => {
     await page.getByRole('tab', { name: '使用中' }).click();
 
     // Get balance from the big number display (tab switch auto-renders; no timeout needed)
-    const balanceElement = page.locator('.text-7xl, .text-8xl').first();
+    const balanceElement = page.locator('[data-testid="card-balance"]');
     let initialBalance = 0;
     if (await balanceElement.count() > 0) {
       const text = await balanceElement.textContent();
@@ -95,7 +95,7 @@ test.describe('Card Purchase Flow', () => {
     await expect(page.getByText('選擇購買數量')).toBeVisible();
 
     // Default quantity should be 5
-    const qtyDisplay = page.locator('.text-5xl');
+    const qtyDisplay = page.locator('[data-testid="purchase-qty"]');
     await expect(qtyDisplay).toHaveText('5');
 
     // Click "下一步" to go to remittance info
@@ -140,27 +140,16 @@ test.describe('Card Purchase Flow', () => {
     // Should be on "繳費對帳" tab by default
     await expect(page.getByText('繳費對帳').first()).toBeVisible();
 
-    // Find the approve button near the E2E Member order.
-    // Look for the card that contains "E2E Member" and has a "核准" button.
-    const orderCards = page.locator('[class*="CardContent"]').filter({ hasText: 'E2E Member' }).filter({ hasText: '5 堂卡' });
+    // Filter on the unique remittance last5 digits the test filled in
+    const orderCard = page.locator('[data-slot="card"]')
+      .filter({ hasText: '堂卡購買' })
+      .filter({ hasText: 'E2E Member' })
+      .filter({ hasText: '12345' });
 
-    // Click the approve button on the first matching card.
-    // After approval, handleConfirmCardOrder calls router.refresh() (no alert on success),
-    // so we detect completion by waiting for the approve button to disappear.
-    let approveBtn;
-    if (await orderCards.count() > 0) {
-      approveBtn = orderCards.first().getByText('核准');
-      await approveBtn.click();
-    } else {
-      // Fallback: find the row that contains E2E Member text and click its approve button
-      const memberRow = page.locator('h3:has-text("E2E Member")').first().locator('..').locator('..').locator('..');
-      approveBtn = memberRow.locator('button:has-text("核准")');
-      await approveBtn.click();
-    }
+    const approveBtn = orderCard.getByRole('button', { name: '核准' });
+    await expect(approveBtn).toBeVisible({ timeout: 10000 });
+    await approveBtn.click();
 
-    // Wait for the approve button to disappear — this proves the server action
-    // completed and router.refresh() fired (the order leaves the approval queue).
-    // Replaces non-deterministic waitForTimeout(2000).
     await expect(approveBtn).not.toBeVisible({ timeout: 15000 });
 
     // ── Step 5: Verify member's balance increased ──
@@ -176,7 +165,7 @@ test.describe('Card Purchase Flow', () => {
     // any residual Next.js data-cache propagation delay.
     const expectedBalance = initialBalance + 5;
     await expect.poll(async () => {
-      const el = page.locator('.text-7xl, .text-8xl').first();
+      const el = page.locator('[data-testid="card-balance"]');
       await expect(el).toBeVisible();
       const text = await el.textContent();
       return parseInt(text?.trim() || '0', 10);

@@ -165,7 +165,7 @@ const IDS = {
   // Phase 5R.6: card-pool exhaustion test fixture
   cardExhaustCourse: 'e2e00000-0000-0000-0000-0000000001c1', // card, 5 cards/session, 2 future sessions = 10 needed
   // Phase 5R.8: journey e2e dedicated fixtures
-  journeyGroup:  'e2e00000-0000-0000-0000-000000000015',
+  journeyGroup:  'e2e00000-0000-0000-0000-0000000001e0',
   journeyNtdA:   'e2e00000-0000-0000-0000-0000000001d1', // ntd, for remittance flow
   journeyNtdB:   'e2e00000-0000-0000-0000-0000000001d2', // ntd, for cancel flow
   enrollments: {

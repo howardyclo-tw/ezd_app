@@ -26,7 +26,8 @@ test.describe.serial('Admin journey (5R.8)', () => {
         // Verify the seed courseFee order card is visible
         const orderCard = page.locator('[data-slot="card"]')
             .filter({ hasText: 'E2E Member' })
-            .filter({ hasText: '報名繳費' });
+            .filter({ hasText: '報名繳費' })
+            .filter({ hasText: '54321' });
         await expect(orderCard).toBeVisible();
 
         // Verify order amount
