@@ -96,8 +96,8 @@ test.describe('Review Center: Course Fee Payment Tab', () => {
     await expect(orderCard.getByText('012')).toBeVisible();
     await expect(orderCard.getByText('54321')).toBeVisible();
 
-    // Verify course group title
-    await expect(orderCard.getByText('E2E H2 2026 Course Group')).toBeVisible();
+    // Verify course group title in the group header (orders are grouped by 檔期)
+    await expect(page.getByText('E2E H2 2026 Course Group')).toBeVisible();
 
     // Verify status badge shows remitted
     await expect(orderCard.getByText('已匯款')).toBeVisible();

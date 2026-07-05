@@ -23,16 +23,16 @@ export default async function LeaderApprovalsPage() {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
 
-    // Fetch Recent Card Orders
+    // Fetch Recent Card Orders (include course_groups join for grouping)
     const cardOrderQuery = supabase.from('orders')
-        .select('*, profiles!card_orders_user_id_fkey(name)')
+        .select('*, profiles!card_orders_user_id_fkey(name), course_groups(title, registration_phase1_end)')
         .eq('order_type', 'card_purchase')
         .gte('created_at', thirtyDaysAgoIso)
         .order('created_at', { ascending: false });
 
-    // Fetch Recent Course Fee Orders (with course group title)
+    // Fetch Recent Course Fee Orders (with course group title + phase1 end for grouping)
     const courseFeeOrderQuery = adminDb.from('orders')
-        .select('*, profiles!card_orders_user_id_fkey(name), course_groups(title)')
+        .select('*, profiles!card_orders_user_id_fkey(name), course_groups(title, registration_phase1_end)')
         .eq('order_type', 'course_fee')
         .gte('created_at', thirtyDaysAgoIso)
         .order('created_at', { ascending: false });

@@ -102,6 +102,8 @@ const courseSchema = z.object({
     enroll_single: z.boolean(),
     enroll_full_identity: z.enum(['all', 'member']),
     enroll_single_identity: z.enum(['all', 'member']),
+    enrollment_start_at: z.coerce.date().nullable().optional(),
+    enrollment_end_at: z.coerce.date().nullable().optional(),
     first_session_at: z.coerce.date({
         message: '請選擇日期',
     }),
@@ -346,6 +348,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             enroll_single: initialData?.enroll_single ?? typeDefaults.enroll_single,
             enroll_full_identity: initialData?.enroll_full_identity ?? typeDefaults.enroll_full_identity,
             enroll_single_identity: initialData?.enroll_single_identity ?? typeDefaults.enroll_single_identity,
+            enrollment_start_at: initialData?.enrollment_start_at ? new Date(initialData.enrollment_start_at) : null,
+            enrollment_end_at: initialData?.enrollment_end_at ? new Date(initialData.enrollment_end_at) : null,
             first_session_at: initialData?.first_session_at,
             sessions: initialData?.sessions || [],
         },
@@ -448,6 +452,16 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             setValue('cards_per_session', 1);
         }
     }, [courseType, isEdit, setValue]);
+
+    // Normal courses: auto-prefill enrollment_start_at = first_session_at (create mode only, when not already set)
+    useEffect(() => {
+        if (isEdit) return;
+        if (courseType !== 'normal' || !enrollSingle || !firstDate) return;
+        const current = form.getValues('enrollment_start_at');
+        if (!current) {
+            setValue('enrollment_start_at', firstDate);
+        }
+    }, [firstDate, courseType, enrollSingle, isEdit, setValue, form]);
 
     const onSubmit: SubmitHandler<CourseFormValues> = async (data) => {
         setIsSubmitting(true);
@@ -1069,6 +1083,50 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                         />
                                     </div>
                                 </div>
+
+                                {/* Single enrollment window dates */}
+                                {enrollSingle && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="enrollment_start_at"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>單堂報名開始</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            type="date"
+                                                            className="h-11"
+                                                            value={field.value ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date(field.value)) : ''}
+                                                            onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value + 'T00:00:00+08:00') : null)}
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription className="text-[11px]">
+                                                        {courseType === 'normal' ? '常態課預設開課後加報' : '留空=立即可報'}
+                                                    </FormDescription>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="enrollment_end_at"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>單堂報名截止</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            type="date"
+                                                            className="h-11"
+                                                            value={field.value ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date(field.value)) : ''}
+                                                            onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value + 'T00:00:00+08:00') : null)}
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription className="text-[11px]">留空=無截止</FormDescription>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                )}
 
                                 {/* NTD Price fields — visible only in ntd mode */}
                                 {pricingMode === 'ntd' && (
