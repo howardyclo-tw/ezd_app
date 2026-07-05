@@ -1,0 +1,84 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - link [ref=e23] [cursor=pointer]:
+          - /url: /dashboard
+          - img
+        - generic [ref=e24]:
+          - heading "資料匯入工具" [level=1] [ref=e25]
+          - paragraph [ref=e26]: 從 CSV 檔案批次匯入社員名單、堂卡紀錄及課程名冊
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - img [ref=e30]
+          - generic [ref=e32]:
+            - paragraph [ref=e33]: 成員名單 — 使用說明
+            - generic [ref=e34]: 必填： • 電子郵件 • 姓名 • 是否為社員（1=社員, 0=非社員） 選填： • 工號（含前綴，如 mtk12345、ds901402） 注意事項： • 社員自動加入最新年度群組，非社員不加入群組 • 已存在的 email 會更新姓名與工號（不會重複建帳） • 新帳號預設密碼為 mediatek • Email 與工號會自動轉為小寫儲存
+        - generic [ref=e35]:
+          - tablist [ref=e38]:
+            - tab "成員名單" [selected] [ref=e39]:
+              - img
+              - text: 成員名單
+            - tab "堂卡紀錄" [ref=e40]:
+              - img
+              - text: 堂卡紀錄
+            - tab "課程資訊" [ref=e41]:
+              - img
+              - text: 課程資訊
+            - tab "學員名單" [ref=e42]:
+              - img
+              - text: 學員名單
+          - generic [ref=e43]:
+            - generic [ref=e44]:
+              - generic [ref=e46]:
+                - generic [ref=e49]: 資料編輯窗口
+                - button [ref=e50]:
+                  - img
+              - generic [ref=e51]:
+                - generic [ref=e52]:
+                  - generic [ref=e53]: "01"
+                  - generic [ref=e54]: "02"
+                  - generic [ref=e55]: "03"
+                  - generic [ref=e56]: "04"
+                  - generic [ref=e57]: "05"
+                  - generic [ref=e58]: "06"
+                  - generic [ref=e59]: "07"
+                  - generic [ref=e60]: "08"
+                  - generic [ref=e61]: "09"
+                  - generic [ref=e62]: "10"
+                  - generic [ref=e63]: "11"
+                  - generic [ref=e64]: "12"
+                  - generic [ref=e65]: "13"
+                  - generic [ref=e66]: "14"
+                  - generic [ref=e67]: "15"
+                - textbox "在此貼入 CSV 格式資料..." [ref=e68]: 電子郵件 (email),姓名 (name),工號 (employee_id),是否為社員 (is_member) example_member@mediatek.com,王小明,mtk12345,1 example_guest@mediatek.com,李小華,mtk67890,0
+            - generic [ref=e69]:
+              - generic [ref=e73]:
+                - generic [ref=e76]: 解析預覽結果
+                - generic [ref=e77]: 共有 0 筆資料待處理 · 點擊欄位可查看完整內容
+              - generic [ref=e79]:
+                - img [ref=e82]
+                - generic [ref=e85]:
+                  - paragraph [ref=e86]: 等待輸入資料
+                  - paragraph [ref=e87]: 即時解析結果
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e93] [cursor=pointer]:
+    - img [ref=e94]

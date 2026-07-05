@@ -1,0 +1,10 @@
+[     117ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[     203ms] [LOG] [Fast Refresh] done in 187ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    2382ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    2412ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    8300ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    8311ms] [LOG] [Fast Refresh] done in 112ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  174408ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  174440ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  259765ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  259889ms] [LOG] [Fast Refresh] done in 219ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297

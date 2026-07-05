@@ -1,0 +1,25 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "EZDANCE" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - heading "EZDANCE" [level=1] [ref=e6]
+  - main [ref=e7]:
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: 登入
+        - generic [ref=e12]: 請輸入您的電子郵件和密碼
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - generic [ref=e16]: 電子郵件
+            - textbox "電子郵件" [ref=e17]:
+              - /placeholder: name@example.com
+          - generic [ref=e18]:
+            - generic [ref=e19]: 密碼
+            - textbox "密碼" [ref=e20]
+          - button "登入" [ref=e21]
+        - generic [ref=e22]:
+          - text: 還沒有帳號？
+          - link "註冊" [ref=e23] [cursor=pointer]:
+            - /url: /register
+  - region "Notifications alt+T"

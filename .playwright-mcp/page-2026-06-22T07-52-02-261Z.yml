@@ -1,0 +1,44 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "EZDANCE" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - heading "EZDANCE" [level=1] [ref=e6]
+  - main [ref=e7]:
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - heading "AI 資料助理" [level=1] [ref=e12]
+          - paragraph [ref=e13]: 用自然語言查資料庫（唯讀 · 僅幹部）
+        - combobox [ref=e14]:
+          - img
+        - combobox [ref=e15]
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - paragraph [ref=e22]: 問我關於課程、報名、補課、堂卡的問題
+        - generic [ref=e23]:
+          - button "這一期可明老師課程的：社員補課、社員堂卡報名、非社員堂卡報名 各多少？（人次與人頭都列）" [ref=e24]
+          - button "各課程目前的堂卡報名人次排行" [ref=e25]
+          - button "這個月每堂課的出席率" [ref=e26]
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - textbox "輸入問題…" [ref=e29]
+          - button "送出" [disabled]:
+            - img
+        - paragraph [ref=e30]: Enter 送出 · Shift+Enter 換行
+  - navigation [ref=e31]:
+    - generic [ref=e32]:
+      - link "個人中心" [ref=e33] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e34]
+        - generic [ref=e39]: 個人中心
+      - link "課程檔期" [ref=e40] [cursor=pointer]:
+        - /url: /courses
+        - img [ref=e41]
+        - generic [ref=e43]: 課程檔期
+      - link "使用說明" [ref=e44] [cursor=pointer]:
+        - /url: /guide
+        - img [ref=e45]
+        - generic [ref=e47]: 使用說明
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e53] [cursor=pointer]:
+    - img [ref=e54]

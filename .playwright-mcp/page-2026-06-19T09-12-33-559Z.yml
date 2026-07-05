@@ -1,0 +1,46 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - heading "AI 資料助理" [level=1] [ref=e25]
+          - paragraph [ref=e26]: 用自然語言查資料庫（唯讀 · 僅幹部）
+        - combobox [ref=e27]:
+          - generic: Gemini 2.5 Flash（快速，預設）
+          - img
+      - generic [ref=e29]:
+        - generic [ref=e53]: 資料庫裡目前總共有幾門課程？請只回一個數字。
+        - generic [ref=e54]:
+          - img [ref=e55]
+          - text: 思考中…
+      - generic [ref=e40]:
+        - textbox "輸入問題…（Enter 送出，Shift+Enter 換行）" [disabled] [ref=e41]
+        - button [disabled]:
+          - img
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e57] [cursor=pointer]:
+    - generic [ref=e60]:
+      - text: Compiling
+      - generic [ref=e61]:
+        - generic [ref=e62]: .
+        - generic [ref=e63]: .
+        - generic [ref=e64]: .
+  - alert [ref=e51]

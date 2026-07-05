@@ -1,0 +1,2 @@
+[     396ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://ogads-pa.clients6.google.com/$rpc/google.internal.onegoogle.asyncdata.v1.AsyncDataService/GetAsyncData:0
+[     799ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome://new-tab-page/modules/v2/calendar/icons/attachment.svg:0

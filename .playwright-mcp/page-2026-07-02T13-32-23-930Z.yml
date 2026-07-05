@@ -1,0 +1,55 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e3]:
+    - banner [ref=f3e4]:
+      - link "SurveyCake Logo" [ref=f3e6] [cursor=pointer]:
+        - /url: https://www.surveycake.com
+        - img "SurveyCake Logo" [ref=f3e7]
+      - generic [ref=f3e8]:
+        - generic [ref=f3e10]:
+          - combobox [ref=f3e11] [cursor=pointer]:
+            - generic [ref=f3e12]:
+              - img [ref=f3e13]
+              - text: 繁體中文
+          - textbox: tw
+          - img
+          - group
+        - button "註冊" [ref=f3e15] [cursor=pointer]
+    - main [ref=f3e18]:
+      - heading "登入" [level=1] [ref=f3e19]
+      - generic [ref=f3e20]:
+        - generic [ref=f3e21]:
+          - generic [ref=f3e22]: 您的電子郵件地址
+          - generic [ref=f3e23]:
+            - textbox "milu@surveycake.com" [ref=f3e24]: mtkezdfamily@gmail.com
+            - group
+        - generic [ref=f3e25]:
+          - generic [ref=f3e26]: 您的密碼
+          - generic [ref=f3e27]:
+            - textbox "至少 8 碼且英數混合" [ref=f3e28]: mtkezd2020
+            - button "toggle password visibility" [ref=f3e29] [cursor=pointer]:
+              - img [ref=f3e30]
+            - group
+        - link "忘記密碼了嗎？" [ref=f3e33] [cursor=pointer]:
+          - /url: /admin/tw/forgot
+        - button [disabled]:
+          - progressbar:
+            - img
+      - generic [ref=f3e35]:
+        - heading "其他登入" [level=2] [ref=f3e36]
+        - button "使用 Facebook 登入" [ref=f3e37] [cursor=pointer]:
+          - img [ref=f3e38]
+          - text: 使用 Facebook 登入
+        - button "使用 Google 登入" [ref=f3e41] [cursor=pointer]:
+          - img [ref=f3e42]
+          - text: 使用 Google 登入
+      - generic [ref=f3e47]:
+        - text: 還沒有帳號嗎？
+        - link "前往註冊" [ref=f3e48] [cursor=pointer]:
+          - /url: /admin/tw/signup
+      - generic [ref=f3e49]:
+        - paragraph [ref=f3e50]: © 2026 SurveyCake, all rights reserved.
+        - paragraph [ref=f3e51]: Created with milu by 25sprout.
+  - iframe [ref=f3e53]:
+    - generic [ref=f8e1] [cursor=pointer]:
+      - img "Help" [ref=f8e2]
+      - generic [ref=f8e4]: 常見問題

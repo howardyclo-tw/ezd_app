@@ -1,0 +1,55 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - tablist [ref=e23]:
+        - tab "報名統計" [ref=e24]
+        - tab "AI 對話" [selected] [ref=e25]
+      - tabpanel "AI 對話" [ref=e94]:
+        - generic [ref=e95]:
+          - generic [ref=e96]:
+            - generic [ref=e97]:
+              - heading "AI 資料助理" [level=1] [ref=e98]
+              - paragraph [ref=e99]: 用自然語言查資料庫（唯讀 · 僅幹部）
+              - paragraph [ref=e100]: Llama 3.3 70B · 30 req/min · 1000/day
+            - combobox [active] [ref=e101]:
+              - generic: Llama 3.3 70B
+              - img
+          - generic [ref=e102]:
+            - generic [ref=e145]: 這個月每堂課的出席率
+            - group [ref=e148]:
+              - generic "查詢資料庫：計算本月每堂課的出席率，定義出席率為 (status='present') / (總紀錄數 - 取消的堂次)。 ✓ 0 筆" [ref=e149] [cursor=pointer]:
+                - img [ref=e150]
+                - generic [ref=e154]: 查詢資料庫：計算本月每堂課的出席率，定義出席率為 (status='present') / (總紀錄數 - 取消的堂次)。
+                - generic [ref=e155]: ✓ 0 筆
+                - img [ref=e156]
+            - generic [ref=e158]:
+              - img [ref=e159]
+              - text: "發生錯誤：Failed after 3 attempts. Last error: AI_APICallError: Provider returned error"
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - textbox "輸入問題…" [ref=e115]
+              - button "送出" [disabled]:
+                - img
+            - paragraph [ref=e116]: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e89] [cursor=pointer]:
+    - img [ref=e90]
+  - alert [ref=e93]

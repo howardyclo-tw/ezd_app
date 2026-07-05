@@ -1,0 +1,177 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e49]:
+      - generic [ref=e51]:
+        - link [ref=e52] [cursor=pointer]:
+          - /url: /courses
+          - img
+        - generic [ref=e53]:
+          - heading "2026 3-8月 常態課程" [level=1] [ref=e54]
+          - paragraph [ref=e55]:
+            - img [ref=e56]
+            - text: 2026/03/31~2026/08/07
+      - generic [ref=e58]:
+        - link "J 小Joy 舞感養成 04/13 (週一) 19:00~20:30 • 16 堂 E棟有氧教室 課程名額 18 位" [ref=e59] [cursor=pointer]:
+          - /url: /courses/groups/qErf4ojq/M3jCusD6
+          - generic [ref=e61]:
+            - generic [ref=e62]:
+              - generic [ref=e64]: J
+              - generic [ref=e65]:
+                - heading "小Joy 舞感養成" [level=3] [ref=e66]
+                - generic [ref=e67]:
+                  - img [ref=e68]
+                  - generic [ref=e71]: 04/13 (週一) 19:00~20:30 • 16 堂
+                - generic [ref=e72]:
+                  - img [ref=e73]
+                  - generic [ref=e76]: E棟有氧教室
+            - generic [ref=e80]:
+              - generic [ref=e81]: 課程名額
+              - generic [ref=e82]:
+                - generic [ref=e83]: "18"
+                - generic [ref=e84]: 位
+        - link "可 小可 韓風 MV 女團 03/31 (週二) 19:10~20:40 • 15 堂 E棟韻律教室 課程名額 18 位" [ref=e85] [cursor=pointer]:
+          - /url: /courses/groups/qErf4ojq/Hsm0AMfE
+          - generic [ref=e87]:
+            - generic [ref=e88]:
+              - generic [ref=e90]: 可
+              - generic [ref=e91]:
+                - heading "小可 韓風 MV 女團" [level=3] [ref=e92]
+                - generic [ref=e93]:
+                  - img [ref=e94]
+                  - generic [ref=e97]: 03/31 (週二) 19:10~20:40 • 15 堂
+                - generic [ref=e98]:
+                  - img [ref=e99]
+                  - generic [ref=e102]: E棟韻律教室
+            - generic [ref=e106]:
+              - generic [ref=e107]: 課程名額
+              - generic [ref=e108]:
+                - generic [ref=e109]: "18"
+                - generic [ref=e110]: 位
+        - link "可 可明 Popping 03/31 (週二) 19:15~20:45 • 15 堂 AB韻律教室 課程名額 25 位" [ref=e111] [cursor=pointer]:
+          - /url: /courses/groups/qErf4ojq/pxMx5myR
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - generic [ref=e116]: 可
+              - generic [ref=e117]:
+                - heading "可明 Popping" [level=3] [ref=e118]
+                - generic [ref=e119]:
+                  - img [ref=e120]
+                  - generic [ref=e123]: 03/31 (週二) 19:15~20:45 • 15 堂
+                - generic [ref=e124]:
+                  - img [ref=e125]
+                  - generic [ref=e128]: AB韻律教室
+            - generic [ref=e132]:
+              - generic [ref=e133]: 課程名額
+              - generic [ref=e134]:
+                - generic [ref=e135]: "25"
+                - generic [ref=e136]: 位
+        - link "A Ana Jazz 入門 04/01 (週三) 18:30~19:40 • 15 堂 AB韻律教室 課程名額 25 位" [ref=e137] [cursor=pointer]:
+          - /url: /courses/groups/qErf4ojq/wFwLs67u
+          - generic [ref=e139]:
+            - generic [ref=e140]:
+              - generic [ref=e142]: A
+              - generic [ref=e143]:
+                - heading "Ana Jazz 入門" [level=3] [ref=e144]
+                - generic [ref=e145]:
+                  - img [ref=e146]
+                  - generic [ref=e149]: 04/01 (週三) 18:30~19:40 • 15 堂
+                - generic [ref=e150]:
+                  - img [ref=e151]
+                  - generic [ref=e154]: AB韻律教室
+            - generic [ref=e158]:
+              - generic [ref=e159]: 課程名額
+              - generic [ref=e160]:
+                - generic [ref=e161]: "25"
+                - generic [ref=e162]: 位
+        - link "A Ana / 米其林 Hip-Hop Jazz 進階 x Jazz Funk 進階 04/01 (週三) 19:50~21:00 • 15 堂 AB韻律教室 課程名額 25 位" [ref=e163] [cursor=pointer]:
+          - /url: /courses/groups/qErf4ojq/sMKQsQp3
+          - generic [ref=e165]:
+            - generic [ref=e166]:
+              - generic [ref=e168]: A
+              - generic [ref=e169]:
+                - heading "Ana / 米其林 Hip-Hop Jazz 進階 x Jazz Funk 進階" [level=3] [ref=e170]
+                - generic [ref=e171]:
+                  - img [ref=e172]
+                  - generic [ref=e175]: 04/01 (週三) 19:50~21:00 • 15 堂
+                - generic [ref=e176]:
+                  - img [ref=e177]
+                  - generic [ref=e180]: AB韻律教室
+            - generic [ref=e184]:
+              - generic [ref=e185]: 課程名額
+              - generic [ref=e186]:
+                - generic [ref=e187]: "25"
+                - generic [ref=e188]: 位
+        - link "安 小安 Hip-Hop 進階 04/02 (週四) 19:15~20:45 • 15 堂 E棟有氧教室 課程名額 18 位" [ref=e189] [cursor=pointer]:
+          - /url: /courses/groups/qErf4ojq/76iQkR1m
+          - generic [ref=e191]:
+            - generic [ref=e192]:
+              - generic [ref=e194]: 安
+              - generic [ref=e195]:
+                - heading "小安 Hip-Hop 進階" [level=3] [ref=e196]
+                - generic [ref=e197]:
+                  - img [ref=e198]
+                  - generic [ref=e201]: 04/02 (週四) 19:15~20:45 • 15 堂
+                - generic [ref=e202]:
+                  - img [ref=e203]
+                  - generic [ref=e206]: E棟有氧教室
+            - generic [ref=e210]:
+              - generic [ref=e211]: 課程名額
+              - generic [ref=e212]:
+                - generic [ref=e213]: "18"
+                - generic [ref=e214]: 位
+        - link "陳 陳顥 House 入門 04/02 (週四) 19:30~21:00 • 10 堂 E棟韻律教室 課程名額 18 位" [ref=e215] [cursor=pointer]:
+          - /url: /courses/groups/qErf4ojq/owWseHzo
+          - generic [ref=e217]:
+            - generic [ref=e218]:
+              - generic [ref=e220]: 陳
+              - generic [ref=e221]:
+                - heading "陳顥 House 入門" [level=3] [ref=e222]
+                - generic [ref=e223]:
+                  - img [ref=e224]
+                  - generic [ref=e227]: 04/02 (週四) 19:30~21:00 • 10 堂
+                - generic [ref=e228]:
+                  - img [ref=e229]
+                  - generic [ref=e232]: E棟韻律教室
+            - generic [ref=e236]:
+              - generic [ref=e237]: 課程名額
+              - generic [ref=e238]:
+                - generic [ref=e239]: "18"
+                - generic [ref=e240]: 位
+        - link "兆 兆眴 Hip-Hop 入門 04/10 (週五) 19:15~20:45 • 13 堂 AB韻律教室 課程名額 25 位" [ref=e241] [cursor=pointer]:
+          - /url: /courses/groups/qErf4ojq/8gxkqa6f
+          - generic [ref=e243]:
+            - generic [ref=e244]:
+              - generic [ref=e246]: 兆
+              - generic [ref=e247]:
+                - heading "兆眴 Hip-Hop 入門" [level=3] [ref=e248]
+                - generic [ref=e249]:
+                  - img [ref=e250]
+                  - generic [ref=e253]: 04/10 (週五) 19:15~20:45 • 13 堂
+                - generic [ref=e254]:
+                  - img [ref=e255]
+                  - generic [ref=e258]: AB韻律教室
+            - generic [ref=e262]:
+              - generic [ref=e263]: 課程名額
+              - generic [ref=e264]:
+                - generic [ref=e265]: "25"
+                - generic [ref=e266]: 位
+  - region "Notifications alt+T"
+  - alert [ref=e48]

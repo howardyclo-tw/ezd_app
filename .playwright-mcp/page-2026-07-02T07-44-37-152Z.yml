@@ -1,0 +1,55 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - link [ref=e24] [cursor=pointer]:
+          - /url: /dashboard
+          - img
+        - tablist [ref=e25]:
+          - tab "報名統計" [ref=e26]
+          - tab "AI 對話" [selected] [ref=e27]
+      - tabpanel "AI 對話" [ref=e96]:
+        - generic [ref=e97]:
+          - generic [ref=e98]:
+            - generic [ref=e99]:
+              - heading "AI 資料助理" [level=1] [ref=e100]
+              - paragraph [ref=e101]: 用自然語言查資料庫（唯讀 · 僅幹部）
+              - paragraph [ref=e102]: Nemotron Ultra 550B · ~20 req/min · 200/day
+            - combobox [active] [ref=e103]:
+              - generic: Nemotron Ultra 550B
+              - img
+          - generic [ref=e105]:
+            - img [ref=e106]
+            - paragraph [ref=e110]: 問我關於課程、報名、補課、堂卡的問題
+            - generic [ref=e111]:
+              - button "這一期可明老師課程的：社員補課、社員堂卡報名、非社員堂卡報名 各多少？（人次與人頭都列）" [ref=e112]
+              - button "各課程目前的堂卡報名人次排行" [ref=e113]
+              - button "這個月每堂課的出席率" [ref=e114]
+          - generic [ref=e115]:
+            - generic [ref=e116]:
+              - textbox "輸入問題…" [ref=e117]
+              - button "送出" [disabled]:
+                - img
+            - paragraph [ref=e118]: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e91] [cursor=pointer]:
+    - img [ref=e92]
+  - alert [ref=e95]

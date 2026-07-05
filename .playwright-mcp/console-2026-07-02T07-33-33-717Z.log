@@ -1,0 +1,10 @@
+[     784ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://ogads-pa.clients6.google.com/$rpc/google.internal.onegoogle.asyncdata.v1.AsyncDataService/GetAsyncData:0
+[    1882ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://play.google.com/log?format=json&hasfast=true:0
+[    4043ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://play.google.com/log?format=json&hasfast=true:0
+[    6289ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://ogads-pa.clients6.google.com/$rpc/google.internal.onegoogle.asyncdata.v1.AsyncDataService/GetAsyncData:0
+[    7001ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://ep1.adtrafficquality.google/getconfig/sodar?sv=200&tid=oos&tv=2479&st=cr_env&sjk=VBRGaqCfIK3Y1e8Pza3zwQE:0
+[    7344ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://play.google.com/log?hasfast=true&auth=SAPISIDHASH+a3b66183801cd878d5b7cccdbc5e9a0e6bbf25d3+SAPISID1PHASH+a3b66183801cd878d5b7cccdbc5e9a0e6bbf25d3+SAPISID3PHASH+a3b66183801cd878d5b7cccdbc5e9a0e6bbf25d3&authuser=0&format=json:0
+[    7421ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://play.google.com/log?format=json&hasfast=true:0
+[    8463ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://ogads-pa.clients6.google.com/$rpc/google.internal.onegoogle.asyncdata.v1.AsyncDataService/GetAsyncData:0
+[    8709ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://ep1.adtrafficquality.google/getconfig/sodar?sv=200&tid=oos&tv=2479&st=cr_env&sjk=VhRGapHpMaqKvr0PkqOIuAY:0
+[    9516ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://play.google.com/log?format=json&hasfast=true:0

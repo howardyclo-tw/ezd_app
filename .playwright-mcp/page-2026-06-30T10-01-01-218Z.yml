@@ -1,0 +1,83 @@
+- generic:
+  - banner:
+    - generic:
+      - generic:
+        - link:
+          - /url: /dashboard
+          - heading [level=1]: EZDANCE
+        - navigation:
+          - link:
+            - /url: /dashboard
+            - img
+            - text: 個人中心
+          - link:
+            - /url: /courses
+            - img
+            - text: 課程檔期
+          - link:
+            - /url: /guide
+            - img
+            - text: 使用說明
+  - main:
+    - generic:
+      - generic:
+        - tablist:
+          - tab: 報名統計
+          - tab [selected]: AI 對話
+        - tabpanel:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: AI 資料助理
+                - paragraph: 用自然語言查資料庫（唯讀 · 僅幹部）
+                - paragraph: Gemma 4 31B · ~20 req/min · 200/day
+              - combobox [expanded]:
+                - generic: Gemma 4 31B
+                - img
+            - generic:
+              - generic:
+                - generic: 這個月每堂課的出席率
+              - generic:
+                - generic:
+                  - group:
+                    - generic:
+                      - img
+                      - generic: 查詢資料庫：計算本月每堂課的出席率，定義出席率為 (status='present') / (總紀錄數 - 取消的堂次)。
+                      - generic: ✓ 0 筆
+                      - img
+              - generic:
+                - img
+                - text: "發生錯誤：Failed after 3 attempts. Last error: AI_APICallError: Provider returned error"
+            - generic:
+              - generic:
+                - textbox:
+                  - /placeholder: 輸入問題…
+                - button [disabled]:
+                  - img
+              - paragraph: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e89] [cursor=pointer]:
+    - img [ref=e90]
+  - alert
+  - listbox [ref=e161]:
+    - img [ref=e163]
+    - group "Groq · 30 req/min" [ref=e165]:
+      - generic [ref=e166]: Groq · 30 req/min
+      - option "Llama 3.1 8B" [ref=e167]:
+        - generic [ref=e169]: Llama 3.1 8B
+      - option "Gemma 2 9B" [ref=e170]:
+        - generic [ref=e172]: Gemma 2 9B
+      - option "Llama 3.3 70B" [ref=e173]:
+        - generic [ref=e175]: Llama 3.3 70B
+    - group "OpenRouter · ~20 req/min" [ref=e176]:
+      - generic [ref=e177]: OpenRouter · ~20 req/min
+      - option "Gemma 4 31B" [active] [selected] [ref=e178]:
+        - generic [ref=e180]:
+          - img
+        - generic [ref=e181]: Gemma 4 31B
+      - option "Nemotron Super 120B" [ref=e182]:
+        - generic [ref=e184]: Nemotron Super 120B
+      - option "Qwen 3 235B (MoE)" [ref=e185]:
+        - generic [ref=e187]: Qwen 3 235B (MoE)
+      - option "DeepSeek R1" [ref=e188]:
+        - generic [ref=e190]: DeepSeek R1

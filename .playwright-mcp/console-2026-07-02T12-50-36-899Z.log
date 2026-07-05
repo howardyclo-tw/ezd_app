@@ -1,0 +1,4 @@
+[    1324ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://play.google.com/log?format=json&hasfast=true:0
+[    2997ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://play.google.com/log?format=json&hasfast=true:0
+[    7960ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ https://www.instagram.com/:0
+[   11423ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://static.xx.fbcdn.net/rsrc.php/v4/yX/r/4wLeY5_5Fx0.js:242

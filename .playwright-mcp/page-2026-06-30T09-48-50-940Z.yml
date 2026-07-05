@@ -1,0 +1,76 @@
+- generic:
+  - banner:
+    - generic:
+      - generic:
+        - link:
+          - /url: /dashboard
+          - heading [level=1]: EZDANCE
+        - navigation:
+          - link:
+            - /url: /dashboard
+            - img
+            - text: 個人中心
+          - link:
+            - /url: /courses
+            - img
+            - text: 課程檔期
+          - link:
+            - /url: /guide
+            - img
+            - text: 使用說明
+  - main:
+    - generic:
+      - generic:
+        - tablist:
+          - tab: 報名統計
+          - tab [selected]: AI 對話
+        - tabpanel:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: AI 資料助理
+                - paragraph: 用自然語言查資料庫（唯讀 · 僅幹部）
+                - paragraph: Llama 3.3 70B · 30 req/min · 1000/day
+              - combobox [expanded]:
+                - generic: Llama 3.3 70B
+                - img
+            - generic:
+              - generic:
+                - img
+                - paragraph: 問我關於課程、報名、補課、堂卡的問題
+                - generic:
+                  - button: 這一期可明老師課程的：社員補課、社員堂卡報名、非社員堂卡報名 各多少？（人次與人頭都列）
+                  - button: 各課程目前的堂卡報名人次排行
+                  - button: 這個月每堂課的出席率
+            - generic:
+              - generic:
+                - textbox:
+                  - /placeholder: 輸入問題…
+                - button [disabled]:
+                  - img
+              - paragraph: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e89] [cursor=pointer]:
+    - img [ref=e90]
+  - alert
+  - listbox [ref=e117]:
+    - group "Groq · 30 req/min" [ref=e118]:
+      - generic [ref=e119]: Groq · 30 req/min
+      - option "Llama 3.1 8B" [ref=e120]:
+        - generic [ref=e122]: Llama 3.1 8B
+      - option "Gemma 2 9B" [ref=e123]:
+        - generic [ref=e125]: Gemma 2 9B
+      - option "Llama 3.3 70B" [active] [selected] [ref=e126]:
+        - generic [ref=e128]:
+          - img
+        - generic [ref=e129]: Llama 3.3 70B
+    - group "OpenRouter · ~20 req/min" [ref=e130]:
+      - generic [ref=e131]: OpenRouter · ~20 req/min
+      - option "Gemma 4 31B" [ref=e132]:
+        - generic [ref=e134]: Gemma 4 31B
+      - option "Nemotron Super 120B" [ref=e135]:
+        - generic [ref=e137]: Nemotron Super 120B
+      - option "Qwen 3 235B (MoE)" [ref=e138]:
+        - generic [ref=e140]: Qwen 3 235B (MoE)
+      - option "DeepSeek R1" [ref=e141]:
+        - generic [ref=e143]: DeepSeek R1

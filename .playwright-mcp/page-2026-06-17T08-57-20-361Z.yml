@@ -1,0 +1,38 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "EZDANCE" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - heading "EZDANCE" [level=1] [ref=e6]
+  - main [ref=e7]:
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: 登入
+        - generic [ref=e12]: 請輸入您的電子郵件和密碼
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - generic [ref=e16]: 電子郵件
+            - textbox "電子郵件" [disabled]:
+              - /placeholder: name@example.com
+              - text: yichen.lo@mediatek.com
+          - generic [ref=e18]:
+            - generic [ref=e19]: 密碼
+            - textbox "密碼" [disabled]: Ezd-kSdnW-Jc-26
+          - button "登入中..." [disabled]
+        - generic [ref=e22]:
+          - text: 還沒有帳號？
+          - link "註冊" [ref=e23] [cursor=pointer]:
+            - /url: /register
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e34]:
+        - img [ref=e36]
+        - generic [ref=e40]: 登入成功
+  - button "Open Next.js Dev Tools" [ref=e41] [cursor=pointer]:
+    - generic [ref=e44]:
+      - text: Rendering
+      - generic [ref=e45]:
+        - generic [ref=e46]: .
+        - generic [ref=e47]: .
+        - generic [ref=e48]: .
+  - alert [ref=e33]

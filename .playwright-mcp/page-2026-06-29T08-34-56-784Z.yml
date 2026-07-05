@@ -1,0 +1,41 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e56]:
+        - link "個人中心" [ref=e57] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e58]
+          - text: 個人中心
+        - link "課程檔期" [ref=e63] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e64]
+          - text: 課程檔期
+        - link "使用說明" [ref=e66] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e67]
+          - text: 使用說明
+  - main [ref=e7]:
+    - generic [ref=e9]:
+      - generic [ref=e11]:
+        - heading "AI 資料助理" [level=1] [ref=e12]
+        - paragraph [ref=e13]: 用自然語言查資料庫（唯讀 · 僅幹部）
+        - paragraph [ref=e14]: Groq Free · Llama 3.3 70B
+      - generic [ref=e15]:
+        - generic [ref=e71]: 這一期可明老師課程的：社員補課、社員堂卡報名、非社員堂卡報名 各多少？（人次與人頭都列）
+        - paragraph [ref=e75]:
+          - text: "<function(runQuery)>{ \"purpose\": \"Query the number of 社員補課、社員堂卡報名、非社員堂卡報名 for 可明老師課程\", \"sql\": \"WITH course_ids AS ( SELECT id FROM courses WHERE teacher LIKE '%可明%' ), makeup_requests AS ( SELECT * FROM makeup_requests WHERE target_course_id IN ( SELECT id FROM course_ids ) ), enrollments AS ( SELECT * FROM enrollments WHERE course_id IN ( SELECT id FROM course_ids ) AND type = 'single' AND status = 'enrolled' ), profiles AS ( SELECT * FROM profiles ) SELECT '社員補課' AS type, COUNT("
+          - emphasis [ref=e76]: ) AS 人次, COUNT(DISTINCT mr.user_id) AS 人頭 FROM makeup_requests mr JOIN profiles p ON mr.user_id = p.id WHERE p.role <> 'guest' UNION ALL SELECT '社員堂卡報名' AS type, COUNT(
+          - text: ") AS 人次, COUNT(DISTINCT e.user_id) AS 人頭 FROM enrollments e JOIN profiles p ON e.user_id = p.id WHERE p.role <> 'guest' UNION ALL SELECT '非社員堂卡報名' AS type, COUNT(*) AS 人次, COUNT(DISTINCT e.user_id) AS 人頭 FROM enrollments e JOIN profiles p ON e.user_id = p.id WHERE p.role = 'guest'\" }</function>"
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - textbox "輸入問題…" [ref=e28]
+          - button "送出" [disabled]:
+            - img
+        - paragraph [ref=e29]: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e52] [cursor=pointer]:
+    - img [ref=e53]
+  - alert [ref=e69]

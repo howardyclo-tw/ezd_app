@@ -1,0 +1,23 @@
+[     982ms] [LOG] Leadgen SDK loaded @ https://www.surveycake.com/s/static/js/main.f554af18.chunk.js:0
+[    2344ms] [LOG] ------- tagtooId ------- : null @ https://www.surveycake.com/s/static/js/main.f554af18.chunk.js:0
+[    2344ms] [LOG] ------- dentsuId ------- : null @ https://www.surveycake.com/s/static/js/main.f554af18.chunk.js:0
+[    2485ms] [LOG] Leadgen SDK initialized @ https://www.surveycake.com/leadgen/sdk/leadgen-sdk.iife.js?t=1782997928087:784
+[    2900ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://www.surveycake.com/s3/asset/pic/2025-05-26-09-30-40-fcff7601202d3fb20e9687dbb7de82c7.jpg:0
+[    3259ms] [LOG] ret.js: mainProcess: get local cookie  @ https://a.amnet.tw/tracking/ret.js?17829979:0
+[    3338ms] [LOG] ret.js: Going to use crxDomain @ https://a.amnet.tw/tracking/ret.js?17829979:0
+[    3994ms] [LOG] srv.html: Get local cookie in null @ https://a.amnet.tw/tracking/srv.html?3.152:189
+[    3994ms] [LOG] srv.html: Create local cookie in bcd199ed-6239-aa06-8190-fd6e268433f @ https://a.amnet.tw/tracking/srv.html?3.152:193
+[    3996ms] [LOG] srv.html: Get local cookie in null @ https://a.amnet.tw/tracking/srv.html?3.152:217
+[    4024ms] [LOG] 489e17aa8b4055c528598f8477628f1e @ https://a.amnet.tw/tracking/srv.html?3.152:70
+[    4024ms] [LOG] srv.html: Create local cookie in 489e17aa8b4055c528598f8477628f1e @ https://a.amnet.tw/tracking/srv.html?3.152:221
+[    4026ms] [LOG] browser info: {"name":"Chrome","version":"149"} @ https://a.amnet.tw/tracking/ret.js?17829979:0
+[    4026ms] [LOG] ret.js: get cookie from crxDomain: {"retUid":"bcd199ed-6239-aa06-8190-fd6e268433f","sessionId":"fSes-46b391c3-678a-a4a6-b467","fpid":"489e17aa8b4055c528598f8477628f1e","ft":"t"} @ https://a.amnet.tw/tracking/ret.js?17829979:0
+[    4035ms] [LOG] exec recommendation start @ https://a.amnet.tw/tracking/ret.js?17829979:0
+[    4036ms] [LOG] On init ret success, ready to api process, queue: [] @ https://a.amnet.tw/tracking/ret.js?17829979:0
+[    4225ms] [LOG] https://track.91app.io/ext/v1/did @ https://tracking-client.91app.com/1.2.0/nineyi.tracking.client.iife.js:7
+[    4344ms] [LOG] --- Tagtoo ID has found: --- 0a788272e76212aa881e385c10a58b28 @ https://www.surveycake.com/s/static/js/main.f554af18.chunk.js:0
+[    4346ms] [LOG] --- Dentsu ID has found: --- bcd199ed-6239-aa06-8190-fd6e268433f @ https://www.surveycake.com/s/static/js/main.f554af18.chunk.js:0
+[    4346ms] [LOG] ------- tagtooId ------- : 0a788272e76212aa881e385c10a58b28 @ https://www.surveycake.com/s/static/js/main.f554af18.chunk.js:0
+[    4346ms] [LOG] ------- dentsuId ------- : null @ https://www.surveycake.com/s/static/js/main.f554af18.chunk.js:0
+[    4347ms] [LOG] ------- tagtooId ------- : 0a788272e76212aa881e385c10a58b28 @ https://www.surveycake.com/s/static/js/main.f554af18.chunk.js:0
+[    4347ms] [LOG] ------- dentsuId ------- : bcd199ed-6239-aa06-8190-fd6e268433f @ https://www.surveycake.com/s/static/js/main.f554af18.chunk.js:0

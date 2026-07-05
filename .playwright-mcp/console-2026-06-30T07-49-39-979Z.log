@@ -1,0 +1,30 @@
+[    1496ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    1618ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  259455ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  259457ms] [LOG] [Fast Refresh] done in 103ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  269748ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  269777ms] [ERROR] %o
+
+%s ReferenceError: downloadCsv is not defined
+    at EnrollmentStatsClient (http://%5B::1%5D:3000/_next/static/chunks/src_9a1ac4a1._.js?id=%255Bproject%255D%252Fsrc%252Fcomponents%252Fadmin%252Fenrollment-stats-client.tsx+%255Bapp-client%255D+%2528ecmascript%2529:226:42)
+    at Object.react_stack_bottom_frame (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:14826:24)
+    at renderWithHooks (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:4651:24)
+    at updateFunctionComponent (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:6112:21)
+    at beginWork (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:6708:24)
+    at runWithFiberInDEV (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:965:74)
+    at performUnitOfWork (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:9562:97)
+    at workLoopSync (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:9456:40)
+    at renderRootSync (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:9440:13)
+    at performWorkOnRoot (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:9105:47)
+    at performSyncWorkOnRoot (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:10238:9)
+    at flushSyncWorkAcrossRoots_impl (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:10154:316)
+    at flushSyncWork$1 (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:9237:86)
+    at Object.scheduleRefresh (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-dom_b0a814a6._.js:299:13)
+    at http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_e7fb4c1c._.js:391:33
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_e7fb4c1c._.js:384:38)
+    at applyUpdate (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_e7fb4c1c._.js:878:31)
+    at http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_e7fb4c1c._.js:886:13 The above error occurred in the <EnrollmentStatsClient> component. It was handled by the <ErrorBoundaryHandler> error boundary. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_client_e5ba0d71._.js:1342
+[  269805ms] [LOG] [Fast Refresh] done in 100ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  277511ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  277864ms] [LOG] [Fast Refresh] done in 362ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297

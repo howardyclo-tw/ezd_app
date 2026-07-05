@@ -1,0 +1,112 @@
+- generic [active] [ref=f10e1]:
+  - banner [ref=f10e2]:
+    - generic [ref=f10e4]:
+      - link "EZDANCE" [ref=f10e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=f10e6]
+      - navigation [ref=f10e7]:
+        - link "個人中心" [ref=f10e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=f10e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=f10e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=f10e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=f10e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=f10e18]
+          - text: 使用說明
+  - main [ref=f10e20]:
+    - generic [ref=f10e22]:
+      - generic [ref=f10e23]:
+        - link [ref=f10e24] [cursor=pointer]:
+          - /url: /dashboard
+          - img
+        - tablist [ref=f10e25]:
+          - tab "報名統計" [selected] [ref=f10e26]
+          - tab "AI 對話" [ref=f10e27]
+      - tabpanel "報名統計" [ref=f10e28]:
+        - generic [ref=f10e29]:
+          - generic [ref=f10e30]:
+            - heading "報名統計" [level=1] [ref=f10e31]
+            - paragraph [ref=f10e32]: 各課程整期 / 堂卡 / 補課人數統計（僅幹部）
+          - generic [ref=f10e33]:
+            - generic [ref=f10e34]:
+              - generic [ref=f10e35]:
+                - generic [ref=f10e36]: 期別
+                - combobox [ref=f10e37]:
+                  - generic: 2026 3-8月 常態課程
+                  - img
+              - button "查詢" [ref=f10e38]:
+                - img
+                - text: 查詢
+              - button "複製 CSV" [disabled]:
+                - img
+                - text: 複製 CSV
+            - generic [ref=f10e39]:
+              - generic [ref=f10e40]:
+                - generic [ref=f10e41]: 課程
+                - button "取消全選" [ref=f10e42]
+              - generic [ref=f10e43]:
+                - generic [ref=f10e44]:
+                  - checkbox "Hip-Hop Jazz 進階 x Jazz Funk 進階 (Ana / 米其林)" [checked] [ref=f10e45]:
+                    - generic:
+                      - img
+                  - generic [ref=f10e46]:
+                    - text: Hip-Hop Jazz 進階 x Jazz Funk 進階
+                    - generic [ref=f10e47]: (Ana / 米其林)
+                - generic [ref=f10e48]:
+                  - checkbox "Hip-Hop 入門 (兆眴)" [checked] [ref=f10e49]:
+                    - generic:
+                      - img
+                  - generic [ref=f10e50]:
+                    - text: Hip-Hop 入門
+                    - generic [ref=f10e51]: (兆眴)
+                - generic [ref=f10e52]:
+                  - checkbox "Hip-Hop 進階 (小安)" [checked] [ref=f10e53]:
+                    - generic:
+                      - img
+                  - generic [ref=f10e54]:
+                    - text: Hip-Hop 進階
+                    - generic [ref=f10e55]: (小安)
+                - generic [ref=f10e56]:
+                  - checkbox "House 入門 (陳顥)" [checked] [ref=f10e57]:
+                    - generic:
+                      - img
+                  - generic [ref=f10e58]:
+                    - text: House 入門
+                    - generic [ref=f10e59]: (陳顥)
+                - generic [ref=f10e60]:
+                  - checkbox "Jazz 入門 (Ana)" [checked] [ref=f10e61]:
+                    - generic:
+                      - img
+                  - generic [ref=f10e62]:
+                    - text: Jazz 入門
+                    - generic [ref=f10e63]: (Ana)
+                - generic [ref=f10e64]:
+                  - checkbox "Popping (可明)" [checked] [ref=f10e65]:
+                    - generic:
+                      - img
+                  - generic [ref=f10e66]:
+                    - text: Popping
+                    - generic [ref=f10e67]: (可明)
+                - generic [ref=f10e68]:
+                  - checkbox "舞感養成 (小Joy)" [checked] [ref=f10e69]:
+                    - generic:
+                      - img
+                  - generic [ref=f10e70]:
+                    - text: 舞感養成
+                    - generic [ref=f10e71]: (小Joy)
+                - generic [ref=f10e72]:
+                  - checkbox "韓風 MV 女團 (小可)" [checked] [ref=f10e73]:
+                    - generic:
+                      - img
+                  - generic [ref=f10e74]:
+                    - text: 韓風 MV 女團
+                    - generic [ref=f10e75]: (小可)
+          - generic [ref=f10e77]:
+            - img [ref=f10e78]
+            - paragraph [ref=f10e80]: 選擇期別與課程後按「查詢」
+  - region "Notifications alt+T"
+  - alert [ref=f10e81]

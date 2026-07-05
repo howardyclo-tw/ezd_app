@@ -1,0 +1,56 @@
+- generic:
+  - banner:
+    - generic:
+      - generic:
+        - link:
+          - /url: /dashboard
+          - heading [level=1]: EZDANCE
+        - navigation:
+          - link:
+            - /url: /dashboard
+            - img
+            - text: 個人中心
+          - link:
+            - /url: /courses
+            - img
+            - text: 課程檔期
+          - link:
+            - /url: /guide
+            - img
+            - text: 使用說明
+  - main:
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - heading [level=1]: AI 資料助理
+            - paragraph: 用自然語言查資料庫（唯讀 · 僅幹部）
+          - combobox [expanded]:
+            - generic: Gemini 2.5 Flash（快速，預設）
+            - img
+        - generic:
+          - generic:
+            - img
+            - paragraph: 問我關於課程、報名、補課、堂卡的問題
+            - generic:
+              - button: 這一期可明老師課程的：社員補課、社員堂卡報名、非社員堂卡報名 各多少？（人次與人頭都列）
+              - button: 各課程目前的堂卡報名人次排行
+              - button: 這個月每堂課的出席率
+        - generic:
+          - generic:
+            - textbox:
+              - /placeholder: 輸入問題…
+            - button [disabled]:
+              - img
+          - paragraph: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e48] [cursor=pointer]:
+    - img [ref=e49]
+  - alert
+  - listbox [ref=e53]:
+    - option "Gemini 2.5 Flash（快速，預設）" [active] [selected] [ref=e54]:
+      - generic [ref=e56]:
+        - img
+      - generic [ref=e57]: Gemini 2.5 Flash（快速，預設）
+    - option "Gemini 2.5 Flash-Lite（最省）" [ref=e58]:
+      - generic [ref=e60]: Gemini 2.5 Flash-Lite（最省）

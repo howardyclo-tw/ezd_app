@@ -1,0 +1,136 @@
+
+============================================================
+MODEL: google/gemma-4-31b-it:free
+TIME: 176.4s | CALLS: 3 | 429: {"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate you
+
+SQL LOG:
+  [ERR] 找出最新一期的常態課程及其報名狀況統計
+    WITH latest_group AS (
+    SELECT id 
+    FROM course_groups 
+    ORDER BY period_start DESC 
+    LIMIT 1
+),
+target_courses AS (
+    SELECT c.id, c.name, c.teacher
+    FROM courses c
+    JOIN latest_group lg ON c.group_id = lg.id
+    WHERE c.type = 'normal'
+),
+stats AS (
+    -- 整期報名
+    SELECT 
+    
+  [ERR] 找出最新一期的常態課程及其報名狀況統計 (修正語法)
+    WITH latest_group AS (
+    SELECT id 
+    FROM course_groups 
+    ORDER BY period_start DESC 
+    LIMIT 1
+),
+target_courses AS (
+    SELECT c.id, c.name, c.teacher
+    FROM courses c
+    JOIN latest_group lg ON c.group_id = lg.id
+    WHERE c.type = 'normal'
+),
+stats AS (
+    -- 整期報名
+    SELECT 
+    
+  [ERR] 找出最新一期的常態課程及其報名狀況統計 (修正 GROUP BY 語法)
+    WITH latest_group AS (
+    SELECT id 
+    FROM course_groups 
+    ORDER BY period_start DESC 
+    LIMIT 1
+),
+target_courses AS (
+    SELECT c.id, c.name, c.teacher
+    FROM courses c
+    JOIN latest_group lg ON c.group_id = lg.id
+    WHERE c.type = 'normal'
+),
+stats AS (
+    SELECT 
+        tc.id as
+
+ANSWER:
+
+
+============================================================
+MODEL: nvidia/nemotron-3-super-120b-a12b:free
+TIME: 34.6s | CALLS: 8 | OK
+
+SQL LOG:
+  [ERR] Find latest course group with normal courses
+    SELECT cg.id, cg.title, cg.period_start, cg.period_end
+FROM course_groups cg
+JOIN courses c ON c.group_id = cg.id
+WHERE c.type = 'normal'
+ORDER BY cg.period_end DESC NULLS LAST, cg.period_start DESC NULLS LAST
+LIMIT 1;
+  [1 rows] Find latest course group with normal courses
+    SELECT cg.id, cg.title, cg.period_start, cg.period_end
+FROM course_groups cg
+JOIN courses c ON c.group_id = cg.id
+WHERE c.type = 'normal'
+ORDER BY cg.period_end DESC NULLS LAST, cg.period_start DESC NULLS LAST
+LIMIT 1
+  [9 rows] List normal courses in latest group
+    SELECT c.id, c.name, c.teacher
+FROM courses c
+WHERE c.group_id = 'ed8be7b6-4874-4110-a793-f58d5e8c4292'
+  AND c.type = 'normal'
+ORDER BY c.teacher, c.name
+  [ERR] List tables
+    SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;
+  [14 rows] List tables
+    SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name
+  [8 rows] Describe attendance_records
+    SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'attendance_records' ORDER BY ordinal_position
+  [7 rows] Check distinct status values in attendance_records
+    SELECT DISTINCT status FROM attendance_records
+  [7 rows] Describe course_sessions
+    SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'course_sessions' ORDER BY ordinal_position
+
+ANSWER:
+
+
+============================================================
+MODEL: cohere/north-mini-code:free
+TIME: 61.3s | CALLS: 2 | 429: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day","code":429,"metadata":{"headers":{"X-RateLimit-Limit":"50","X-RateLimit-Remain
+
+SQL LOG:
+  [1 rows] Find the latest period of regular courses
+    SELECT id, title, region, period_start, period_end 
+FROM course_groups 
+WHERE id IN (SELECT group_id FROM courses WHERE type = 'normal')
+ORDER BY period_end DESC, period_start DESC 
+LIMIT 1
+  [5 rows] Find all regular courses in the latest period
+    SELECT c.id, c.name, c.teacher, c.type, c.room, c.start_time, c.end_time
+FROM courses c
+WHERE c.group_id = '0fd8f28f-c588-4e53-9ba3-f4baba0c8a60'
+AND c.type = 'normal'
+
+ANSWER:
+
+
+============================================================
+MODEL: poolside/laguna-xs.2:free
+TIME: 49.5s | CALLS: 0 | 429: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day","code":429,"metadata":{"headers":{"X-RateLimit-Limit":"50","X-RateLimit-Remain
+
+SQL LOG:
+
+ANSWER:
+
+
+============================================================
+MODEL: google/gemma-4-26b-a4b-it:free
+TIME: 49.5s | CALLS: 0 | 429: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day","code":429,"metadata":{"headers":{"X-RateLimit-Limit":"50","X-RateLimit-Remain
+
+SQL LOG:
+
+ANSWER:
+

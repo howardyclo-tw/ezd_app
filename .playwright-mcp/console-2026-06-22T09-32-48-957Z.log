@@ -1,0 +1,31 @@
+[     123ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[     241ms] [LOG] [Fast Refresh] done in 219ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    3320ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    3366ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   16933ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   17026ms] [LOG] [Fast Refresh] done in 193ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1070781ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1070837ms] [LOG] [Fast Refresh] done in 157ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1071227ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1071424ms] [LOG] [Fast Refresh] done in 298ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1076561ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1076581ms] [LOG] [Fast Refresh] done in 38ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1076691ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1077059ms] [LOG] [Fast Refresh] done in 468ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1113640ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1113671ms] [LOG] [Fast Refresh] done in 131ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1122146ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1123348ms] [LOG] [Fast Refresh] done in 1234ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1123952ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1124084ms] [LOG] [Fast Refresh] done in 194ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1137558ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1137810ms] [LOG] [Fast Refresh] done in 354ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1144030ms] [ERROR] WebSocket connection to 'ws://[::1]:3000/_next/webpack-hmr?id=_dg3UTzW8ecotCWwfaKnH' failed:  @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_client_e5ba0d71._.js:10876
+[ 1145037ms] [ERROR] WebSocket connection to 'ws://[::1]:3000/_next/webpack-hmr?id=_dg3UTzW8ecotCWwfaKnH' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_client_e5ba0d71._.js:10876
+[ 1146040ms] [ERROR] WebSocket connection to 'ws://[::1]:3000/_next/webpack-hmr?id=_dg3UTzW8ecotCWwfaKnH' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_client_e5ba0d71._.js:10876
+[ 1147042ms] [ERROR] WebSocket connection to 'ws://[::1]:3000/_next/webpack-hmr?id=_dg3UTzW8ecotCWwfaKnH' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_client_e5ba0d71._.js:10876
+[ 1151868ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1158742ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1158827ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1159441ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 1159542ms] [LOG] [Fast Refresh] done in 206ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297

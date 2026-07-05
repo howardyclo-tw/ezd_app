@@ -1,0 +1,203 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - tablist [ref=e23]:
+        - tab "報名統計" [selected] [ref=e24]
+        - tab "AI 對話" [ref=e25]
+      - tabpanel "報名統計" [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - heading "報名統計" [level=1] [ref=e29]
+            - paragraph [ref=e30]: 各課程整期 / 堂卡 / 補課人數統計（僅幹部）
+          - generic [ref=e31]:
+            - generic [ref=e32]:
+              - generic [ref=e33]:
+                - generic [ref=e34]: 期別
+                - combobox [ref=e35]:
+                  - generic: 2026 3-8月 常態課程
+                  - img
+              - button "查詢" [ref=e37]:
+                - img
+                - text: 查詢
+              - button "下載 CSV" [ref=e93]:
+                - img
+                - text: 下載 CSV
+            - generic [ref=e38]:
+              - generic [ref=e39]:
+                - generic [ref=e40]: 課程
+                - button "取消全選" [ref=e41]
+              - generic [ref=e42]:
+                - generic [ref=e43]:
+                  - checkbox "Hip-Hop Jazz 進階 x Jazz Funk 進階 (Ana / 米其林)" [checked] [ref=e44]:
+                    - generic:
+                      - img
+                  - generic [ref=e45]:
+                    - text: Hip-Hop Jazz 進階 x Jazz Funk 進階
+                    - generic [ref=e46]: (Ana / 米其林)
+                - generic [ref=e47]:
+                  - checkbox "Hip-Hop 入門 (兆駒)" [checked] [ref=e48]:
+                    - generic:
+                      - img
+                  - generic [ref=e49]:
+                    - text: Hip-Hop 入門
+                    - generic [ref=e50]: (兆駒)
+                - generic [ref=e51]:
+                  - checkbox "Hip-Hop 進階 (小安)" [checked] [ref=e52]:
+                    - generic:
+                      - img
+                  - generic [ref=e53]:
+                    - text: Hip-Hop 進階
+                    - generic [ref=e54]: (小安)
+                - generic [ref=e55]:
+                  - checkbox "House 入門 (陳顯)" [checked] [ref=e56]:
+                    - generic:
+                      - img
+                  - generic [ref=e57]:
+                    - text: House 入門
+                    - generic [ref=e58]: (陳顯)
+                - generic [ref=e59]:
+                  - checkbox "Jazz 入門 (Ana)" [checked] [ref=e60]:
+                    - generic:
+                      - img
+                  - generic [ref=e61]:
+                    - text: Jazz 入門
+                    - generic [ref=e62]: (Ana)
+                - generic [ref=e63]:
+                  - checkbox "Popping (可明)" [checked] [ref=e64]:
+                    - generic:
+                      - img
+                  - generic [ref=e65]:
+                    - text: Popping
+                    - generic [ref=e66]: (可明)
+                - generic [ref=e67]:
+                  - checkbox "瑜珈拉筋 (布拉格)" [checked] [ref=e68]:
+                    - generic:
+                      - img
+                  - generic [ref=e69]:
+                    - text: 瑜珈拉筋
+                    - generic [ref=e70]: (布拉格)
+                - generic [ref=e71]:
+                  - checkbox "舞感養成 (小Joy)" [checked] [ref=e72]:
+                    - generic:
+                      - img
+                  - generic [ref=e73]:
+                    - text: 舞感養成
+                    - generic [ref=e74]: (小Joy)
+                - generic [ref=e75]:
+                  - checkbox "韓風 MV 女團 (小可)" [checked] [ref=e76]:
+                    - generic:
+                      - img
+                  - generic [ref=e77]:
+                    - text: 韓風 MV 女團
+                    - generic [ref=e78]: (小可)
+          - table [ref=e96]:
+            - rowgroup [ref=e97]:
+              - row "課程 老師 容量 社員整期 堂卡(社員) 不重複人數 / 報名次數 堂卡(非社員) 不重複人數 / 報名次數 社員補課 不重複人數 / 補課次數" [ref=e98]:
+                - columnheader "課程" [ref=e99]
+                - columnheader "老師" [ref=e100]
+                - columnheader "容量" [ref=e101]
+                - columnheader "社員整期" [ref=e102]
+                - columnheader "堂卡(社員) 不重複人數 / 報名次數" [ref=e103]:
+                  - generic [ref=e104]: 堂卡(社員)
+                  - generic [ref=e105]: 不重複人數 / 報名次數
+                - columnheader "堂卡(非社員) 不重複人數 / 報名次數" [ref=e106]:
+                  - generic [ref=e107]: 堂卡(非社員)
+                  - generic [ref=e108]: 不重複人數 / 報名次數
+                - columnheader "社員補課 不重複人數 / 補課次數" [ref=e109]:
+                  - generic [ref=e110]: 社員補課
+                  - generic [ref=e111]: 不重複人數 / 補課次數
+            - rowgroup [ref=e112]:
+              - row "Hip-Hop Jazz 進階 x Jazz Funk 進階 Ana / 米其林 25 9 - - -" [ref=e113]:
+                - cell "Hip-Hop Jazz 進階 x Jazz Funk 進階" [ref=e114]
+                - cell "Ana / 米其林" [ref=e115]
+                - cell "25" [ref=e116]
+                - cell "9" [ref=e117]
+                - cell "-" [ref=e118]
+                - cell "-" [ref=e119]
+                - cell "-" [ref=e120]
+              - row "Hip-Hop 入門 兆駒 25 16 - - -" [ref=e121]:
+                - cell "Hip-Hop 入門" [ref=e122]
+                - cell "兆駒" [ref=e123]
+                - cell "25" [ref=e124]
+                - cell "16" [ref=e125]
+                - cell "-" [ref=e126]
+                - cell "-" [ref=e127]
+                - cell "-" [ref=e128]
+              - row "Hip-Hop 進階 小安 18 12 - - -" [ref=e129]:
+                - cell "Hip-Hop 進階" [ref=e130]
+                - cell "小安" [ref=e131]
+                - cell "18" [ref=e132]
+                - cell "12" [ref=e133]
+                - cell "-" [ref=e134]
+                - cell "-" [ref=e135]
+                - cell "-" [ref=e136]
+              - row "House 入門 陳顯 18 11 - - -" [ref=e137]:
+                - cell "House 入門" [ref=e138]
+                - cell "陳顯" [ref=e139]
+                - cell "18" [ref=e140]
+                - cell "11" [ref=e141]
+                - cell "-" [ref=e142]
+                - cell "-" [ref=e143]
+                - cell "-" [ref=e144]
+              - row "Jazz 入門 Ana 25 11 - - -" [ref=e145]:
+                - cell "Jazz 入門" [ref=e146]
+                - cell "Ana" [ref=e147]
+                - cell "25" [ref=e148]
+                - cell "11" [ref=e149]
+                - cell "-" [ref=e150]
+                - cell "-" [ref=e151]
+                - cell "-" [ref=e152]
+              - row "Popping 可明 18 14 - - -" [ref=e153]:
+                - cell "Popping" [ref=e154]
+                - cell "可明" [ref=e155]
+                - cell "18" [ref=e156]
+                - cell "14" [ref=e157]
+                - cell "-" [ref=e158]
+                - cell "-" [ref=e159]
+                - cell "-" [ref=e160]
+              - row "瑜珈拉筋 布拉格 3 0 1人 / 5次 - -" [ref=e161]:
+                - cell "瑜珈拉筋" [ref=e162]
+                - cell "布拉格" [ref=e163]
+                - cell "3" [ref=e164]
+                - cell "0" [ref=e165]
+                - cell "1人 / 5次" [ref=e166]
+                - cell "-" [ref=e167]
+                - cell "-" [ref=e168]
+              - row "舞感養成 小Joy 18 5 - - -" [ref=e169]:
+                - cell "舞感養成" [ref=e170]
+                - cell "小Joy" [ref=e171]
+                - cell "18" [ref=e172]
+                - cell "5" [ref=e173]
+                - cell "-" [ref=e174]
+                - cell "-" [ref=e175]
+                - cell "-" [ref=e176]
+              - row "韓風 MV 女團 小可 25 9 - - -" [ref=e177]:
+                - cell "韓風 MV 女團" [ref=e178]
+                - cell "小可" [ref=e179]
+                - cell "25" [ref=e180]
+                - cell "9" [ref=e181]
+                - cell "-" [ref=e182]
+                - cell "-" [ref=e183]
+                - cell "-" [ref=e184]
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e89] [cursor=pointer]:
+    - img [ref=e90]
+  - alert [ref=e185]

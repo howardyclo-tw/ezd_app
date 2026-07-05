@@ -1,0 +1,533 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e267]:
+      - generic [ref=e268]:
+        - generic [ref=e269]:
+          - button [ref=e270]:
+            - img
+          - generic [ref=e271]:
+            - heading "Hip-Hop 入門" [level=1] [ref=e272]
+            - paragraph [ref=e273]: 2026 3-8月 常態課程
+        - link "編輯課程" [ref=e275] [cursor=pointer]:
+          - /url: /courses/groups/qErf4ojq/7605998a-471e-4daa-9465-4ccef960e173/edit
+          - button "編輯課程" [ref=e276]:
+            - img
+            - generic [ref=e277]: 編輯課程
+      - generic [ref=e278]:
+        - generic [ref=e279]:
+          - generic [ref=e280]:
+            - generic [ref=e282]: 一般常態
+            - generic [ref=e283]:
+              - generic [ref=e284]:
+                - img [ref=e285]
+                - generic [ref=e288]: "老師: 兆眴"
+              - generic [ref=e289]:
+                - img [ref=e290]
+                - generic [ref=e292]: "班長: 陳棨豐"
+              - generic [ref=e293]:
+                - img [ref=e294]
+                - generic [ref=e297]:
+                  - text: "時間:"
+                  - generic [ref=e298]: 19:15~20:45
+              - generic [ref=e299]:
+                - img [ref=e300]
+                - generic [ref=e303]: "地點: AB韻律教室"
+              - generic [ref=e304]:
+                - img [ref=e305]
+                - generic [ref=e310]:
+                  - text: "名額:"
+                  - generic [ref=e311]: 25 人
+          - button "單堂報名 / 補課" [ref=e313]:
+            - img
+            - generic [ref=e314]: 單堂報名 / 補課
+        - generic [ref=e315]:
+          - heading "課程描述" [level=3] [ref=e316]:
+            - img [ref=e317]
+            - text: 課程描述
+          - generic [ref=e320]:
+            - paragraph [ref=e321]: • 沒有接觸過街舞者可報名。
+            - paragraph [ref=e322]: • 著重於HipHop基礎動作的練習和培養。
+            - paragraph [ref=e323]: "** 6/26 因雨勢過大公告停止上班上課"
+      - generic [ref=e324]:
+        - generic [ref=e326]:
+          - heading "學員名單" [level=3] [ref=e327]:
+            - img [ref=e328]
+            - text: 學員名單
+          - button "點名" [ref=e334]
+        - table [ref=e337]:
+          - rowgroup [ref=e338]:
+            - row "姓名 4/10 14/25 5/8 14/25 5/15 12/25 5/22 15/25 5/29 11/25 6/5 19/25 6/12 11/25 6/26 15/25 7/3 15/25 7/17 14/25 7/24 13/25 7/31 14/25 8/7 15/25" [ref=e339]:
+              - columnheader "姓名" [ref=e340]
+              - columnheader "4/10 14/25" [ref=e341] [cursor=pointer]:
+                - generic [ref=e342]:
+                  - generic [ref=e343]: 4/10
+                  - generic [ref=e344]:
+                    - img [ref=e345]
+                    - text: 14/25
+              - columnheader "5/8 14/25" [ref=e350] [cursor=pointer]:
+                - generic [ref=e351]:
+                  - generic [ref=e352]: 5/8
+                  - generic [ref=e353]:
+                    - img [ref=e354]
+                    - text: 14/25
+              - columnheader "5/15 12/25" [ref=e359] [cursor=pointer]:
+                - generic [ref=e360]:
+                  - generic [ref=e361]: 5/15
+                  - generic [ref=e362]:
+                    - img [ref=e363]
+                    - text: 12/25
+              - columnheader "5/22 15/25" [ref=e368] [cursor=pointer]:
+                - generic [ref=e369]:
+                  - generic [ref=e370]: 5/22
+                  - generic [ref=e371]:
+                    - img [ref=e372]
+                    - text: 15/25
+              - columnheader "5/29 11/25" [ref=e377] [cursor=pointer]:
+                - generic [ref=e378]:
+                  - generic [ref=e379]: 5/29
+                  - generic [ref=e380]:
+                    - img [ref=e381]
+                    - text: 11/25
+              - columnheader "6/5 19/25" [ref=e386] [cursor=pointer]:
+                - generic [ref=e387]:
+                  - generic [ref=e388]: 6/5
+                  - generic [ref=e389]:
+                    - img [ref=e390]
+                    - text: 19/25
+              - columnheader "6/12 11/25" [ref=e395] [cursor=pointer]:
+                - generic [ref=e396]:
+                  - generic [ref=e397]: 6/12
+                  - generic [ref=e398]:
+                    - img [ref=e399]
+                    - text: 11/25
+              - columnheader "6/26 15/25" [ref=e404] [cursor=pointer]:
+                - generic [ref=e406]:
+                  - generic [ref=e407]: 6/26
+                  - generic [ref=e408]:
+                    - img [ref=e409]
+                    - text: 15/25
+              - columnheader "7/3 15/25" [ref=e414] [cursor=pointer]:
+                - generic [ref=e415]:
+                  - generic [ref=e416]: 7/3
+                  - generic [ref=e417]:
+                    - img [ref=e418]
+                    - text: 15/25
+              - columnheader "7/17 14/25" [ref=e423] [cursor=pointer]:
+                - generic [ref=e424]:
+                  - generic [ref=e425]: 7/17
+                  - generic [ref=e426]:
+                    - img [ref=e427]
+                    - text: 14/25
+              - columnheader "7/24 13/25" [ref=e432] [cursor=pointer]:
+                - generic [ref=e433]:
+                  - generic [ref=e434]: 7/24
+                  - generic [ref=e435]:
+                    - img [ref=e436]
+                    - text: 13/25
+              - columnheader "7/31 14/25" [ref=e441] [cursor=pointer]:
+                - generic [ref=e442]:
+                  - generic [ref=e443]: 7/31
+                  - generic [ref=e444]:
+                    - img [ref=e445]
+                    - text: 14/25
+              - columnheader "8/7 15/25" [ref=e450] [cursor=pointer]:
+                - generic [ref=e451]:
+                  - generic [ref=e452]: 8/7
+                  - generic [ref=e453]:
+                    - img [ref=e454]
+                    - text: 15/25
+          - rowgroup [ref=e459]:
+            - row "整期學員" [ref=e460]:
+              - cell "整期學員" [ref=e461]
+            - row "陳棨豐 請假" [ref=e462]:
+              - cell "陳棨豐" [ref=e463] [cursor=pointer]:
+                - generic [ref=e464]:
+                  - generic [ref=e465]: 陳棨豐
+                  - img [ref=e466]
+              - cell [ref=e468]:
+                - img [ref=e472]
+              - cell [ref=e474]:
+                - img [ref=e478]
+              - cell "請假" [ref=e480]:
+                - generic [ref=e483]: 請假
+              - cell [ref=e484]:
+                - img [ref=e488]
+              - cell [ref=e490]:
+                - img [ref=e494]
+              - cell [ref=e496]:
+                - img [ref=e500]
+              - cell [ref=e502]:
+                - img [ref=e506]
+              - cell [ref=e508]
+              - cell [ref=e511]
+              - cell [ref=e514]
+              - cell [ref=e517]
+              - cell [ref=e520]
+              - cell [ref=e523]
+            - row "劉畇" [ref=e526]:
+              - cell "劉畇" [ref=e527] [cursor=pointer]:
+                - generic [ref=e529]: 劉畇
+              - cell [ref=e530]:
+                - img [ref=e534]
+              - cell [ref=e536]:
+                - img [ref=e540]
+              - cell [ref=e542]:
+                - img [ref=e546]
+              - cell [ref=e548]:
+                - img [ref=e552]
+              - cell [ref=e554]:
+                - img [ref=e558]
+              - cell [ref=e560]:
+                - img [ref=e564]
+              - cell [ref=e566]:
+                - img [ref=e570]
+              - cell [ref=e572]
+              - cell [ref=e575]
+              - cell [ref=e578]
+              - cell [ref=e581]
+              - cell [ref=e584]
+              - cell [ref=e587]
+            - row "劉學揚 請假 請假" [ref=e590]:
+              - cell "劉學揚" [ref=e591] [cursor=pointer]:
+                - generic [ref=e593]: 劉學揚
+              - cell [ref=e594]:
+                - img [ref=e598]
+              - cell [ref=e600]:
+                - img [ref=e604]
+              - cell "請假" [ref=e606]:
+                - generic [ref=e609]: 請假
+              - cell [ref=e610]:
+                - img [ref=e614]
+              - cell [ref=e616]:
+                - img [ref=e620]
+              - cell [ref=e622]:
+                - img [ref=e626]
+              - cell "請假" [ref=e628]:
+                - generic [ref=e631]: 請假
+              - cell [ref=e632]
+              - cell [ref=e635]
+              - cell [ref=e638]
+              - cell [ref=e641]
+              - cell [ref=e644]
+              - cell [ref=e647]
+            - row "李佳盈 請假 請假" [ref=e650]:
+              - cell "李佳盈" [ref=e651] [cursor=pointer]:
+                - generic [ref=e653]: 李佳盈
+              - cell "請假" [ref=e654]:
+                - generic [ref=e657]: 請假
+              - cell [ref=e658]:
+                - img [ref=e662]
+              - cell [ref=e664]:
+                - img [ref=e668]
+              - cell "請假" [ref=e670]:
+                - generic [ref=e673]: 請假
+              - cell [ref=e674]:
+                - img [ref=e678]
+              - cell [ref=e680]:
+                - img [ref=e684]
+              - cell [ref=e686]:
+                - img [ref=e690]
+              - cell [ref=e692]
+              - cell [ref=e695]
+              - cell [ref=e698]
+              - cell [ref=e701]
+              - cell [ref=e704]
+              - cell [ref=e707]
+            - row "杜佩樺 請假 請假 轉讓 姚芸蓁 請假 請假 請假" [ref=e710]:
+              - cell "杜佩樺" [ref=e711] [cursor=pointer]:
+                - generic [ref=e713]: 杜佩樺
+              - cell "請假" [ref=e714]:
+                - generic [ref=e717]: 請假
+              - cell "請假" [ref=e718]:
+                - generic [ref=e721]: 請假
+              - cell "轉讓 姚芸蓁" [ref=e722]:
+                - generic [ref=e725]: 轉讓 姚芸蓁
+              - cell "請假" [ref=e726]:
+                - generic [ref=e729]: 請假
+              - cell [ref=e730]:
+                - img [ref=e734]
+              - cell "請假" [ref=e736]:
+                - generic [ref=e739]: 請假
+              - cell "請假" [ref=e740]:
+                - generic [ref=e743]: 請假
+              - cell [ref=e744]
+              - cell [ref=e747]
+              - cell [ref=e750]
+              - cell [ref=e753]
+              - cell [ref=e756]
+              - cell [ref=e759]
+            - row "康晉瑋 請假 請假 請假 請假" [ref=e762]:
+              - cell "康晉瑋" [ref=e763] [cursor=pointer]:
+                - generic [ref=e765]: 康晉瑋
+              - cell [ref=e766]:
+                - img [ref=e770]
+              - cell "請假" [ref=e772]:
+                - generic [ref=e775]: 請假
+              - cell [ref=e776]:
+                - img [ref=e780]
+              - cell "請假" [ref=e782]:
+                - generic [ref=e785]: 請假
+              - cell "請假" [ref=e786]:
+                - generic [ref=e789]: 請假
+              - cell [ref=e790]:
+                - img [ref=e794]
+              - cell "請假" [ref=e796]:
+                - generic [ref=e799]: 請假
+              - cell [ref=e800]
+              - cell [ref=e803]
+              - cell [ref=e806]
+              - cell [ref=e809]
+              - cell [ref=e812]
+              - cell [ref=e815]
+            - row "黎欣怡 請假 請假 請假 請假 請假 請假 請假 請假 請假" [ref=e818]:
+              - cell "黎欣怡" [ref=e819] [cursor=pointer]:
+                - generic [ref=e821]: 黎欣怡
+              - cell "請假" [ref=e822]:
+                - generic [ref=e825]: 請假
+              - cell [ref=e826]:
+                - img [ref=e830]
+              - cell [ref=e832]:
+                - img [ref=e836]
+              - cell "請假" [ref=e838]:
+                - generic [ref=e841]: 請假
+              - cell "請假" [ref=e842]:
+                - generic [ref=e845]: 請假
+              - cell [ref=e846]:
+                - img [ref=e850]
+              - cell "請假" [ref=e852]:
+                - generic [ref=e855]: 請假
+              - cell "請假" [ref=e856]:
+                - generic [ref=e859]: 請假
+              - cell "請假" [ref=e860]:
+                - generic [ref=e863]: 請假
+              - cell "請假" [ref=e864]:
+                - generic [ref=e867]: 請假
+              - cell "請假" [ref=e868]:
+                - generic [ref=e871]: 請假
+              - cell "請假" [ref=e872]:
+                - generic [ref=e875]: 請假
+              - cell [ref=e876]
+            - row "吳奕華 請假 請假" [ref=e879]:
+              - cell "吳奕華" [ref=e880] [cursor=pointer]:
+                - generic [ref=e882]: 吳奕華
+              - cell [ref=e883]:
+                - img [ref=e887]
+              - cell [ref=e889]:
+                - img [ref=e893]
+              - cell [ref=e895]:
+                - img [ref=e899]
+              - cell [ref=e901]:
+                - img [ref=e905]
+              - cell "請假" [ref=e907]:
+                - generic [ref=e910]: 請假
+              - cell [ref=e911]:
+                - img [ref=e915]
+              - cell [ref=e917]:
+                - img [ref=e921]
+              - cell [ref=e923]
+              - cell [ref=e926]
+              - cell [ref=e929]
+              - cell "請假" [ref=e932]:
+                - generic [ref=e935]: 請假
+              - cell [ref=e936]
+              - cell [ref=e939]
+            - row "黃柏誠 轉讓 蔡書妮 請假 請假" [ref=e942]:
+              - cell "黃柏誠" [ref=e943] [cursor=pointer]:
+                - generic [ref=e945]: 黃柏誠
+              - cell [ref=e946]:
+                - img [ref=e950]
+              - cell [ref=e952]:
+                - img [ref=e956]
+              - cell "轉讓 蔡書妮" [ref=e958]:
+                - generic [ref=e961]: 轉讓 蔡書妮
+              - cell [ref=e962]:
+                - img [ref=e966]
+              - cell "請假" [ref=e968]:
+                - generic [ref=e971]: 請假
+              - cell [ref=e972]:
+                - img [ref=e976]
+              - cell "請假" [ref=e978]:
+                - generic [ref=e981]: 請假
+              - cell [ref=e982]
+              - cell [ref=e985]
+              - cell [ref=e988]
+              - cell [ref=e991]
+              - cell [ref=e994]
+              - cell [ref=e997]
+            - row "羅翊嘉 請假 請假 請假" [ref=e1000]:
+              - cell "羅翊嘉" [ref=e1001] [cursor=pointer]:
+                - generic [ref=e1003]: 羅翊嘉
+              - cell "請假" [ref=e1004]:
+                - generic [ref=e1007]: 請假
+              - cell [ref=e1008]:
+                - img [ref=e1012]
+              - cell [ref=e1014]:
+                - img [ref=e1018]
+              - cell "請假" [ref=e1020]:
+                - generic [ref=e1023]: 請假
+              - cell [ref=e1024]:
+                - img [ref=e1028]
+              - cell [ref=e1030]:
+                - img [ref=e1034]
+              - cell "請假" [ref=e1036]:
+                - generic [ref=e1039]: 請假
+              - cell [ref=e1040]
+              - cell [ref=e1043]
+              - cell [ref=e1046]
+              - cell [ref=e1049]
+              - cell [ref=e1052]
+              - cell [ref=e1055]
+            - row "楊杰儒 請假" [ref=e1058]:
+              - cell "楊杰儒" [ref=e1059] [cursor=pointer]:
+                - generic [ref=e1061]: 楊杰儒
+              - cell [ref=e1062]:
+                - img [ref=e1066]
+              - cell "請假" [ref=e1068]:
+                - generic [ref=e1071]: 請假
+              - cell [ref=e1072]:
+                - img [ref=e1076]
+              - cell [ref=e1078]:
+                - img [ref=e1082]
+              - cell [ref=e1084]:
+                - img [ref=e1088]
+              - cell [ref=e1090]:
+                - img [ref=e1094]
+              - cell [ref=e1096]:
+                - img [ref=e1100]
+              - cell [ref=e1102]
+              - cell [ref=e1105]
+              - cell [ref=e1108]
+              - cell [ref=e1111]
+              - cell [ref=e1114]
+              - cell [ref=e1117]
+            - row "蔡兆鑫 請假 請假" [ref=e1120]:
+              - cell "蔡兆鑫" [ref=e1121] [cursor=pointer]:
+                - generic [ref=e1123]: 蔡兆鑫
+              - cell [ref=e1124]:
+                - img [ref=e1128]
+              - cell [ref=e1131]:
+                - img [ref=e1135]
+              - cell "請假" [ref=e1137]:
+                - generic [ref=e1140]: 請假
+              - cell [ref=e1141]:
+                - img [ref=e1145]
+              - cell "請假" [ref=e1147]:
+                - generic [ref=e1150]: 請假
+              - cell [ref=e1151]:
+                - img [ref=e1155]
+              - cell [ref=e1157]:
+                - img [ref=e1161]
+              - cell [ref=e1163]
+              - cell [ref=e1166]
+              - cell [ref=e1169]
+              - cell [ref=e1172]
+              - cell [ref=e1175]
+              - cell [ref=e1178]
+            - row "吳佳翰 請假 請假 請假" [ref=e1181]:
+              - cell "吳佳翰" [ref=e1182] [cursor=pointer]:
+                - generic [ref=e1184]: 吳佳翰
+              - cell [ref=e1185]:
+                - img [ref=e1189]
+              - cell [ref=e1191]:
+                - img [ref=e1195]
+              - cell "請假" [ref=e1197]:
+                - generic [ref=e1200]: 請假
+              - cell [ref=e1201]:
+                - img [ref=e1205]
+              - cell "請假" [ref=e1207]:
+                - generic [ref=e1210]: 請假
+              - cell "請假" [ref=e1211]:
+                - generic [ref=e1214]: 請假
+              - cell [ref=e1215]:
+                - img [ref=e1219]
+              - cell [ref=e1221]
+              - cell [ref=e1224]
+              - cell [ref=e1227]
+              - cell [ref=e1230]
+              - cell [ref=e1233]
+              - cell [ref=e1236]
+            - row "林哲志 請假" [ref=e1239]:
+              - cell "林哲志" [ref=e1240] [cursor=pointer]:
+                - generic [ref=e1242]: 林哲志
+              - cell [ref=e1243]:
+                - img [ref=e1247]
+              - cell [ref=e1249]:
+                - img [ref=e1253]
+              - cell "請假" [ref=e1255]:
+                - generic [ref=e1258]: 請假
+              - cell [ref=e1259]:
+                - img [ref=e1263]
+              - cell [ref=e1265]:
+                - img [ref=e1269]
+              - cell [ref=e1271]:
+                - img [ref=e1275]
+              - cell [ref=e1277]:
+                - img [ref=e1281]
+              - cell [ref=e1283]
+              - cell [ref=e1286]
+              - cell [ref=e1289]
+              - cell [ref=e1292]
+              - cell [ref=e1295]
+              - cell [ref=e1298]
+            - row "黃聖筑" [ref=e1301]:
+              - cell "黃聖筑" [ref=e1302] [cursor=pointer]:
+                - generic [ref=e1304]: 黃聖筑
+              - cell [ref=e1305]:
+                - img [ref=e1309]
+              - cell [ref=e1311]:
+                - img [ref=e1315]
+              - cell [ref=e1317]:
+                - img [ref=e1321]
+              - cell [ref=e1323]:
+                - img [ref=e1327]
+              - cell [ref=e1329]:
+                - img [ref=e1333]
+              - cell [ref=e1335]:
+                - img [ref=e1339]
+              - cell [ref=e1341]:
+                - img [ref=e1345]
+              - cell [ref=e1347]
+              - cell [ref=e1350]
+              - cell [ref=e1353]
+              - cell [ref=e1356]
+              - cell [ref=e1359]
+              - cell [ref=e1362]
+            - row "加報學員 (6/26 名單)" [ref=e1365]:
+              - cell "加報學員 (6/26 名單)" [ref=e1366]
+            - row "謝其軒 補" [ref=e1367]:
+              - cell "謝其軒" [ref=e1368]:
+                - generic [ref=e1370]: 謝其軒
+              - cell [ref=e1371]
+              - cell [ref=e1372]
+              - cell [ref=e1373]
+              - cell [ref=e1374]
+              - cell [ref=e1375]
+              - cell [ref=e1376]
+              - cell [ref=e1377]
+              - cell "補" [ref=e1378]:
+                - generic [ref=e1381]: 補
+              - cell [ref=e1382]
+              - cell [ref=e1383]
+              - cell [ref=e1384]
+              - cell [ref=e1385]
+              - cell [ref=e1386]
+  - region "Notifications alt+T"
+  - alert [ref=e48]

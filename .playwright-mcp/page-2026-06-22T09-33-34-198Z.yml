@@ -1,0 +1,53 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "EZDANCE" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - heading "EZDANCE" [level=1] [ref=e6]
+  - main [ref=e7]:
+    - generic [ref=e9]:
+      - generic [ref=e11]:
+        - heading "AI 資料助理" [level=1] [ref=e12]
+        - paragraph [ref=e13]: 用自然語言查資料庫（唯讀 · 僅幹部）
+        - paragraph [ref=e14]: 目前使用 Cerebras · GPT-OSS 120B（OpenAI 開源） · 免費、免綁信用卡
+      - generic [ref=e15]:
+        - generic [ref=e57]: 這一期可明老師課程的：社員補課、社員堂卡報名、非社員堂卡報名 各多少？（人次與人頭都列）
+        - generic [ref=e64]:
+          - group [ref=e65]:
+            - generic "查詢資料庫：Count 社員補課, 社員堂卡報名, 非社員堂卡報名 for 可明老師 this period, both 人次 and 人頭 ✓ 1 筆" [ref=e66] [cursor=pointer]:
+              - img [ref=e67]
+              - generic [ref=e71]: 查詢資料庫：Count 社員補課, 社員堂卡報名, 非社員堂卡報名 for 可明老師 this period, both 人次 and 人頭
+              - generic [ref=e72]: ✓ 1 筆
+              - img [ref=e73]
+          - group [ref=e75]:
+            - generic "查詢資料庫：Counts for 可明 teacher's courses per course_group, including employee makeup (approved) and single enrollments for staff and guests, both 人次 and 人頭 ✓ 1 筆" [ref=e76] [cursor=pointer]:
+              - img [ref=e77]
+              - generic [ref=e81]: 查詢資料庫：Counts for 可明 teacher's courses per course_group, including employee makeup (approved) and single enrollments for staff and guests, both 人次 and 人頭
+              - generic [ref=e82]: ✓ 1 筆
+              - img [ref=e83]
+        - generic [ref=e85]:
+          - img [ref=e86]
+          - text: 發生錯誤：AI 暫時達到免費方案用量上限（每分鐘 token／請求數有限），請稍候約 1 分鐘再試。較複雜的問題可拆成幾個小問題，以降低單次用量。
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - textbox "輸入問題…" [ref=e28]
+          - button "送出" [disabled]:
+            - img
+        - paragraph [ref=e29]: Enter 送出 · Shift+Enter 換行
+  - navigation [ref=e30]:
+    - generic [ref=e31]:
+      - link "個人中心" [ref=e32] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e33]
+        - generic [ref=e38]: 個人中心
+      - link "課程檔期" [ref=e39] [cursor=pointer]:
+        - /url: /courses
+        - img [ref=e40]
+        - generic [ref=e42]: 課程檔期
+      - link "使用說明" [ref=e43] [cursor=pointer]:
+        - /url: /guide
+        - img [ref=e44]
+        - generic [ref=e46]: 使用說明
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e52] [cursor=pointer]:
+    - img [ref=e53]
+  - alert [ref=e62]

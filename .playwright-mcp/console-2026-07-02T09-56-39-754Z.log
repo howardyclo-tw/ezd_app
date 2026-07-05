@@ -1,0 +1,148 @@
+[     125ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[     292ms] [LOG] [Fast Refresh] done in 267ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    2834ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    2868ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    3207ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    3208ms] [LOG] [Fast Refresh] done in 111ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    8997ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[    9004ms] [LOG] [Fast Refresh] done in 107ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   14557ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   14565ms] [LOG] [Fast Refresh] done in 108ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   67268ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   67353ms] [ERROR] ./src/components/admin/ai-chat-client.tsx:286:1
+Parsing ecmascript source code failed
+  284 | =======
+  285 |             className="min-h-[36px] max-h-[200px] flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
+> 286 | >>>>>>> main
+      | ^^^^^^^
+  287 |             disabled={busy}
+  288 |           />
+  289 |           <Button
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/components/admin/ai-chat-client.tsx
+    ./src/app/(protected)/admin/ai-chat/page.tsx @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[   67503ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   69105ms] [ERROR] ./src/components/admin/ai-chat-client.tsx:286:1
+Parsing ecmascript source code failed
+  284 | =======
+  285 |             className="min-h-[36px] max-h-[200px] flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
+> 286 | >>>>>>> main
+      | ^^^^^^^
+  287 |             disabled={busy}
+  288 |           />
+  289 |           <Button
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/components/admin/ai-chat-client.tsx
+    ./src/app/(protected)/admin/ai-chat/page.tsx @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[   69206ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   69669ms] [ERROR] ./src/components/admin/ai-chat-client.tsx:286:1
+Parsing ecmascript source code failed
+  284 | =======
+  285 |             className="min-h-[36px] max-h-[200px] flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
+> 286 | >>>>>>> main
+      | ^^^^^^^
+  287 |             disabled={busy}
+  288 |           />
+  289 |           <Button
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/components/admin/ai-chat-client.tsx
+    ./src/app/(protected)/admin/ai-chat/page.tsx @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[   69771ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   70706ms] [ERROR] ./src/components/admin/ai-chat-client.tsx:286:1
+Parsing ecmascript source code failed
+  284 | =======
+  285 |             className="min-h-[36px] max-h-[200px] flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
+> 286 | >>>>>>> main
+      | ^^^^^^^
+  287 |             disabled={busy}
+  288 |           />
+  289 |           <Button
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/components/admin/ai-chat-client.tsx
+    ./src/app/(protected)/admin/ai-chat/page.tsx @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[   70708ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://[::1]:3000/admin/ai-chat?_rsc=twa7r:0
+[   70774ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://[::1]:3000/admin/ai-chat?_rsc=twa7r:0
+[   70804ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://[::1]:3000/admin/ai-chat:0
+[   71020ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://[::1]:3000/_next/static/chunks/5e54f_react-dom_4d21b075._.js:15305
+[   71096ms] Error: ./src/components/admin/ai-chat-client.tsx:286:1
+Parsing ecmascript source code failed
+  284 | =======
+  285 |             className="min-h-[36px] max-h-[200px] flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
+> 286 | >>>>>>> main
+      | ^^^^^^^
+  287 |             disabled={busy}
+  288 |           />
+  289 |           <Button
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/components/admin/ai-chat-client.tsx
+    ./src/app/(protected)/admin/ai-chat/page.tsx
+
+
+    at <unknown> (Error: ./src/components/admin/ai-chat-client.tsx:286:1)
+    at Object.getCompilationErrors (file:///Users/Howard/Desktop/ezd_app/node_modules/.pnpm/next@16.1.1_@babel+core@7.28.5_@opentelemetry+api@1.9.1_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/next/dist/server/dev/hot-reloader-turbopack.js:1008:59)
+    at DevBundlerService.getCompilationError (file:///Users/Howard/Desktop/ezd_app/node_modules/.pnpm/next@16.1.1_@babel+core@7.28.5_@opentelemetry+api@1.9.1_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/next/dist/server/lib/dev-bundler-service.js:44:55)
+    at DevServer.getCompilationError (file:///Users/Howard/Desktop/ezd_app/node_modules/.pnpm/next@16.1.1_@babel+core@7.28.5_@opentelemetry+api@1.9.1_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/next/dist/server/dev/next-dev-server.js:706:42)
+    at DevServer.findPageComponents (file:///Users/Howard/Desktop/ezd_app/node_modules/.pnpm/next@16.1.1_@babel+core@7.28.5_@opentelemetry+api@1.9.1_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/next/dist/server/dev/next-dev-server.js:676:43)
+    at async DevServer.renderErrorToResponseImpl (file:///Users/Howard/Desktop/ezd_app/node_modules/.pnpm/next@16.1.1_@babel+core@7.28.5_@opentelemetry+api@1.9.1_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/next/dist/server/base-server.js:1713:26)
+[   71095ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_d0b39ece._.js:1206
+[   71098ms] [ERROR] ./src/components/admin/ai-chat-client.tsx:286:1
+Parsing ecmascript source code failed
+  284 | =======
+  285 |             className="min-h-[36px] max-h-[200px] flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
+> 286 | >>>>>>> main
+      | ^^^^^^^
+  287 |             disabled={busy}
+  288 |           />
+  289 |           <Button
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/components/admin/ai-chat-client.tsx
+    ./src/app/(protected)/admin/ai-chat/page.tsx @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_d0b39ece._.js:1920
+[   71199ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_d0b39ece._.js:1206
+[   71208ms] [ERROR] ./src/components/admin/ai-chat-client.tsx:286:1
+Parsing ecmascript source code failed
+  284 | =======
+  285 |             className="min-h-[36px] max-h-[200px] flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
+> 286 | >>>>>>> main
+      | ^^^^^^^
+  287 |             disabled={busy}
+  288 |           />
+  289 |           <Button
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/components/admin/ai-chat-client.tsx
+    ./src/app/(protected)/admin/ai-chat/page.tsx @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_d0b39ece._.js:1920
+[   79963ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_d0b39ece._.js:1206
+[   80345ms] [LOG] [Fast Refresh] done in 452ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_d0b39ece._.js:1206
+[   80520ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_d0b39ece._.js:1206
+[   80804ms] [LOG] [Fast Refresh] done in 385ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_d0b39ece._.js:1206
+[   83547ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[   83604ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  110510ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[  110722ms] [LOG] [Fast Refresh] done in 116ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297

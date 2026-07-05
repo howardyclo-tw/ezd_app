@@ -1,0 +1,309 @@
+- generic [ref=f26e1]:
+  - generic [ref=f26e2]:
+    - generic [ref=f26e9]:
+      - link "surveycake-logo" [ref=f26e10] [cursor=pointer]:
+        - /url: /admin/tw/dashboard
+        - img "surveycake-logo" [ref=f26e11]
+      - generic [ref=f26e12]:
+        - button "升級" [ref=f26e13] [cursor=pointer]
+        - button "語言設定" [ref=f26e14] [cursor=pointer]:
+          - img [ref=f26e15]
+        - button "支援中心" [ref=f26e17] [cursor=pointer]:
+          - img [ref=f26e18]
+        - img "user-avatar" [ref=f26e22]
+    - generic [ref=f26e23]:
+      - generic [ref=f26e24]:
+        - generic [ref=f26e25]:
+          - button "搜尋您的問卷" [ref=f26e26] [cursor=pointer]:
+            - img [ref=f26e27]
+            - heading "搜尋" [level=6] [ref=f26e29]
+          - button "我的問卷 1" [ref=f26e30] [cursor=pointer]:
+            - img [ref=f26e31]
+            - heading "我的問卷" [level=6] [ref=f26e33]
+            - heading "1" [level=6] [ref=f26e34]
+          - button "近期存取" [ref=f26e35] [cursor=pointer]:
+            - img [ref=f26e36]
+            - heading "近期存取" [level=6] [ref=f26e39]
+          - generic [ref=f26e40]:
+            - button "我的群組" [ref=f26e41] [cursor=pointer]:
+              - img [ref=f26e43]
+              - heading "我的群組" [level=6] [ref=f26e45]
+            - generic [ref=f26e46]:
+              - button "2026 問卷 群組操作" [active] [ref=f26e230] [cursor=pointer]:
+                - heading "2026 問卷" [level=6] [ref=f26e50]
+                - button "群組操作" [ref=f26e232]:
+                  - img [ref=f26e233]
+              - button "2025 問卷 46" [ref=f26e54] [cursor=pointer]:
+                - heading "2025 問卷" [level=6] [ref=f26e55]
+                - heading "46" [level=6] [ref=f26e56]
+              - button "2024 課後問卷 4" [ref=f26e59] [cursor=pointer]:
+                - heading "2024 課後問卷" [level=6] [ref=f26e60]
+                - heading "4" [level=6] [ref=f26e61]
+              - button "2024 問卷 52" [ref=f26e64] [cursor=pointer]:
+                - heading "2024 問卷" [level=6] [ref=f26e65]
+                - heading "52" [level=6] [ref=f26e66]
+              - button "2023 課後問卷 5" [ref=f26e69] [cursor=pointer]:
+                - heading "2023 課後問卷" [level=6] [ref=f26e70]
+                - heading "5" [level=6] [ref=f26e71]
+              - button "2023 問卷 30" [ref=f26e74] [cursor=pointer]:
+                - heading "2023 問卷" [level=6] [ref=f26e75]
+                - heading "30" [level=6] [ref=f26e76]
+              - button "2022 問卷 20" [ref=f26e79] [cursor=pointer]:
+                - heading "2022 問卷" [level=6] [ref=f26e80]
+                - heading "20" [level=6] [ref=f26e81]
+              - button "2021 課後問卷 5" [ref=f26e84] [cursor=pointer]:
+                - heading "2021 課後問卷" [level=6] [ref=f26e85]
+                - heading "5" [level=6] [ref=f26e86]
+              - button "2021 報名問卷 13" [ref=f26e89] [cursor=pointer]:
+                - heading "2021 報名問卷" [level=6] [ref=f26e90]
+                - heading "13" [level=6] [ref=f26e91]
+              - button "2021 匯款/退費問卷 16" [ref=f26e94] [cursor=pointer]:
+                - heading "2021 匯款/退費問卷" [level=6] [ref=f26e95]
+                - heading "16" [level=6] [ref=f26e96]
+              - button "2021 問卷 2" [ref=f26e99] [cursor=pointer]:
+                - heading "2021 問卷" [level=6] [ref=f26e100]
+                - heading "2" [level=6] [ref=f26e101]
+              - button "問卷 公版 4" [ref=f26e104] [cursor=pointer]:
+                - heading "問卷 公版" [level=6] [ref=f26e105]
+                - heading "4" [level=6] [ref=f26e106]
+              - button "2020 報名問卷 12" [ref=f26e109] [cursor=pointer]:
+                - heading "2020 報名問卷" [level=6] [ref=f26e110]
+                - heading "12" [level=6] [ref=f26e111]
+              - button "2020 課後問卷 16" [ref=f26e114] [cursor=pointer]:
+                - heading "2020 課後問卷" [level=6] [ref=f26e115]
+                - heading "16" [level=6] [ref=f26e116]
+              - button "2020 熱舞社 匯款問卷 10" [ref=f26e119] [cursor=pointer]:
+                - heading "2020 熱舞社 匯款問卷" [level=6] [ref=f26e120]
+                - heading "10" [level=6] [ref=f26e121]
+              - button "財務 公版 2" [ref=f26e124] [cursor=pointer]:
+                - heading "財務 公版" [level=6] [ref=f26e125]
+                - heading "2" [level=6] [ref=f26e126]
+          - status [ref=f26e129]
+          - button "垃圾桶 2" [ref=f26e130] [cursor=pointer]:
+            - img [ref=f26e131]
+            - heading "垃圾桶" [level=6] [ref=f26e133]
+            - heading "2" [level=6] [ref=f26e134]
+        - img [ref=f26e136]
+      - generic [ref=f26e182]:
+        - generic [ref=f26e183]:
+          - heading "2026 問卷" [level=3] [ref=f26e235]
+          - generic [ref=f26e186]:
+            - button "排序" [ref=f26e187] [cursor=pointer]:
+              - img [ref=f26e188]
+            - button "篩選" [ref=f26e190] [cursor=pointer]:
+              - img [ref=f26e191]
+            - button "群組操作" [ref=f26e236] [cursor=pointer]:
+              - img [ref=f26e237]
+            - group [ref=f26e193]:
+              - button [pressed] [ref=f26e194] [cursor=pointer]:
+                - img [ref=f26e195]
+              - button [ref=f26e197] [cursor=pointer]:
+                - img [ref=f26e198]
+            - button "建立問卷" [ref=f26e200] [cursor=pointer]:
+              - text: 建立問卷
+              - img [ref=f26e202]
+        - grid "grid" [ref=f26e205]:
+          - row [ref=f26e239]:
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026 MTK 總部 熱舞社] 堂卡購買 (七月) 13 回覆 更多操作" [ref=f26e240]':
+              - generic [ref=f26e241] [cursor=pointer]:
+                - generic [ref=f26e242]:
+                  - img "survey-cover" [ref=f26e243]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e244]'
+                - generic [ref=f26e246]:
+                  - heading "[2026 MTK 總部 熱舞社] 堂卡購買 (七月)" [level=6] [ref=f26e247]
+                  - generic [ref=f26e248]:
+                    - generic [ref=f26e249]:
+                      - generic [ref=f26e250]: 13 回覆
+                      - img [ref=f26e251]
+                    - button "更多操作" [ref=f26e255]:
+                      - img [ref=f26e256]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026竹北熱門舞蹈社] Q2常態課程匯款問卷 17 回覆 更多操作" [ref=f26e258]':
+              - generic [ref=f26e259] [cursor=pointer]:
+                - generic [ref=f26e260]:
+                  - img "survey-cover" [ref=f26e261]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e262]'
+                - generic [ref=f26e264]:
+                  - heading "[2026竹北熱門舞蹈社] Q2常態課程匯款問卷" [level=6] [ref=f26e265]
+                  - generic [ref=f26e266]:
+                    - generic [ref=f26e267]:
+                      - generic [ref=f26e268]: 17 回覆
+                      - img [ref=f26e269]
+                    - button "更多操作" [ref=f26e273]:
+                      - img [ref=f26e274]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026 MTK 竹北 熱舞社] 2026 7-8月常態課程報名表 21 回覆 更多操作" [ref=f26e276]':
+              - generic [ref=f26e277] [cursor=pointer]:
+                - generic [ref=f26e278]:
+                  - img "survey-cover" [ref=f26e279]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e280]'
+                - generic [ref=f26e282]:
+                  - heading "[2026 MTK 竹北 熱舞社] 2026 7-8月常態課程報名表" [level=6] [ref=f26e283]
+                  - generic [ref=f26e284]:
+                    - generic [ref=f26e285]:
+                      - generic [ref=f26e286]: 21 回覆
+                      - img [ref=f26e287]
+                    - button "更多操作" [ref=f26e291]:
+                      - img [ref=f26e292]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026竹北熱門舞蹈社] Q2六月MV課程匯款問卷 9 回覆 更多操作" [ref=f26e294]':
+              - generic [ref=f26e295] [cursor=pointer]:
+                - generic [ref=f26e296]:
+                  - img "survey-cover" [ref=f26e297]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e298]'
+                - generic [ref=f26e300]:
+                  - heading "[2026竹北熱門舞蹈社] Q2六月MV課程匯款問卷" [level=6] [ref=f26e301]
+                  - generic [ref=f26e302]:
+                    - generic [ref=f26e303]:
+                      - generic [ref=f26e304]: 9 回覆
+                      - img [ref=f26e305]
+                    - button "更多操作" [ref=f26e309]:
+                      - img [ref=f26e310]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026 竹北熱門舞蹈社] 2026 六月 MV報名表 12 回覆 更多操作" [ref=f26e312]':
+              - generic [ref=f26e313] [cursor=pointer]:
+                - generic [ref=f26e314]:
+                  - img "survey-cover" [ref=f26e315]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e316]'
+                - generic [ref=f26e318]:
+                  - heading "[2026 竹北熱門舞蹈社] 2026 六月 MV報名表" [level=6] [ref=f26e319]
+                  - generic [ref=f26e320]:
+                    - generic [ref=f26e321]:
+                      - generic [ref=f26e322]: 12 回覆
+                      - img [ref=f26e323]
+                    - button "更多操作" [ref=f26e327]:
+                      - img [ref=f26e328]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026] 竹北熱門舞蹈社] Q2專攻課程匯款問卷 14 回覆 更多操作" [ref=f26e330]':
+              - generic [ref=f26e331] [cursor=pointer]:
+                - generic [ref=f26e332]:
+                  - img "survey-cover" [ref=f26e333]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e334]'
+                - generic [ref=f26e336]:
+                  - heading "[2026] 竹北熱門舞蹈社] Q2專攻課程匯款問卷" [level=6] [ref=f26e337]
+                  - generic [ref=f26e338]:
+                    - generic [ref=f26e339]:
+                      - generic [ref=f26e340]: 14 回覆
+                      - img [ref=f26e341]
+                    - button "更多操作" [ref=f26e345]:
+                      - img [ref=f26e346]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026竹北熱門舞蹈社] Q2MV課程第四堂匯款問卷 6 回覆 更多操作" [ref=f26e348]':
+              - generic [ref=f26e349] [cursor=pointer]:
+                - generic [ref=f26e350]:
+                  - img "survey-cover" [ref=f26e351]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e352]'
+                - generic [ref=f26e354]:
+                  - heading "[2026竹北熱門舞蹈社] Q2MV課程第四堂匯款問卷" [level=6] [ref=f26e355]
+                  - generic [ref=f26e356]:
+                    - generic [ref=f26e357]:
+                      - generic [ref=f26e358]: 6 回覆
+                      - img [ref=f26e359]
+                    - button "更多操作" [ref=f26e363]:
+                      - img [ref=f26e364]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026 MTK 總部 熱舞社] 堂卡購買 34 回覆 更多操作" [ref=f26e366]':
+              - generic [ref=f26e367] [cursor=pointer]:
+                - generic [ref=f26e368]:
+                  - img "survey-cover" [ref=f26e369]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e370]'
+                - generic [ref=f26e372]:
+                  - heading "[2026 MTK 總部 熱舞社] 堂卡購買" [level=6] [ref=f26e373]
+                  - generic [ref=f26e374]:
+                    - generic [ref=f26e375]:
+                      - generic [ref=f26e376]: 34 回覆
+                      - img [ref=f26e377]
+                    - button "更多操作" [ref=f26e381]:
+                      - img [ref=f26e382]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026 竹北熱門舞蹈社] 2026 Q1 MV 第四首歌報名表 9 回覆 更多操作" [ref=f26e384]':
+              - generic [ref=f26e385] [cursor=pointer]:
+                - generic [ref=f26e386]:
+                  - img "survey-cover" [ref=f26e387]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e388]'
+                - generic [ref=f26e390]:
+                  - heading "[2026 竹北熱門舞蹈社] 2026 Q1 MV 第四首歌報名表" [level=6] [ref=f26e391]
+                  - generic [ref=f26e392]:
+                    - generic [ref=f26e393]:
+                      - generic [ref=f26e394]: 9 回覆
+                      - img [ref=f26e395]
+                    - button "更多操作" [ref=f26e399]:
+                      - img [ref=f26e400]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026 MTK 竹北 熱舞社] 2026 六月舞風體驗&專攻課程報名表 18 回覆 更多操作" [ref=f26e402]':
+              - generic [ref=f26e403] [cursor=pointer]:
+                - generic [ref=f26e404]:
+                  - img "survey-cover" [ref=f26e405]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e406]'
+                - generic [ref=f26e408]:
+                  - heading "[2026 MTK 竹北 熱舞社] 2026 六月舞風體驗&專攻課程報名表" [level=6] [ref=f26e409]
+                  - generic [ref=f26e410]:
+                    - generic [ref=f26e411]:
+                      - generic [ref=f26e412]: 18 回覆
+                      - img [ref=f26e413]
+                    - button "更多操作" [ref=f26e417]:
+                      - img [ref=f26e418]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026竹北熱門舞蹈社] Q2MV課程第三堂匯款問卷 9 回覆 更多操作" [ref=f26e420]':
+              - generic [ref=f26e421] [cursor=pointer]:
+                - generic [ref=f26e422]:
+                  - img "survey-cover" [ref=f26e423]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e424]'
+                - generic [ref=f26e426]:
+                  - heading "[2026竹北熱門舞蹈社] Q2MV課程第三堂匯款問卷" [level=6] [ref=f26e427]
+                  - generic [ref=f26e428]:
+                    - generic [ref=f26e429]:
+                      - generic [ref=f26e430]: 9 回覆
+                      - img [ref=f26e431]
+                    - button "更多操作" [ref=f26e435]:
+                      - img [ref=f26e436]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026 竹北熱門舞蹈社] 2026 Q1 MV 第三首歌報名表 11 回覆 更多操作" [ref=f26e438]':
+              - generic [ref=f26e439] [cursor=pointer]:
+                - generic [ref=f26e440]:
+                  - img "survey-cover" [ref=f26e441]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e442]'
+                - generic [ref=f26e444]:
+                  - heading "[2026 竹北熱門舞蹈社] 2026 Q1 MV 第三首歌報名表" [level=6] [ref=f26e445]
+                  - generic [ref=f26e446]:
+                    - generic [ref=f26e447]:
+                      - generic [ref=f26e448]: 11 回覆
+                      - img [ref=f26e449]
+                    - button "更多操作" [ref=f26e453]:
+                      - img [ref=f26e454]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026 MTK熱舞社] 3-8 月 常態班課程 整期報名表 71 回覆 更多操作" [ref=f26e456]':
+              - generic [ref=f26e457] [cursor=pointer]:
+                - generic [ref=f26e458]:
+                  - img "survey-cover" [ref=f26e459]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e460]'
+                - generic [ref=f26e462]:
+                  - heading "[2026 MTK熱舞社] 3-8 月 常態班課程 整期報名表" [level=6] [ref=f26e463]
+                  - generic [ref=f26e464]:
+                    - generic [ref=f26e465]:
+                      - generic [ref=f26e466]: 71 回覆
+                      - img [ref=f26e467]
+                    - button "更多操作" [ref=f26e471]:
+                      - img [ref=f26e472]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026竹北熱門舞蹈社] Q1MV課程第二堂匯款問卷 6 回覆 更多操作" [ref=f26e474]':
+              - generic [ref=f26e475] [cursor=pointer]:
+                - generic [ref=f26e476]:
+                  - img "survey-cover" [ref=f26e477]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e478]'
+                - generic [ref=f26e480]:
+                  - heading "[2026竹北熱門舞蹈社] Q1MV課程第二堂匯款問卷" [level=6] [ref=f26e481]
+                  - generic [ref=f26e482]:
+                    - generic [ref=f26e483]:
+                      - generic [ref=f26e484]: 6 回覆
+                      - img [ref=f26e485]
+                    - button "更多操作" [ref=f26e489]:
+                      - img [ref=f26e490]
+            - 'gridcell "survey-cover 問卷狀態 : 公開 [2026 MTK 總部 熱舞社] 3-8月 風格體驗+專攻課程報名表 40 回覆 更多操作" [ref=f26e492]':
+              - generic [ref=f26e493] [cursor=pointer]:
+                - generic [ref=f26e494]:
+                  - img "survey-cover" [ref=f26e495]
+                  - 'generic "問卷狀態 : 公開" [ref=f26e496]'
+                - generic [ref=f26e498]:
+                  - heading "[2026 MTK 總部 熱舞社] 3-8月 風格體驗+專攻課程報名表" [level=6] [ref=f26e499]
+                  - generic [ref=f26e500]:
+                    - generic [ref=f26e501]:
+                      - generic [ref=f26e502]: 40 回覆
+                      - img [ref=f26e503]
+                    - button "更多操作" [ref=f26e507]:
+                      - img [ref=f26e508]
+  - generic:
+    - text:     
+    - generic [ref=f26e3]:
+      - generic [ref=f26e4]: 已加入群組
+      - paragraph [ref=f26e6]: 您已成功加入 XXX 群組
+    - text: STEP STEP STEP
+  - generic:
+    - iframe

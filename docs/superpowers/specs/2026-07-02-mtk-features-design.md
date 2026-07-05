@@ -258,7 +258,7 @@ UI 送出前強制提示:「修改將作廢原報名並重新排隊,已滿的課
   - **既有流程回歸 spec**:現行購卡兩步驟、堂卡 FIFO 扣卡與餘額、點名/請假/補課/轉讓、成員管理、匯入工具、既有審核中心分頁,每條都要有 e2e 覆蓋,重構前先跑通(建立 baseline)、重構後必須維持綠燈。
   - **重構等價性**:`card_orders`→`orders` 遷移後,所有原本讀寫 card_orders 的路徑行為不變(以既有購卡 e2e 為驗證)。
   - **CI gate**:每個 feature 分支合併前必跑 `npx tsc --noEmit`、`pnpm lint`、`pnpm build`、完整 e2e(happy + adversarial + regression)全綠才可標完成;三個 gate 命令列入每個 phase 的收尾步驟。
-- `docs/mtk-feature-tracker.md`:30 項需求 × 狀態(設計/實作/E2E:happy/adversarial/regression),每完成一項更新。
+- 需求覆蓋矩陣:已併入 `docs/mtk-progress-dashboard.html`(mtk-feature-tracker.md 退役,決策 #25 v4);每階段 gate 同步。
 - 開發全程 **dev branch**;每個 feature 先 Playwright MCP 互動驗證,再補 e2e spec(happy-path + adversarial + regression),通過才標完成。
 
 ## 16. 邊界情況與預設決策(已按合理預設寫入,審閱時可推翻)

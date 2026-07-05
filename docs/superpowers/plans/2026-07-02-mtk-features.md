@@ -22,7 +22,10 @@
 - **100% important-feature coverage, normal + adversarial (user directive):** an important feature is not "done" until it has BOTH a happy-path AND an adversarial e2e, green. "Important" = money/pricing/orders; enrollment (single/full/MV/capacity/rebook); attendance/leave/makeup/transfer; access-control/roles; blacklist. Before Phase 3 rewires the enrollment engine, backfill regression coverage for makeup/transfer/waitlist (currently uncovered).
 - **Test-scope policy (efficiency + anti-cheat, `驗者不自驗`):** the implementer NEVER chooses their own pass criteria. (a) The ORCHESTRATOR assigns the per-task test scope up-front from the IMPACT MAP below, based on files the task will touch. (b) The INDEPENDENT REVIEWER audits scope adequacy against the actual diff (standing question: "was the test scope sufficient for what this diff changed? name any spec that should have run but didn't"). (c) The PHASE-END FULL SUITE runs as its own independent gate step (not folded into an implementer task) — the un-gameable backstop that catches any per-task scoping miss or misreport.
   - **IMPACT MAP (code area → required tests):** pure lib (`pricing`/`allocation`/`capacity`/`date`) → `pnpm test` + `tsc` only (NO e2e). `actions.ts` enroll/order/card/capacity → enroll-single + card-purchase + refund-count + review-center-coursefee specs. attendance/leave/makeup/transfer/waitlist → those regression specs. review-center UI → review-center-coursefee + card-purchase. additive migration → `tsc` + one relevant flow spec. ANY change → `tsc` + changed-file lint always.
-  - **FULL SUITE (what the phase gate runs) =** all `e2e/regression/*` (admin-members, attendance-leave, card-purchase, enroll-single, makeup, transfer, waitlist-cancel) + all `e2e/features/*` (refund-count, review-center-coursefee) + all unit tests (`pnpm test`: pricing, allocation, capacity) + `tsc --noEmit` + changed-file lint. Kept current in the dashboard's "測試套件組成" panel.
+  - **FULL SUITE (what the phase gate runs) =** all `e2e/regression/*` + all `e2e/features/*` + (from 5R.8 on) all `e2e/journeys/*` + all unit tests (`pnpm test`) + `tsc --noEmit` + changed-file lint. Kept current in the dashboard's "測試套件組成" panel. As of Phase 5 end: 47 e2e + 86 unit.
+- **Workflow contention rule (learned Phase 5):** the IMPLEMENTER runs ONLY its assigned/new specs; the REVIEWER runs the full suite ALONE as the gate; the ORCHESTRATOR does one final clean single-run at phase end. Two concurrent Playwright runs against the one dev server produce false-timeout failures.
+- **UX rules (user directive 2026-07-05, gate conditions from Phase 5R on):** see `docs/superpowers/specs/2026-07-05-mtk-ux-addendum.md` §0 — (1) entry-point rule (no reachable entry = not done); (2) dual-role (幹部/學員) UX spec section required BEFORE implementing any UI phase; (3) state-visibility rule (every async status visible to owner + admin); (4) closed-state rule (windows render friendly disabled states); (5) style consistency (shadcn + tokens + `src/lib/constants.ts` badges only, no new color literals — reviewer must check); (6) phase gates include dual-role walkthrough e2e (`e2e/journeys/*`).
+- **Doc sync at each phase gate:** update dashboard HTML (progress + coverage matrix — `docs/mtk-feature-tracker.md` is RETIRED, its matrix now lives in the dashboard) + decision log (if decisions changed) + SDD ledger + redeploy the Artifact. Per-task dashboard updates are NOT required (batch at phase end).
 
 ## Ground-Truth Notes (verified against live dev DB 2026-07-02)
 
@@ -659,6 +662,44 @@ git commit -m "refactor: single isMemberActive across order/import; remove dead 
 - [ ] **Step 2: Implement** the pricing routing + `cancelEnrollment` guard (`status` + type check).
 - [ ] **Step 3: e2e PASS + regression (card single-enroll unchanged).**
 - [ ] **Step 4: Commit** `feat: single add-enroll via pricing resolver; server-enforced no-self-cancel`.
+
+---
+
+## Phase 5R — UX completion & alignment fixes (user acceptance of Phase 5, 2026-07-05)
+
+**Source spec:** `docs/superpowers/specs/2026-07-05-mtk-ux-addendum.md` (single source of truth; §-refs below point there). Execute strictly in order 5R.1 → 5R.8 (heavy file overlap in actions.ts / course-form / wizard — do NOT parallelize). Every task follows the standard SDD contract (impl workflow → independent review workflow, anti-false-green clauses, mutation tests).
+
+### Task 5R.1: Identity-eligibility setting (per-course 開放對象) — addendum §A
+**Files:** `supabase/migrations/015_enroll_identity.sql` (apply to dev via MCP + repo file); `src/lib/supabase/actions.ts` (guard helpers + REMOVE the two blanket guest-full throws at batchEnrollInCourses ~300 and submitGroupEnrollment ~3375); `src/components/admin/course-form.tsx` (開放對象 selects + conditional guest-price requirement); wizard/course lists (locked-with-reason display); `e2e/features/enroll-identity.spec.ts` + fixtures.
+- [ ] Columns `enroll_full_identity`/`enroll_single_identity` text NOT NULL DEFAULT 'all' CHECK IN ('all','member'); identity check uses `isMemberActive` (NOT raw role). Distinct guard messages (§A). Tests: H guest full-enrolls card course + ntd guest_full price; A member-only rejects guest (full+single, server-direct, mutation-tested); A ntd null-guest-price rejected.
+- Verification scope: tsc + changed-file lint + new spec + enroll-gating + register-wizard specs green (implementer); full suite (reviewer, alone).
+
+### Task 5R.2: Wizard entry point + window-driven states — addendum §B
+**Files:** `src/app/(protected)/courses/groups/[groupId]/page.tsx` (button lifecycle + admin 報名時段 header + quick-edit dialog); DELETE `src/components/courses/group-enrollment-dialog.tsx` (+ imports); `/register` page closed-states; `e2e/features/register-entry.spec.ts`.
+- [ ] Button states: 未設定(admin-only hint)/未開始(disabled+開放時間)/進行中(CTA→/register; existing submission→查看/修改報名)/已截止(disabled+單堂提示). Admin quick-edit reuses `updateCourseGroup`. Preserve main-branch hidden invariant (branch diff).
+
+### Task 5R.3: Modify-as-rebook UI — addendum §C
+**Files:** register wizard client/page; `e2e/features/register-modify.spec.ts`.
+- [ ] Existing-submission summary + 修改報名 + strong warning dialog → `resubmitGroupEnrollment`; confirmed-order blocked state UX. Tests: H full UI modify; A confirmed-order blocked, DB untouched.
+
+### Task 5R.4: Embedded card-purchase unit validation + prefill — addendum §D
+**Files:** wizard client (prefill/stepper); `submitGroupEnrollment` (multiple-of-unit server validation, NO window check); extend register-wizard spec.
+- [ ] Prefill = ceil(shortfall/unit)×unit; server rejects non-multiples fail-fast. A: direct non-multiple call rejected, nothing created (mutation-tested).
+
+### Task 5R.5: Personal center 我的堂卡・繳費 — addendum §E (pulls 8.1 forward)
+**Files:** `my_cards` page+client (tabs: 堂卡|繳費紀錄 w/ 補匯款+owner cancel); `my_courses` badges; dashboard todo chip + entry-card copy; `src/lib/constants.ts` (+ENROLLMENT_STATUS_*, ORDER_STATUS_*); `e2e/features/my-payments.spec.ts`.
+- [ ] Owner cancel = `cancelOrder` (cancels linked enrollments + releases seats) — the only self-serve pre-payment cancel path. Tests: H remittance backfill→remitted; H owner cancel releases; A non-owner cancel rejected (regression).
+
+### Task 5R.6: Pending-status restrictions + roster badges — addendum §F
+**Files:** leave/transfer/makeup actions (verify/enforce enrolled-only); course roster components (待繳費/待開票 badges); `e2e/features/pending-restrictions.spec.ts`.
+- [ ] A: pending_vote/pending_payment cannot leave/transfer/be-makeup-source (server, mutation-tested). Also test spec §6.1 confirm-time insufficient-cards → order stays remitted + explicit error (fix if actual behavior differs).
+
+### Task 5R.7: 繳費對帳 group-by-檔期 + normal single-window default — addendum §G
+**Files:** approvals tab (group headers + 待審 chip); course-form (normal→prefill single window start=first session); extend review-center + course-form specs.
+
+### Task 5R.8: Dual-role journey e2e + style audit — addendum §H (phase gate)
+**Files:** `e2e/journeys/student-journey.spec.ts`, `e2e/journeys/admin-journey.spec.ts`; style-consistency reviewer checklist run over all 5R diffs.
+- [ ] Full-suite gate (now incl. journeys) + dashboard/decision-log/ledger sync + Artifact redeploy + phase reflection.
 
 ---
 

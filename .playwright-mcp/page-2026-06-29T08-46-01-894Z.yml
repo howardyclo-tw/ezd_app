@@ -1,0 +1,54 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - generic [ref=e24]:
+        - heading "AI 資料助理" [level=1] [ref=e25]
+        - paragraph [ref=e26]: 用自然語言查資料庫（唯讀 · 僅幹部）
+        - paragraph [ref=e27]: Groq Free · Llama 3.3 70B
+      - generic [ref=e28]:
+        - generic [ref=e54]: 各課程目前的堂卡報名人次排行
+        - generic [ref=e56]:
+          - group [ref=e57]:
+            - generic "查詢資料庫：Count single enrollments for each course ✓ 6 筆" [ref=e58] [cursor=pointer]:
+              - img [ref=e59]
+              - generic [ref=e63]: 查詢資料庫：Count single enrollments for each course
+              - generic [ref=e64]: ✓ 6 筆
+              - img [ref=e65]
+          - generic [ref=e67]:
+            - paragraph [ref=e68]: 根據目前的堂卡報名人次排行，各課程的堂卡報名人數如下：
+            - list [ref=e69]:
+              - listitem [ref=e70]: Test course：11 人次（5 人）
+              - listitem [ref=e71]: 瑜珈拉筋：5 人次（1 人）
+              - listitem [ref=e72]: 周杰倫 聲樂教學：4 人次（1 人）
+              - listitem [ref=e73]: poppin：2 人次（1 人）
+              - listitem [ref=e74]: 測試 Hiphop：2 人次（2 人）
+              - listitem [ref=e75]: 測測：1 人次（1 人）
+            - paragraph [ref=e76]: 這個排名是根據堂卡報名人次的多少進行排序，人次是指同一位用戶多次報名同一門課程的次數。
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - textbox "輸入問題…" [ref=e41]
+          - button "送出" [disabled]:
+            - img
+        - paragraph [ref=e42]: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e48] [cursor=pointer]:
+    - img [ref=e49]
+  - alert [ref=e52]

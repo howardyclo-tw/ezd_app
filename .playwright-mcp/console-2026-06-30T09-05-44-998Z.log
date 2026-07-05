@@ -1,0 +1,388 @@
+[     230ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[     399ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2385612ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2385702ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export detectProviderKey doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export detectProviderKey was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getDefaultModelId?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2385702ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export getDefaultModel doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export getDefaultModel was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getDefaultModelId?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2385703ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export getModelsForProvider doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export getModelsForProvider was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getDefaultModelId?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2385703ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export getProviderLabel doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export getProviderLabel was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getAvailableGroups?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2422416ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export detectProviderKey doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export detectProviderKey was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getDefaultModelId?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2422416ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export getDefaultModel doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export getDefaultModel was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getDefaultModelId?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2422416ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export getModelsForProvider doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export getModelsForProvider was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getDefaultModelId?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2422416ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export getProviderLabel doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export getProviderLabel was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getAvailableGroups?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2422496ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export detectProviderKey doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export detectProviderKey was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getDefaultModelId?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2422497ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export getDefaultModel doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export getDefaultModel was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getDefaultModelId?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2422497ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export getModelsForProvider doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export getModelsForProvider was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getDefaultModelId?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2422497ms] [ERROR] ./src/app/(protected)/admin/ai-chat/page.tsx:6:1
+Export getProviderLabel doesn't exist in target module
+  4 | import { AiChatClient } from '@/components/admin/ai-chat-client';
+  5 | import { EnrollmentStatsClient } from '@/components/admin/enrollment-stats-client';
+> 6 | import { detectProviderKey, getModelsForProvider, getProviderLabel, getDefaultModel } from '@/lib/ai/models';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7 | import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+  8 |
+  9 | export const dynamic = 'force-dynamic';
+
+The export getProviderLabel was not found in module [project]/src/lib/ai/models.ts [app-rsc] (ecmascript).
+Did you mean to import getAvailableGroups?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:3127
+[ 2422519ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2427609ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2427637ms] [LOG] [Fast Refresh] done in 115ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2427747ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2427898ms] [LOG] [Fast Refresh] done in 251ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2428047ms] [ERROR] %o
+
+%s ReferenceError: detectProviderKey is not defined
+    at AdminAiChatPage (about://React/Server/file:///Users/Howard/Desktop/ezd_app/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__9a29ad85._.js?58:197:17)
+    at resolveErrorDev (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-server-dom-turbopack_1df7b216._.js:1881:148)
+    at processFullStringRow (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-server-dom-turbopack_1df7b216._.js:2389:29)
+    at processFullBinaryRow (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-server-dom-turbopack_1df7b216._.js:2348:9)
+    at processBinaryChunk (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-server-dom-turbopack_1df7b216._.js:2457:221)
+    at progress (http://[::1]:3000/_next/static/chunks/f8a95_next_dist_compiled_react-server-dom-turbopack_1df7b216._.js:2625:13) The above error occurred in the <AdminAiChatPage> component. It was handled by the <ErrorBoundaryHandler> error boundary. @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_client_e5ba0d71._.js:1342
+[ 2431796ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2432043ms] [LOG] [Fast Refresh] done in 65ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2436258ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2436450ms] [LOG] [Fast Refresh] done in 64ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2480958ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2481044ms] [LOG] [Fast Refresh] done in 164ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2518902ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2519070ms] [LOG] [Fast Refresh] done in 268ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2521631ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2521638ms] [LOG] [Fast Refresh] done in 108ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2557813ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2557814ms] [LOG] [Fast Refresh] done in 102ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2599159ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 2599177ms] [LOG] [Fast Refresh] done in 119ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3226845ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3227085ms] [LOG] [Fast Refresh] done in 342ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3316438ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3316443ms] [LOG] [Fast Refresh] done in 107ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3331198ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3331254ms] [LOG] [Fast Refresh] done in 158ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3625624ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3625626ms] [LOG] [Fast Refresh] done in 102ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3728155ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3728163ms] [LOG] [Fast Refresh] done in 109ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3749696ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3749743ms] [LOG] [Fast Refresh] done in 148ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3749936ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3749962ms] [LOG] [Fast Refresh] done in 127ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3762965ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3762969ms] [LOG] [Fast Refresh] done in 106ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3775854ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 3776128ms] [LOG] [Fast Refresh] done in 374ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4004743ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4004832ms] [LOG] [Fast Refresh] done in 190ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4004975ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4004989ms] [LOG] [Fast Refresh] done in 115ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4011534ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4011535ms] [LOG] [Fast Refresh] done in 102ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4024281ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4024301ms] [LOG] [Fast Refresh] done in 120ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4050708ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4050795ms] [LOG] [Fast Refresh] done in 187ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4050947ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4050947ms] [LOG] [Fast Refresh] done in 102ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4062077ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4062178ms] [LOG] [Fast Refresh] done in 202ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4104660ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4104687ms] [LOG] [Fast Refresh] done in 128ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4149269ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4149348ms] [LOG] [Fast Refresh] done in 180ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4199526ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4199621ms] [LOG] [Fast Refresh] done in 196ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4199722ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4199743ms] [LOG] [Fast Refresh] done in 121ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4217444ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4217453ms] [LOG] [Fast Refresh] done in 110ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4229524ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4229584ms] [LOG] [Fast Refresh] done in 160ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4234332ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4234344ms] [LOG] [Fast Refresh] done in 112ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4339003ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4339266ms] [LOG] [Fast Refresh] done in 65ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4354798ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4354814ms] [LOG] [Fast Refresh] done in 119ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4356946ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4356974ms] [LOG] [Fast Refresh] done in 129ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4367857ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4367868ms] [LOG] [Fast Refresh] done in 112ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4373807ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4373813ms] [LOG] [Fast Refresh] done in 108ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4385156ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4385407ms] [LOG] [Fast Refresh] done in 352ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4421064ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4421141ms] [LOG] [Fast Refresh] done in 177ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4421250ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4421269ms] [LOG] [Fast Refresh] done in 120ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4431877ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4431882ms] [LOG] [Fast Refresh] done in 106ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4448962ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4448974ms] [LOG] [Fast Refresh] done in 112ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4469599ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4469806ms] [LOG] [Fast Refresh] done in 308ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4469907ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4469941ms] [LOG] [Fast Refresh] done in 134ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4487737ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4487744ms] [LOG] [Fast Refresh] done in 108ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[ 4535303ms] [LOG] [HMR] connected @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166182724ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166182840ms] [LOG] [Fast Refresh] done in 217ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166390255ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166390464ms] [LOG] [Fast Refresh] done in 294ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166405948ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166406599ms] [LOG] [Fast Refresh] done in 70ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166583952ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166584328ms] [LOG] [Fast Refresh] done in 477ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166712642ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166713144ms] [LOG] [Fast Refresh] done in 603ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166717632ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166717632ms] [LOG] [Fast Refresh] done in 101ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166768299ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166768533ms] [LOG] [Fast Refresh] done in 73ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166773300ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166773968ms] [LOG] [Fast Refresh] done in 442ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166790134ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166790225ms] [LOG] [Fast Refresh] done in 191ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166790366ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166790394ms] [LOG] [Fast Refresh] done in 128ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166799456ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[166799468ms] [LOG] [Fast Refresh] done in 114ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167100003ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167102361ms] [LOG] [Fast Refresh] done in 2458ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167102463ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167102497ms] [LOG] [Fast Refresh] done in 136ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167279600ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167279649ms] [LOG] [Fast Refresh] done in 150ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167279793ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167279812ms] [LOG] [Fast Refresh] done in 119ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167292888ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167293936ms] [LOG] [Fast Refresh] done in 1148ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167294038ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167294073ms] [LOG] [Fast Refresh] done in 137ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167309292ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167312332ms] [LOG] [Fast Refresh] done in 3140ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167312433ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167312531ms] [LOG] [Fast Refresh] done in 199ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167313505ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167313506ms] [LOG] [Fast Refresh] done in 108ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167473431ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167473462ms] [LOG] [Fast Refresh] done in 132ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167492457ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167492464ms] [LOG] [Fast Refresh] done in 109ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167504512ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167504560ms] [LOG] [Fast Refresh] done in 93ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167507702ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167507792ms] [LOG] [Fast Refresh] done in 191ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167515672ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167515886ms] [LOG] [Fast Refresh] done in 301ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167522846ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167522872ms] [LOG] [Fast Refresh] done in 122ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167534166ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167534276ms] [LOG] [Fast Refresh] done in 159ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167534471ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167534608ms] [LOG] [Fast Refresh] done in 241ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167554930ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167555065ms] [LOG] [Fast Refresh] done in 235ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167557324ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167557349ms] [LOG] [Fast Refresh] done in 126ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167563372ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167563425ms] [LOG] [Fast Refresh] done in 154ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167565935ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167565990ms] [LOG] [Fast Refresh] done in 156ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167575871ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167575951ms] [LOG] [Fast Refresh] done in 181ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167576391ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167576448ms] [LOG] [Fast Refresh] done in 158ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167595287ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167595288ms] [LOG] [Fast Refresh] done in 102ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167614924ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167614929ms] [LOG] [Fast Refresh] done in 106ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167630587ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167630630ms] [LOG] [Fast Refresh] done in 143ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167639980ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167639986ms] [LOG] [Fast Refresh] done in 108ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167646565ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167646604ms] [LOG] [Fast Refresh] done in 140ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167667049ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167667053ms] [LOG] [Fast Refresh] done in 105ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167670366ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167670391ms] [LOG] [Fast Refresh] done in 125ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167713313ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167713340ms] [LOG] [Fast Refresh] done in 128ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167713556ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167713570ms] [LOG] [Fast Refresh] done in 115ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167754470ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167754477ms] [LOG] [Fast Refresh] done in 109ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167781021ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167781070ms] [LOG] [Fast Refresh] done in 150ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167791780ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167791780ms] [LOG] [Fast Refresh] done in 101ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167797803ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167797828ms] [LOG] [Fast Refresh] done in 125ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167863901ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167863920ms] [LOG] [Fast Refresh] done in 96ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167872186ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167872304ms] [LOG] [Fast Refresh] done in 189ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167877412ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167877433ms] [LOG] [Fast Refresh] done in 86ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167895255ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167895395ms] [LOG] [Fast Refresh] done in 241ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167897995ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167898008ms] [LOG] [Fast Refresh] done in 115ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167911558ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167911562ms] [LOG] [Fast Refresh] done in 106ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167915269ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167915277ms] [LOG] [Fast Refresh] done in 108ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167932274ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167932285ms] [LOG] [Fast Refresh] done in 112ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167942279ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167942284ms] [LOG] [Fast Refresh] done in 106ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167987072ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[167987108ms] [LOG] [Fast Refresh] done in 137ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168001321ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168001357ms] [LOG] [Fast Refresh] done in 137ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168038007ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168038041ms] [LOG] [Fast Refresh] done in 134ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168062760ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168062816ms] [LOG] [Fast Refresh] done in 156ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168081094ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168081126ms] [LOG] [Fast Refresh] done in 132ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168087795ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168087873ms] [LOG] [Fast Refresh] done in 178ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168137969ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168138013ms] [LOG] [Fast Refresh] done in 145ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168239185ms] [LOG] [Fast Refresh] rebuilding @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297
+[168239217ms] [LOG] [Fast Refresh] done in 132ms @ http://[::1]:3000/_next/static/chunks/f8a95_next_dist_459ae31a._.js:2297

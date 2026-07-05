@@ -1,0 +1,51 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - generic [ref=e24]:
+        - heading "AI 資料助理" [level=1] [ref=e25]
+        - paragraph [ref=e26]: 用自然語言查資料庫（唯讀 · 僅幹部）
+        - paragraph [ref=e27]: Groq Free · Llama 3.3 70B
+      - generic [ref=e28]:
+        - generic [ref=e55]: 最新一期的常態課程有哪些
+        - generic [ref=e57]:
+          - group [ref=e58]:
+            - generic "查詢資料庫：Find the latest course groups that are not style courses ✓ 0 筆" [ref=e59] [cursor=pointer]:
+              - img [ref=e60]
+              - generic [ref=e64]: 查詢資料庫：Find the latest course groups that are not style courses
+              - generic [ref=e65]: ✓ 0 筆
+              - img [ref=e66]
+          - group [ref=e68]:
+            - generic "查詢資料庫：Find the latest course groups that are not style courses ✓ 1 筆" [ref=e69] [cursor=pointer]:
+              - img [ref=e70]
+              - generic [ref=e74]: 查詢資料庫：Find the latest course groups that are not style courses
+              - generic [ref=e75]: ✓ 1 筆
+              - img [ref=e76]
+          - paragraph [ref=e79]: 最新一期的常態課程為「2026 3-8月 常態課程」，但其實此課程的開始和結束日期皆為無（NULL）。
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - textbox "輸入問題…" [ref=e41]
+          - button "送出" [disabled]:
+            - img
+        - paragraph [ref=e42]: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e48] [cursor=pointer]:
+    - img [ref=e49]
+  - alert [ref=e52]

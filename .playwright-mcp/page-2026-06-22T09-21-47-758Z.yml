@@ -1,0 +1,57 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "EZDANCE" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - heading "EZDANCE" [level=1] [ref=e6]
+  - main [ref=e7]:
+    - generic [ref=e9]:
+      - generic [ref=e11]:
+        - heading "AI 資料助理" [level=1] [ref=e12]
+        - paragraph [ref=e13]: 用自然語言查資料庫（唯讀 · 僅幹部）
+        - paragraph [ref=e14]:
+          - text: 目前使用 Cerebras + GLM-4.7（
+          - code [ref=e15]: zai-glm-4.7
+          - text: ）· 免費、免綁信用卡
+      - generic [ref=e16]:
+        - generic [ref=e58]: 這一期可明老師課程的：社員補課、社員堂卡報名、非社員堂卡報名 各多少？（人次與人頭都列）
+        - generic [ref=e60]:
+          - paragraph [ref=e62]: 我來查詢這一期可明老師課程的補課和堂卡報名數據。先用一個查詢確認課程所屬的 course_group 期間資訊：
+          - group [ref=e63]:
+            - generic "查詢資料庫：查詢可明老師課程所屬的 course_group 及期間資訊 ✓ 1 筆" [ref=e64] [cursor=pointer]:
+              - img [ref=e65]
+              - generic [ref=e69]: 查詢資料庫：查詢可明老師課程所屬的 course_group 及期間資訊
+              - generic [ref=e70]: ✓ 1 筆
+              - img [ref=e71]
+          - group [ref=e73]:
+            - generic "查詢資料庫：統計可明老師課程的社員補課、社員堂卡報名、非社員堂卡報名（人次與人頭）" [ref=e74] [cursor=pointer]:
+              - img [ref=e75]
+              - generic [ref=e79]: 查詢資料庫：統計可明老師課程的社員補課、社員堂卡報名、非社員堂卡報名（人次與人頭）
+              - img [ref=e80]
+              - img [ref=e82]
+        - generic [ref=e84]:
+          - img [ref=e85]
+          - generic [ref=e87]: 處理中…（思考與查詢資料庫可能需要數秒，請稍候）
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - textbox "輸入問題…" [disabled] [ref=e29]
+          - button "送出" [disabled]:
+            - img
+        - paragraph [ref=e30]: Enter 送出 · Shift+Enter 換行
+  - navigation [ref=e31]:
+    - generic [ref=e32]:
+      - link "個人中心" [ref=e33] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e34]
+        - generic [ref=e39]: 個人中心
+      - link "課程檔期" [ref=e40] [cursor=pointer]:
+        - /url: /courses
+        - img [ref=e41]
+        - generic [ref=e43]: 課程檔期
+      - link "使用說明" [ref=e44] [cursor=pointer]:
+        - /url: /guide
+        - img [ref=e45]
+        - generic [ref=e47]: 使用說明
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e53] [cursor=pointer]:
+    - img [ref=e54]
+  - alert [ref=e88]

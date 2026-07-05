@@ -1,0 +1,135 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e96]:
+      - generic [ref=e98]:
+        - generic [ref=e99]:
+          - paragraph [ref=e100]:
+            - generic [ref=e101]: 👋
+            - generic [ref=e102]: 羅以宸
+          - generic [ref=e103]: 幹部
+        - generic [ref=e104]:
+          - button "變更密碼" [ref=e105]:
+            - img
+            - generic [ref=e106]: 變更密碼
+          - button "登出系統" [ref=e108]:
+            - img
+            - generic [ref=e109]: 登出系統
+      - generic [ref=e110]:
+        - link "我的課程 查看預約、報名與課表 即將到來 4 堂 可用補課 1 堂" [ref=e111] [cursor=pointer]:
+          - /url: /dashboard/my_courses
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - generic [ref=e116]:
+                - img [ref=e118]
+                - generic [ref=e120]:
+                  - heading "我的課程" [level=2] [ref=e121]
+                  - paragraph [ref=e122]: 查看預約、報名與課表
+              - generic [ref=e123]:
+                - generic [ref=e125]:
+                  - paragraph [ref=e126]: 即將到來
+                  - generic [ref=e127]:
+                    - text: "4"
+                    - generic [ref=e128]: 堂
+                - generic [ref=e131]:
+                  - paragraph [ref=e132]: 可用補課
+                  - generic [ref=e133]:
+                    - text: "1"
+                    - generic [ref=e134]: 堂
+            - img [ref=e136]
+        - link "我的堂卡 管理餘額、購卡與紀錄 剩餘堂數 2 堂 待繳費 1 筆" [ref=e138] [cursor=pointer]:
+          - /url: /dashboard/my_cards
+          - generic [ref=e140]:
+            - generic [ref=e141]:
+              - generic [ref=e143]:
+                - img [ref=e145]
+                - generic [ref=e147]:
+                  - heading "我的堂卡" [level=2] [ref=e148]
+                  - paragraph [ref=e149]: 管理餘額、購卡與紀錄
+              - generic [ref=e150]:
+                - generic [ref=e152]:
+                  - paragraph [ref=e153]: 剩餘堂數
+                  - generic [ref=e154]:
+                    - text: "2"
+                    - generic [ref=e155]: 堂
+                - generic [ref=e158]:
+                  - paragraph [ref=e159]: 待繳費
+                  - generic [ref=e160]:
+                    - text: "1"
+                    - generic [ref=e161]: 筆
+            - img [ref=e163]
+      - generic [ref=e165]:
+        - generic [ref=e168]: 幹部行政工具
+        - generic [ref=e170]:
+          - link "今日點名 查看課堂名單與出席紀錄 0" [ref=e171] [cursor=pointer]:
+            - /url: /leader/rollcall
+            - generic [ref=e172]:
+              - img [ref=e174]
+              - generic [ref=e178]:
+                - paragraph [ref=e179]: 今日點名
+                - paragraph [ref=e180]: 查看課堂名單與出席紀錄
+              - generic [ref=e181]: "0"
+          - link "申請審核 核對報名、請假、補課、轉讓等紀錄 3" [ref=e182] [cursor=pointer]:
+            - /url: /leader/approvals
+            - generic [ref=e183]:
+              - img [ref=e185]
+              - generic [ref=e188]:
+                - paragraph [ref=e189]: 申請審核
+                - paragraph [ref=e190]: 核對報名、請假、補課、轉讓等紀錄
+              - generic [ref=e191]: "3"
+          - link "AI 資料助理 用自然語言查詢報名、補課、堂卡等資料" [ref=e192] [cursor=pointer]:
+            - /url: /admin/ai-chat
+            - generic [ref=e193]:
+              - img [ref=e195]
+              - generic [ref=e198]:
+                - paragraph [ref=e199]: AI 資料助理
+                - paragraph [ref=e200]: 用自然語言查詢報名、補課、堂卡等資料
+          - link "新增課程 建立新的常態、風格體驗跟專攻班等課程" [ref=e201] [cursor=pointer]:
+            - /url: /courses/new
+            - generic [ref=e202]:
+              - img [ref=e204]
+              - generic [ref=e206]:
+                - paragraph [ref=e207]: 新增課程
+                - paragraph [ref=e208]: 建立新的常態、風格體驗跟專攻班等課程
+          - link "成員管理 管理權限與資歷資訊" [ref=e209] [cursor=pointer]:
+            - /url: /admin/members
+            - generic [ref=e210]:
+              - img [ref=e212]
+              - generic [ref=e216]:
+                - paragraph [ref=e217]: 成員管理
+                - paragraph [ref=e218]: 管理權限與資歷資訊
+          - link "資料匯入 批次匯入社員、堂卡與課程名單" [ref=e219] [cursor=pointer]:
+            - /url: /leader/import
+            - generic [ref=e220]:
+              - img [ref=e222]
+              - generic [ref=e225]:
+                - paragraph [ref=e226]: 資料匯入
+                - paragraph [ref=e227]: 批次匯入社員、堂卡與課程名單
+          - link "系統管理 堂卡定價、購買時段等參數設定" [ref=e228] [cursor=pointer]:
+            - /url: /admin/settings
+            - generic [ref=e229]:
+              - img [ref=e231]
+              - generic [ref=e234]:
+                - paragraph [ref=e235]: 系統管理
+                - paragraph [ref=e236]: 堂卡定價、購買時段等參數設定
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e91] [cursor=pointer]:
+    - img [ref=e92]
+  - alert [ref=e95]

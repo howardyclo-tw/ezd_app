@@ -1,0 +1,47 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - generic [ref=e24]:
+        - heading "AI 資料助理" [level=1] [ref=e25]
+        - paragraph [ref=e26]: 用自然語言查資料庫（唯讀 · 僅幹部）
+      - generic [ref=e27]:
+        - generic [ref=e52]: 目前有幾位社員（profiles.role = 'member'）？用中文回答並給數字。
+        - generic [ref=e54]:
+          - group [ref=e55]:
+            - generic "查詢資料庫：計算目前社員數量（profiles.role = 'member'） ✓ 1 筆" [ref=e56] [cursor=pointer]:
+              - img [ref=e57]
+              - generic [ref=e61]: 查詢資料庫：計算目前社員數量（profiles.role = 'member'）
+              - generic [ref=e62]: ✓ 1 筆
+              - img [ref=e63]
+          - paragraph [ref=e66]:
+            - text: 目前有
+            - strong [ref=e67]: 83 位
+            - text: 社員（profiles.role = 'member'）。
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - textbox "輸入問題…" [ref=e40]
+          - button "送出" [disabled]:
+            - img
+        - paragraph [ref=e41]: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e47] [cursor=pointer]:
+    - img [ref=e48]
+  - alert [ref=e68]

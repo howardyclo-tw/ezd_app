@@ -1,14 +1,43 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code in this repository. **Sections 1–3 are binding agent rules; the rest is project reference.**
+
+## 1. Operating Rules (MUST)
+
+- Communicate with the user primarily in 繁體中文.
+- **MTK build = subagent-driven development via the Workflow tool** (user's standing authorization — no per-task re-confirmation needed). One task = one Workflow with an Implement phase and an INDEPENDENT Review phase, both pinned via `opts.model: 'claude-opus-4-6'` (fallback `claude-opus-4-8` if unavailable — tell the user). **Follow `docs/superpowers/mtk-execution-playbook.md` verbatim** for the script template, brief clauses, review schema, impact map, effort table, and phase-gate checklist.
+- **No self-review, ever.** The orchestrator never accepts a task by reading the diff itself; an independent reviewer verifies by running tests and MUTATION-TESTING guards (removed guard ⇒ test must go red). Reviewer severity labels do NOT override user rules: money/important features need 100% happy+adversarial coverage before a task counts as done.
+- **Anti-false-green:** adversarial tests must invoke the real server action, assert DB state, and fail if the guard were removed. No UI-only tests claiming server coverage; no tautological assertions.
+- **Test scope is assigned by the orchestrator** (impact map in the playbook), never chosen by the implementer (驗者不自驗). Implementer runs only its assigned specs; **the reviewer alone runs the full e2e suite** (two concurrent Playwright runs against the one dev server cause false timeouts); orchestrator does one clean full run at each phase end.
+- **Fixtures:** `e2e/global-setup.ts` is the single seed source. Add isolated fixtures with new fixed UUIDs; never mutate shared baseline values.
+- **UX rules (gate conditions):** every UI phase needs a 幹部/學員 dual-perspective UX spec section BEFORE implementation; new pages must have a visible entry point for their target role (no entry = not done); every async status (待繳費/待開票/已取消+原因) must be visible to its owner AND to admins; closed windows render friendly disabled states, not raw errors; UI uses existing shadcn components/tokens and badges from `src/lib/constants.ts` only — no new color literals; phase gates include dual-role journey e2e (`e2e/journeys/*`). Source: `docs/superpowers/specs/2026-07-05-mtk-ux-addendum.md` §0.
+- After every task, append to the ledger `.superpowers/sdd/progress.md`. At every phase end: full-suite gate → update dashboard (progress + coverage matrix) → redeploy Artifact (fixed URL) → reflection to memory.
+
+## 2. Git Conventions (MUST)
+
+- Do NOT add `Co-Authored-By` lines in commits.
+- Do NOT push unless the user explicitly asks. A PreToolUse hook blocks `git push`; when the user explicitly requests a push, `touch .claude/allow-push`, push, then remove it. Do not fight the hook otherwise.
+- Migrations: sequential numbering in `supabase/migrations/` (no gaps; next = 015). Apply to DEV first via `mcp__supabase__apply_migration`, save the same SQL as a repo file. Prod only at Phase 8 cutover.
+- When merging dev → main: header must stay "EZDANCE" (white), group-enrollment/register entry stays hidden (Phase 1 not launched).
+
+## 3. Critical Coding Rules
+
+- **Dates:** Asia/Taipei for all date comparisons: `new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date())`. Never bare `new Date()` against a date string. timestamptz columns compare as instants (`new Date(col) > new Date()`) — do NOT convert them to Taipei date strings.
+- **Server Actions only** (no API routes) in `src/lib/supabase/actions.ts`: `getCurrentUser()` verifies identity → `createAdminClient()` (service role, bypasses RLS) does all DB work → `revalidatePath`. Business validation lives in code, not RLS.
+- All actions wrapped with `safe()` (`safe-action.ts`). User-facing guards `return { success: false, message }` (throw messages are masked in prod).
+- Identity for pricing/eligibility = `isMemberActive()` from `src/lib/supabase/pricing.ts` (active member incl. admin; expired member = non-member). Never write ad-hoc member checks.
+- All enrollment inserts go through the `enroll_atomic` RPC (row-lock + in-txn capacity + FIFO deduct). Prices are always server-resolved via `resolvePrice` — client-sent amounts are ignored.
+- Dev server: `http://[::1]:3000` (IPv4 127.0.0.1:3000 is squatted). Browser darkreader hydration warnings = user's extension, not an app bug.
 
 ## Commands
 
 ```bash
-pnpm dev          # Start dev server (Turbopack)
+pnpm dev          # Dev server (Turbopack) — binds [::1]:3000
 pnpm build        # Production build
-pnpm lint         # ESLint
-npx tsc --noEmit  # Type check without emitting
+pnpm lint         # ESLint (flat config; repo has ~430 legacy problems — Phase 9; changed files must add none)
+npx tsc --noEmit  # Type check
+pnpm test         # Vitest unit suite
+pnpm exec playwright test e2e/regression e2e/features   # Full e2e (globalSetup reseeds dev DB + auth storageState)
 ```
 
 Package manager: **pnpm 10.27.0**
@@ -17,132 +46,46 @@ Package manager: **pnpm 10.27.0**
 
 **Stack**: Next.js 16 (App Router) + React 19 + Supabase (PostgreSQL/Auth/RLS) + Tailwind 4 + Shadcn UI
 
-**Deployment**: Vercel (hnd1 Tokyo). Two environments:
-- `main` branch → production (`ezdapp.vercel.app`)
-- `dev` branch → preview (`ezdapp-dev.vercel.app`)
+**Deployment**: Vercel (hnd1). `main` → production (`ezdapp.vercel.app`), `dev` → preview (`ezdapp-dev.vercel.app`).
 
-**Two Supabase projects**:
-- Dev: `mvxdxldwznbqycfgwqmc`
-- Prod: `zhaloqbeguzsknodrxsm`
+**Supabase projects**: dev `mvxdxldwznbqycfgwqmc`, prod `zhaloqbeguzsknodrxsm`.
 
-### Server Actions Pattern
+**Route structure**: `(auth)/login,register`; `(protected)/dashboard` (my_cards, my_courses), `courses/groups/[groupId]` (+ `[courseId]` attendance, + `register` full-term wizard), `admin/members|settings`, `leader/rollcall|approvals|import`, `guide`. Root `/` → `/dashboard`.
 
-All mutations go through Server Actions in `src/lib/supabase/actions.ts`. No API routes.
+**Auth**: middleware cookie sync (`updateSession`) + `ProtectedRoute` layout re-verification with role hierarchy `guest=0 < member=1 < admin=3`. Course leaders (班長) live in `course_leaders`, not a role.
 
-```
-User → Server Action → getCurrentUser() (verify identity) → adminClient (DB operations) → revalidatePath
-```
-
-**Two Supabase clients**:
-- `createClient()` (from `server.ts`): User's JWT, subject to RLS. Used only for identity verification.
-- `createAdminClient()` (from `admin.ts`): Service role key, bypasses RLS. Used for all DB read/write in server actions.
-
-This pattern exists because RLS policies are too restrictive for cross-user operations (capacity checks, attendance writes, cross-intent cleanup). Business logic validation happens in code, not RLS.
-
-**Error handling**: All server actions wrapped with `safe()` from `safe-action.ts`:
-- Dev: shows full error message
-- Prod: shows generic "操作失敗！" message
-- Some guards use `return { success: false, message }` instead of `throw` to ensure messages reach the user in production
-
-### Route Structure
-
-```
-src/app/
-  (auth)/login, register           # Public auth pages
-  (protected)/                     # Auth-guarded via middleware + ProtectedRoute
-    dashboard/                     # Profile, stats, admin shortcuts
-      my_cards/                    # Card pool & purchase
-      my_courses/                  # Upcoming, makeup, history
-    courses/                       # Course group listing
-      groups/[groupId]/            # Courses in a period
-        [courseId]/                 # Attendance sheet (點名單) + edit
-      new/                         # Admin: create course
-    admin/members/, settings/      # Admin pages (role-gated in page)
-    leader/rollcall/, approvals/, import/   # Leader tools
-    guide/                         # User guide (from system_config)
-```
-
-No parallel routes or intercepting routes. Root `/` redirects to `/dashboard`.
-
-### Auth Flow
-
-Two-layer defense:
-1. **Middleware** (`src/lib/supabase/middleware.ts`): Cookie-based session sync via `updateSession()`. Unauthenticated users redirect to `/login`. Logged-in users on `/` redirect to `/dashboard`.
-2. **ProtectedRoute** (`src/components/layout/protected-route.tsx`): Server component in `(protected)/layout.tsx`. Re-verifies `getUser()`. Supports optional `requiredRole` prop with hierarchy check (`guest=0 < member=1 < admin=3`).
-
-Individual admin/leader pages handle their own role guards beyond the layout-level check.
-
-### Client-Side Context
-
-`RoleProvider` (`src/components/providers/role-provider.tsx`): Exposes `role`, `userName`, `setRole`, `setUserName` via React context. Wrapped at root layout level.
-
-### Key File Organization
+**Key files**:
 
 ```
 src/lib/supabase/
-  actions.ts        # All mutations (2400+ lines): enroll, leave, makeup, transfer, card, admin
-  queries.ts        # Read-only queries used by server components
-  card-utils.ts     # FIFO card deduction with expiry validation
-  safe-action.ts    # Error wrapper (dev vs prod)
-  server.ts         # User client (React-cached) + getServerProfile()
-  admin.ts          # Admin client (service role)
-  client.ts         # Browser-side Supabase client
-  middleware.ts     # Session cookie sync + auth redirects
-  import-actions.ts # Bulk data import logic
-
-src/actions/user-actions.ts  # Dev-only role switcher (email-gated server action)
-src/types/database.ts        # All TypeScript types and enums
-src/lib/constants.ts         # Shared badge colors/labels for attendance and enrollment
+  actions.ts        # ALL mutations (~3800 lines): enroll (enrollInCourse legacy / batchEnrollInCourses / batchEnrollInSessions / submitGroupEnrollment / resubmitGroupEnrollment), orders (createCardOrder / createCourseFeeOrder / confirmOrder / cancelOrder / rejectOrder), guards (guardPricingMode / guardEnrollFull / guardEnrollSingle / guardGroupPhase1Window / guardCourseWindow), admin ops
+  pricing.ts        # resolvePrice + isMemberActive (unit-tested)
+  capacity.ts       # computeSessionOccupancy (single source of truth)
+  card-utils.ts     # FIFO deduction + syncCardBalance
+  queries.ts / server.ts / admin.ts / client.ts / middleware.ts / safe-action.ts / import-actions.ts
+src/lib/allocation.ts, card-window.ts, card-purchase.ts, date.ts, constants.ts (badge colors/labels)
+src/app/api/e2e-test-actions/route.ts   # LOCAL-ONLY (NODE_ENV-gated) test route → remove before prod
+src/types/database.ts                    # types & enums
+e2e/global-setup.ts                      # single seed source + auth storageState
+supabase/migrations/                     # 001–014 (sequential; next 015)
 ```
 
-### Date Handling
+## Business Logic (current code state)
 
-Always use Asia/Taipei timezone for date comparisons:
-```typescript
-const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
-```
-Never use `new Date()` directly for date strings — causes UTC offset bugs on Vercel servers.
+- **Unified orders** table (`order_type`: card_purchase / course_fee / membership_fee; status pending→remitted→confirmed / rejected / cancelled). Review center tab 繳費對帳 handles all types; confirm/reject admin-only, cancel admin-or-owner.
+- **Pricing**: per-course `pricing_mode` card/ntd/free + identity prices (member/guest × single/full; 0 = free for that identity). Type defaults: 常態→card, 專攻/風格→ntd (style: single-only, member 0).
+- **Enrollment**: full-term window = group `registration_phase1_start/end`; single window = course `enrollment_start_at/end_at`; switches `enroll_full`/`enroll_single`. Statuses: enrolled / pending_payment / pending_vote / waitlist / cancelled — pending_* occupy seats. Wizard `/register` → `submitGroupEnrollment`; modify = atomic void-and-rebook (`resubmitGroupEnrollment`, refuses confirmed orders). Self-cancel: only waitlist or unpaid pending (enrolled 不可自行取消).
+- **Eligibility (#32, landing in Task 5R.1)**: per-course `enroll_full_identity`/`enroll_single_identity` ('all'/'member'). Until 5R.1 lands, a legacy blanket "guests cannot full-enroll" throw still exists — scheduled for removal; target state lives in the decision log.
+- **Cards**: FIFO by expiry; expiry = buyer's member-group `valid_until`, cascades on group extension; purchase window monthly-first-week (config) with n-multiple unit validation.
+- **Makeup quota**: `min(absences, ceil(sessions/4) - used) + manual_quota`. Leave: only future sessions; rejection guards intact.
 
-### Roles
+## Docs Map
 
-`guest` (非社員) → `member` (社員) → `admin` (幹部)
-
-No `leader` role in profiles. Course leaders (班長) tracked in `course_leaders` table. They can only take attendance for their assigned courses.
-
-## Business Logic
-
-Detailed rules in `docs/prd.md`. Key points:
-
-- **Card system**: FIFO deduction by expiry date. Cards must be valid (`expires_at >= session_date`).
-- **Makeup quota**: `min(absences, ceil(sessions/4) - used) + manual_quota`. Manual quota (幹部贈予) not subject to 1/4 cap.
-- **Full enrollment**: Members only (guests blocked). Occupancy = full + single + makeup + transferIn - leave - transferOut per session.
-- **Leave**: All enrollment types can take leave. Auto-approved. Cannot leave past sessions.
-- **Transfer**: Full enrollment members only. Recipient must be a member. Limited to same-day before class.
-- **Rejection guards**: Rejecting a leave is blocked if the absence is used as a makeup source.
-
-## Dev vs Main Branch
-
-Dev branch has:
-- Orange "EZDANCE-DEV" header
-- Group enrollment button visible
-- Dev role toggle (if enabled)
-
-Main branch has:
-- White "EZDANCE" header
-- Group enrollment button hidden (Phase 1: not yet launched)
-- No dev tools
-
-When merging dev to main, restore these prod-only settings after merge.
-
-## Git Conventions
-
-- Do not add `Co-Authored-By` lines in commits
-- Do not auto-push — wait for explicit user request
-- When merging to main: always verify header stays "EZDANCE" and group enrollment stays hidden
-
-## Docs
-
-- `docs/prd.md` — Product requirements, feature status, business rules
-- `docs/system-overview.md` — Architecture, DB schema, technical decisions
-- User guide content stored in `system_config` table (key: `user_guide`), editable by admins in-app
-- `supabase/migrations/` — 9 SQL migration files (schema, seeds, RLS fixes, phase1 registration)
+- `docs/mtk-decision-log.md` — client-facing decisions (as-is → to-be), **check before changing any business rule**
+- `docs/superpowers/specs/2026-07-02-mtk-features-design.md` + `2026-07-05-mtk-ux-addendum.md` — engine + UX specs
+- `docs/superpowers/plans/2026-07-02-mtk-features.md` — phased plan (Phase 5R next → 6 MV voting → 7 blacklist → 8 notifications/prod → 9 lint debt)
+- `docs/superpowers/mtk-execution-playbook.md` — HOW to execute tasks (templates; binding)
+- `.superpowers/sdd/progress.md` — ledger (append-only log of every task)
+- `docs/mtk-progress-dashboard.html` — dashboard source (**gitignored**, local-only; published as Artifact, fixed URL: https://claude.ai/code/artifact/ad61dd29-f0c3-4840-8049-7e24478a6cff)
+- `docs/prd.md`, `docs/system-overview.md` — legacy product/architecture reference (prd 未含 MTK 決策,以 decision log 為準)
+- User guide content: `system_config` key `user_guide` (in-app editable)

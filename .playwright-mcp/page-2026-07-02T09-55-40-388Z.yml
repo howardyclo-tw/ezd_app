@@ -1,0 +1,55 @@
+- generic [ref=f5e1]:
+  - banner [ref=f5e2]:
+    - generic [ref=f5e4]:
+      - link "EZDANCE" [ref=f5e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=f5e6]
+      - navigation [ref=f5e7]:
+        - link "個人中心" [ref=f5e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=f5e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=f5e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=f5e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=f5e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=f5e18]
+          - text: 使用說明
+  - main [ref=f5e20]:
+    - generic [ref=f5e22]:
+      - generic [ref=f5e23]:
+        - link [ref=f5e24] [cursor=pointer]:
+          - /url: /dashboard
+          - img
+        - tablist [ref=f5e25]:
+          - tab "報名統計" [ref=f5e26]
+          - tab "AI 對話" [active] [selected] [ref=f5e27]
+      - tabpanel "AI 對話" [ref=f5e96]:
+        - generic [ref=f5e97]:
+          - generic [ref=f5e98]:
+            - generic [ref=f5e99]:
+              - heading "AI 資料助理" [level=1] [ref=f5e100]
+              - paragraph [ref=f5e101]: 用自然語言查資料庫（唯讀 · 僅幹部）
+              - paragraph [ref=f5e102]: Llama 3.3 70B · 30 req/min · 1000/day
+            - combobox [ref=f5e103]:
+              - generic: Llama 3.3 70B
+              - img
+          - generic [ref=f5e105]:
+            - img [ref=f5e106]
+            - paragraph [ref=f5e110]: 問我關於課程、報名、補課、堂卡的問題
+            - generic [ref=f5e111]:
+              - button "這一期可明老師課程的：社員補課、社員堂卡報名、非社員堂卡報名 各多少？（人次與人頭都列）" [ref=f5e112]
+              - button "各課程目前的堂卡報名人次排行" [ref=f5e113]
+              - button "這個月每堂課的出席率" [ref=f5e114]
+          - generic [ref=f5e115]:
+            - generic [ref=f5e116]:
+              - textbox "輸入問題…" [ref=f5e117]
+              - button "送出" [disabled]:
+                - img
+            - paragraph [ref=f5e118]: Enter 送出 · Shift+Enter 換行
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f5e91] [cursor=pointer]:
+    - img [ref=f5e92]
+  - alert [ref=f5e95]

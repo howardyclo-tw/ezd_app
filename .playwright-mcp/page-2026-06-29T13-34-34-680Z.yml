@@ -1,0 +1,114 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "EZDANCE" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - heading "EZDANCE" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "個人中心" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e9]
+          - text: 個人中心
+        - link "課程檔期" [ref=e14] [cursor=pointer]:
+          - /url: /courses
+          - img [ref=e15]
+          - text: 課程檔期
+        - link "使用說明" [ref=e17] [cursor=pointer]:
+          - /url: /guide
+          - img [ref=e18]
+          - text: 使用說明
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - tablist [ref=e23]:
+        - tab "報名統計" [active] [selected] [ref=e24]
+        - tab "AI 對話" [ref=e25]
+      - tabpanel "報名統計" [ref=e26]:
+        - generic [ref=e201]:
+          - generic [ref=e202]:
+            - heading "報名統計" [level=1] [ref=e203]
+            - paragraph [ref=e204]: 各課程整期 / 堂卡 / 補課人數統計（僅幹部）
+          - generic [ref=e205]:
+            - generic [ref=e206]:
+              - generic [ref=e207]:
+                - generic [ref=e208]: 期別
+                - combobox [ref=e209]:
+                  - generic: 2026 3-8月 常態課程
+                  - img
+              - button "查詢" [ref=e210]:
+                - img
+                - text: 查詢
+            - generic [ref=e211]:
+              - generic [ref=e212]:
+                - generic [ref=e213]: 課程
+                - button "取消全選" [ref=e214]
+              - generic [ref=e215]:
+                - generic [ref=e216]:
+                  - checkbox "Hip-Hop Jazz 進階 x Jazz Funk 進階 (Ana / 米其林)" [checked] [ref=e217]:
+                    - generic:
+                      - img
+                  - generic [ref=e218]:
+                    - text: Hip-Hop Jazz 進階 x Jazz Funk 進階
+                    - generic [ref=e219]: (Ana / 米其林)
+                - generic [ref=e220]:
+                  - checkbox "Hip-Hop 入門 (兆駒)" [checked] [ref=e221]:
+                    - generic:
+                      - img
+                  - generic [ref=e222]:
+                    - text: Hip-Hop 入門
+                    - generic [ref=e223]: (兆駒)
+                - generic [ref=e224]:
+                  - checkbox "Hip-Hop 進階 (小安)" [checked] [ref=e225]:
+                    - generic:
+                      - img
+                  - generic [ref=e226]:
+                    - text: Hip-Hop 進階
+                    - generic [ref=e227]: (小安)
+                - generic [ref=e228]:
+                  - checkbox "House 入門 (陳顯)" [checked] [ref=e229]:
+                    - generic:
+                      - img
+                  - generic [ref=e230]:
+                    - text: House 入門
+                    - generic [ref=e231]: (陳顯)
+                - generic [ref=e232]:
+                  - checkbox "Jazz 入門 (Ana)" [checked] [ref=e233]:
+                    - generic:
+                      - img
+                  - generic [ref=e234]:
+                    - text: Jazz 入門
+                    - generic [ref=e235]: (Ana)
+                - generic [ref=e236]:
+                  - checkbox "Popping (可明)" [checked] [ref=e237]:
+                    - generic:
+                      - img
+                  - generic [ref=e238]:
+                    - text: Popping
+                    - generic [ref=e239]: (可明)
+                - generic [ref=e240]:
+                  - checkbox "瑜珈拉筋 (布拉格)" [checked] [ref=e241]:
+                    - generic:
+                      - img
+                  - generic [ref=e242]:
+                    - text: 瑜珈拉筋
+                    - generic [ref=e243]: (布拉格)
+                - generic [ref=e244]:
+                  - checkbox "舞感養成 (小Joy)" [checked] [ref=e245]:
+                    - generic:
+                      - img
+                  - generic [ref=e246]:
+                    - text: 舞感養成
+                    - generic [ref=e247]: (小Joy)
+                - generic [ref=e248]:
+                  - checkbox "韓風 MV 女團 (小可)" [checked] [ref=e249]:
+                    - generic:
+                      - img
+                  - generic [ref=e250]:
+                    - text: 韓風 MV 女團
+                    - generic [ref=e251]: (小可)
+          - generic [ref=e253]:
+            - img [ref=e254]
+            - paragraph [ref=e256]: 選擇期別與課程後按「查詢」
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e89] [cursor=pointer]:
+    - img [ref=e90]
+  - alert [ref=e93]
