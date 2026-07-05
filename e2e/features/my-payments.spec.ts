@@ -107,6 +107,33 @@ test.describe('Personal center payments (5R.5)', () => {
         expect(order!.remittance_account_last5).toBe('12345');
     });
 
+    test('H1b: owner corrects remittance on remitted order (更正匯款)', async ({ page }) => {
+        await loginAs(page, 'member');
+
+        // orderId1 is already 'remitted' from H1 — correct the info
+        const resp = await page.request.post(API_URL, {
+            data: {
+                action: 'submitRemittanceInfo',
+                orderId: orderId1,
+                bankCode: '700',
+                last5: '99999',
+                remittanceDate: '2026-07-06',
+                note: '更正匯款',
+            },
+        });
+        const result = await resp.json();
+        expect(result.success).toBe(true);
+
+        const sb = getAdminClient();
+        const { data: order } = await sb.from('orders')
+            .select('status, remittance_bank_code, remittance_account_last5, remittance_note')
+            .eq('id', orderId1).single();
+        expect(order!.status).toBe('remitted');
+        expect(order!.remittance_bank_code).toBe('700');
+        expect(order!.remittance_account_last5).toBe('99999');
+        expect(order!.remittance_note).toBe('更正匯款');
+    });
+
     test('H2: owner cancel → order + enrollment cancelled, seat released', async ({ page }) => {
         await loginAs(page, 'member');
         const sb = getAdminClient();
