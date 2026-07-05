@@ -27,12 +27,11 @@ export default async function MyCardsPage() {
     const isMember = profile?.role !== 'guest' &&
         (!groupValidUntil || groupValidUntil >= today);
 
-    // Fetch card orders
+    // Fetch ALL orders (card_purchase + course_fee + membership_fee)
     const { data: orders } = await supabase
         .from('orders')
         .select('*')
         .eq('user_id', user.id)
-        .eq('order_type', 'card_purchase')
         .order('created_at', { ascending: false });
 
     // Fetch system config for pricing and purchase window
@@ -65,14 +64,33 @@ export default async function MyCardsPage() {
     const purchaseUnit = sanitizePurchaseUnit(parseInt(config['card_purchase_unit'] ?? '5', 10));
     const bankInfo = config['bank_info'] ?? '';
 
-    // Build card pools from confirmed orders for display
-    const cardPools = (orders ?? [])
+    // Build card pools from confirmed card_purchase orders for display
+    const cardPurchaseOrders = (orders ?? []).filter(o => o.order_type === 'card_purchase');
+    const cardPools = cardPurchaseOrders
         .filter(o => o.status === 'confirmed' && (o.quantity - (o.used ?? 0)) > 0)
         .map(o => ({
             remaining: o.quantity - (o.used ?? 0),
             expires_at: o.expires_at as string | null,
         }))
         .sort((a, b) => (a.expires_at ?? '9999').localeCompare(b.expires_at ?? '9999'));
+
+    // For course_fee orders, fetch associated enrollment course names
+    const courseFeeOrders = (orders ?? []).filter(o => o.order_type === 'course_fee');
+    const courseFeeGroupIds = [...new Set(courseFeeOrders.map(o => o.course_group_id).filter(Boolean))];
+    let courseNamesByOrder: Record<string, string[]> = {};
+    if (courseFeeGroupIds.length > 0) {
+        const orderIds = courseFeeOrders.map(o => o.id);
+        const { data: relatedEnrollments } = await supabase
+            .from('enrollments')
+            .select('order_id, courses ( name )')
+            .in('order_id', orderIds);
+        for (const e of relatedEnrollments ?? []) {
+            if (!e.order_id) continue;
+            if (!courseNamesByOrder[e.order_id]) courseNamesByOrder[e.order_id] = [];
+            const courseName = (e.courses as any)?.name;
+            if (courseName) courseNamesByOrder[e.order_id].push(courseName);
+        }
+    }
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -81,9 +99,11 @@ export default async function MyCardsPage() {
                 cardPools={cardPools}
                 orders={(orders ?? []).map(o => ({
                     id: o.id,
+                    order_type: o.order_type,
                     quantity: o.quantity,
                     unit_price: o.unit_price,
                     total_amount: o.total_amount,
+                    amount: o.amount,
                     status: o.status,
                     remittance_bank_code: o.remittance_bank_code,
                     remittance_account_last5: o.remittance_account_last5,
@@ -93,6 +113,7 @@ export default async function MyCardsPage() {
                     created_at: o.created_at,
                     confirmed_at: o.confirmed_at,
                     used: o.used ?? 0,
+                    courseNames: courseNamesByOrder[o.id] ?? [],
                 }))}
                 isPurchaseOpen={isPurchaseOpen}
                 priceMember={priceMember}

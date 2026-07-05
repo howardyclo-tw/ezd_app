@@ -22,7 +22,7 @@ export default async function MyCoursesPage() {
         supabase
             .from('enrollments')
             .select(`
-                id, status, type, session_id, waitlist_position,
+                id, status, type, session_id, waitlist_position, cancel_reason,
                 courses (
                     id, name, teacher, start_time, end_time, room, type, capacity, slug,
                     course_groups ( id, title, slug ),
@@ -30,7 +30,7 @@ export default async function MyCoursesPage() {
                 )
             `)
             .eq('user_id', user.id)
-            .in('status', ['enrolled', 'waitlist']),
+            .in('status', ['enrolled', 'waitlist', 'pending_payment', 'pending_vote', 'cancelled']),
         supabase
             .from('attendance_records')
             .select(`
@@ -135,6 +135,9 @@ export default async function MyCoursesPage() {
     historyRecords.sort((a, b) => b.date.localeCompare(a.date));
 
     const upcomingSessions = (myEnrollments ?? []).flatMap((enrollment: any) => {
+        // Cancelled enrollments don't appear in upcoming
+        if (enrollment.status === 'cancelled') return [];
+
         const course = enrollment.courses;
         if (!course) return [];
 
@@ -150,7 +153,7 @@ export default async function MyCoursesPage() {
             .filter((s: any) => {
                 if (enrollment.type === 'single' && s.id !== enrollment.session_id) return false;
                 if (s.session_date < today) return false;
-                
+
                 // One-to-one exclusion logic:
                 const excludesLeft = excludeCountMap.get(s.id) || 0;
                 if (excludesLeft > 0) {
@@ -169,10 +172,11 @@ export default async function MyCoursesPage() {
                     time: `${course.start_time?.slice(0, 5)}~${course.end_time?.slice(0, 5)}`,
                     room: course.room,
                     sessionNumber: sessionIndex + 1,
-                    status: enrollment.status === 'waitlist' ? 'waitlist' : 'enrolled',
+                    status: enrollment.status,
                     waitlistPosition: enrollment.waitlist_position ?? undefined,
                     href: (gId && cId) ? `/courses/groups/${gId}/${cId}` : undefined,
                     sessionId: s.id,
+                    cancelReason: enrollment.cancel_reason ?? undefined,
                 };
             });
     });

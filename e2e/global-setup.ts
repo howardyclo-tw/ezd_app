@@ -861,6 +861,25 @@ export default async function globalSetup() {
   // Clean non-seed orders for member in courseGroup (ntd single-add creates orders here)
   // Note: seed courseFee order is in SEED_ORDER_IDS, so the generic cleanup at 7g handles it
 
+  // Phase 5R.1 identity-eligibility courses: clean enrollments + card_transactions + orders
+  const identCourseIds = [IDS.identCardCourse, IDS.identNtdCourse, IDS.identMemberOnlyFull,
+    IDS.identMemberOnlySingle, IDS.identNtdNoGuestPrice];
+  for (const identCourseId of identCourseIds) {
+    const { data: identEnrolls } = await sb.from('enrollments').select('id').eq('course_id', identCourseId);
+    if (identEnrolls?.length) {
+      check(`cleanup card_tx ident ${identCourseId}`, await sb.from('card_transactions').delete()
+        .in('enrollment_id', identEnrolls.map(e => e.id)));
+      check(`cleanup enroll ident ${identCourseId}`, await sb.from('enrollments').delete()
+        .eq('course_id', identCourseId));
+    }
+  }
+  check('cleanup ident orders member', await sb.from('orders').delete()
+    .eq('user_id', memberId)
+    .eq('course_group_id', IDS.identGroup));
+  check('cleanup ident orders guest', await sb.from('orders').delete()
+    .eq('user_id', guestId)
+    .eq('course_group_id', IDS.identGroup));
+
   // Clean poll_votes for register wizard polls (before polls cleanup)
   check('cleanup poll_votes reg', await sb.from('poll_votes').delete()
     .eq('poll_id', IDS.polls.regMvPoll));

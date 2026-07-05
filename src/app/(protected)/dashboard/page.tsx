@@ -59,6 +59,7 @@ export default async function DashboardPage() {
     { count: pendingOrdersCount },
     { data: todaySessions },
     { count: pendingFinanceCount },
+    { count: pendingVoteCount },
   ] = await Promise.all([
     // 1. Upcoming enrolled sessions — query course_sessions directly for accuracy
     supabase
@@ -76,12 +77,11 @@ export default async function DashboardPage() {
     // 3. Available makeup sessions (custom query helper)
     getAvailableMakeupQuotaSessions(user.id),
 
-    // 4. Pending card orders
+    // 4. Pending orders (all types)
     supabase
       .from('orders')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('order_type', 'card_purchase')
       .in('status', ['pending', 'remitted']),
 
     // 5. Today's sessions for rollcall badge
@@ -90,12 +90,18 @@ export default async function DashboardPage() {
       .select(`id, courses!inner ( course_leaders!inner ( user_id ) )`)
       .eq('session_date', today),
 
-    // 6. Pending finance count
+    // 6. Pending finance count (admin)
     supabase
       .from('orders')
       .select('id', { count: 'exact', head: true })
-      .eq('order_type', 'card_purchase')
-      .in('status', ['pending', 'remitted'])
+      .in('status', ['pending', 'remitted']),
+
+    // 7. Pending vote enrollments (user)
+    supabase
+      .from('enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'pending_vote'),
   ]);
 
   const userRole = profile?.role || 'guest';
@@ -227,21 +233,25 @@ export default async function DashboardPage() {
           ]}
         />
 
-        {/* 3. My Cards Navigation */}
+        {/* 3. My Cards & Payment Navigation */}
         <DashboardNavCard
           href="/dashboard/my_cards"
           icon={CreditCard}
-          title="我的堂卡"
-          description="管理餘額、購卡與紀錄"
+          title="我的堂卡・繳費"
+          description="管理餘額、購卡與繳費紀錄"
           stats={[
             {
               label: "剩餘堂數",
               value: <>{profile?.card_balance ?? 0} <span className="text-xs opacity-40">堂</span></>
             },
-            {
+            ...(pendingOrdersCount ? [{
               label: "待繳費",
-              value: <>{pendingOrdersCount ?? 0} <span className="text-xs opacity-40">筆</span></>
-            }
+              value: <>{pendingOrdersCount} <span className="text-xs opacity-40">筆</span></>
+            }] : []),
+            ...(pendingVoteCount ? [{
+              label: "待開票",
+              value: <>{pendingVoteCount} <span className="text-xs opacity-40">門</span></>
+            }] : []),
           ]}
         />
       </div>

@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, orderId, groupId, groupName, groupValidUntil,
             courseId, courseIds, sessionIds, sessionId, enrollType,
-            selections, buyCards, includeMembership } = body;
+            selections, buyCards, includeMembership,
+            bankCode, last5, remittanceDate, note } = body;
 
     if (!action) {
         return NextResponse.json({ error: 'Missing action' }, { status: 400 });
@@ -60,6 +61,11 @@ export async function POST(request: NextRequest) {
                 buyCards,
                 includeMembership,
             });
+        } else if (action === 'submitRemittanceInfo') {
+            if (!orderId || !bankCode || !last5 || !remittanceDate) {
+                return NextResponse.json({ error: 'Missing remittance fields' }, { status: 400 });
+            }
+            result = await actions.submitRemittanceInfo(orderId, bankCode, last5, remittanceDate, note);
         } else if (action === 'resubmitGroupEnrollment') {
             if (!groupId || !selections || !Array.isArray(selections)) {
                 return NextResponse.json({ error: 'Missing groupId or selections' }, { status: 400 });

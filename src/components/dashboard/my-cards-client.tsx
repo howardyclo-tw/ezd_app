@@ -15,10 +15,13 @@ import {
     DialogDescription
 } from '@/components/ui/dialog';
 import { CreditCard, Plus, Minus, Clock, AlertCircle, CheckCircle2, ChevronLeft, Check, XCircle } from 'lucide-react';
-import { cancelCardOrder as _cancelCardOrder, createCardOrderWithRemittance as _createCardOrderWithRemittance } from '@/lib/supabase/actions';
+import { cancelCardOrder as _cancelCardOrder, cancelOrder as _cancelOrder, createCardOrderWithRemittance as _createCardOrderWithRemittance, submitRemittanceInfo as _submitRemittanceInfo } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 const cancelCardOrder = safe(_cancelCardOrder);
+const cancelOrder = safe(_cancelOrder);
 const createCardOrderWithRemittance = safe(_createCardOrderWithRemittance);
+const submitRemittanceInfo = safe(_submitRemittanceInfo);
+import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS, ORDER_TYPE_LABELS } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -26,9 +29,11 @@ import Link from 'next/link';
 
 interface CardOrder {
     id: string;
+    order_type: string;
     quantity: number;
     unit_price: number;
     total_amount: number;
+    amount: number | null;
     status: string;
     remittance_bank_code: string | null;
     remittance_account_last5: string | null;
@@ -38,6 +43,7 @@ interface CardOrder {
     created_at: string;
     confirmed_at: string | null;
     used: number;
+    courseNames: string[];
 }
 
 interface CardPoolInfo {
@@ -105,9 +111,21 @@ export function MyCardsClient({
     const membershipPrice = includeMembership ? 1800 : 0;
     const totalPrice = (purchaseQty * unitPrice) + membershipPrice;
 
-    const activeOrders = orders.filter(o => o.status === 'confirmed');
-    const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'remitted');
-    const historyOrders = orders.filter(o => o.status === 'cancelled');
+    // Card-purchase tab filters
+    const cardOrders = orders.filter(o => o.order_type === 'card_purchase');
+    const activeOrders = cardOrders.filter(o => o.status === 'confirmed');
+    const pendingOrders = cardOrders.filter(o => o.status === 'pending' || o.status === 'remitted');
+    const historyOrders = cardOrders.filter(o => o.status === 'cancelled');
+
+    // All-orders tab (繳費紀錄): sorted newest first
+    const allOrdersSorted = [...orders].sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+    // Remittance form state for 繳費紀錄 inline edit
+    const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+    const [editBankCode, setEditBankCode] = useState('');
+    const [editLast5, setEditLast5] = useState('');
+    const [editRemDate, setEditRemDate] = useState('');
+    const [editRemNote, setEditRemNote] = useState('');
 
     const handlePurchase = () => {
         if (!bankCode || bankCode.length < 3) {
@@ -173,6 +191,39 @@ export function MyCardsClient({
         });
     };
 
+    const handleCancelAnyOrder = (orderId: string) => {
+        if (!confirm('確定要取消此訂單？若為課程費訂單，相關報名也會一併取消並釋放名額。')) return;
+        startTransition(async () => {
+            try {
+                const res = await cancelOrder(orderId);
+                if (res.success) {
+                    toast.success(res.message ?? '訂單已取消');
+                    router.refresh();
+                }
+            } catch (err: any) {
+                toast.error(err.message || '取消失敗');
+            }
+        });
+    };
+
+    const handleSubmitRemittance = (orderId: string) => {
+        if (!editBankCode || editBankCode.length < 3) { toast.error('請輸入銀行代碼'); return; }
+        if (!editLast5 || editLast5.length !== 5) { toast.error('請輸入帳號末五碼'); return; }
+        if (!editRemDate) { toast.error('請選擇匯款時間'); return; }
+        startTransition(async () => {
+            try {
+                const res = await submitRemittanceInfo(orderId, editBankCode, editLast5, editRemDate, editRemNote || undefined);
+                if (res.success) {
+                    toast.success('匯款資訊已送出');
+                    setEditingOrderId(null);
+                    router.refresh();
+                }
+            } catch (err: any) {
+                toast.error(err.message || '送出失敗');
+            }
+        });
+    };
+
     return (
         <>
             {/* Header Row: Title on left, Purchase Button on right */}
@@ -188,9 +239,9 @@ export function MyCardsClient({
                             <CreditCard className="h-5 w-5" />
                         </div>
                         <div className="space-y-0.5 select-none">
-                            <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-none text-foreground">我的堂卡</h1>
+                            <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-none text-foreground">我的堂卡・繳費</h1>
                             <p className="text-[11px] sm:text-[13px] text-muted-foreground font-medium hidden sm:block">
-                                管理餘額、購卡與紀錄
+                                管理餘額、購卡與繳費紀錄
                             </p>
                         </div>
                     </div>
@@ -210,9 +261,25 @@ export function MyCardsClient({
                 </Button>
             </div>
 
-            {/* Tabs */}
+            {/* Top-level dual tabs: 堂卡 | 繳費紀錄 */}
             <div className="w-full max-w-lg mx-auto mt-6 sm:mt-8">
-                <Tabs defaultValue="active" className="w-full">
+                <Tabs defaultValue="cards" className="w-full">
+                    <div className="flex justify-center mb-6 px-4 sm:px-0">
+                        <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-2">
+                            <TabsTrigger value="cards" className="text-[12px] sm:text-sm font-bold data-[state=active]:shadow-sm focus:outline-none">堂卡</TabsTrigger>
+                            <TabsTrigger value="payments" className="text-[12px] sm:text-sm font-bold data-[state=active]:shadow-sm focus:outline-none flex items-center gap-1.5">
+                                繳費紀錄
+                                {allOrdersSorted.filter(o => o.status === 'pending' || o.status === 'remitted').length > 0 && (
+                                    <span className="bg-amber-500/20 text-amber-600 px-1.5 py-0.5 text-[9px] rounded-full leading-none font-black">
+                                        {allOrdersSorted.filter(o => o.status === 'pending' || o.status === 'remitted').length}
+                                    </span>
+                                )}
+                            </TabsTrigger>
+                        </TabsList>
+                    </div>
+
+                    <TabsContent value="cards" className="m-0 border-none p-0 outline-none">
+                    <Tabs defaultValue="active" className="w-full">
                     <div className="flex justify-center mb-8 px-4 sm:px-0">
                         <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-3 sm:flex sm:grid-cols-none sm:w-auto">
                             <TabsTrigger value="pending" className="text-[12px] sm:text-sm font-bold px-4 data-[state=active]:shadow-sm flex items-center gap-1.5 focus:outline-none">
@@ -414,6 +481,144 @@ export function MyCardsClient({
                             )}
                         </TabsContent>
                     </div>
+                </Tabs>
+                    </TabsContent>
+
+                    {/* 繳費紀錄 tab — all order types */}
+                    <TabsContent value="payments" className="m-0 border-none p-0 outline-none">
+                        <div className="space-y-4 px-4 sm:px-0">
+                            {allOrdersSorted.length === 0 ? (
+                                <div className="text-center py-20 bg-muted/5 rounded-3xl border border-dashed border-muted text-muted-foreground font-bold">
+                                    尚無繳費紀錄
+                                </div>
+                            ) : (
+                                allOrdersSorted.map((order) => {
+                                    const statusColor = ORDER_STATUS_COLORS[order.status] ?? '';
+                                    const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
+                                    const typeLabel = ORDER_TYPE_LABELS[order.order_type] ?? order.order_type;
+                                    const isEditable = order.status === 'pending' || order.status === 'remitted';
+                                    const isEditing = editingOrderId === order.id;
+                                    const displayAmount = order.order_type === 'course_fee' ? (order.amount ?? order.total_amount) : order.total_amount;
+                                    const summary = order.order_type === 'card_purchase'
+                                        ? `堂卡 ×${order.quantity}`
+                                        : order.courseNames.length > 0
+                                            ? order.courseNames.join('、')
+                                            : `${typeLabel}`;
+
+                                    return (
+                                        <Card key={order.id} className="border-muted/60 bg-muted/5 rounded-xl overflow-hidden">
+                                            <div className="p-4 sm:p-5 space-y-3">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="space-y-1 min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <Badge variant="outline" className="font-bold text-[10px] h-5 px-1.5 border-muted-foreground/20 bg-muted/30 shrink-0">
+                                                                {typeLabel}
+                                                            </Badge>
+                                                            <Badge variant="outline" className={cn("font-bold text-[10px] h-5 px-1.5 border-none shrink-0", statusColor)}>
+                                                                {statusLabel}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-sm font-bold truncate">{summary}</p>
+                                                        <p className="text-[11px] text-muted-foreground">
+                                                            {order.created_at.slice(0, 10)}
+                                                        </p>
+                                                    </div>
+                                                    <p className="text-sm font-black shrink-0">NT$ {displayAmount.toLocaleString()}</p>
+                                                </div>
+
+                                                {/* Show remittance info if already submitted */}
+                                                {order.status === 'remitted' && order.remittance_bank_code && !isEditing && (
+                                                    <div className="bg-background rounded-lg p-3 border border-muted/50 text-[11px] flex flex-wrap items-center gap-x-4 gap-y-1">
+                                                        <span><span className="text-muted-foreground">銀行</span> {order.remittance_bank_code}</span>
+                                                        <span><span className="text-muted-foreground">末五碼</span> {order.remittance_account_last5}</span>
+                                                        {order.remittance_date && (
+                                                            <span><span className="text-muted-foreground">匯款時間</span> {new Date(order.remittance_date).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Inline remittance form for pending orders */}
+                                                {isEditing && (
+                                                    <div className="bg-background rounded-lg p-3 border border-muted/50 space-y-3">
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-muted-foreground mb-1 block">銀行代碼</label>
+                                                                <Input value={editBankCode} onChange={e => setEditBankCode(e.target.value)} placeholder="例 012" className="h-8 text-xs" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-muted-foreground mb-1 block">帳號末五碼</label>
+                                                                <Input value={editLast5} onChange={e => setEditLast5(e.target.value)} maxLength={5} placeholder="12345" className="h-8 text-xs" />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-muted-foreground mb-1 block">匯款時間</label>
+                                                            <Input type="datetime-local" value={editRemDate} onChange={e => setEditRemDate(e.target.value)} className="h-8 text-xs" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-muted-foreground mb-1 block">備註（選填）</label>
+                                                            <Input value={editRemNote} onChange={e => setEditRemNote(e.target.value)} placeholder="例：ATM 轉帳" className="h-8 text-xs" />
+                                                        </div>
+                                                        <div className="flex gap-2 justify-end">
+                                                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingOrderId(null)}>取消</Button>
+                                                            <Button size="sm" className="h-7 text-xs" onClick={() => handleSubmitRemittance(order.id)} disabled={isPending}>送出匯款資訊</Button>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Actions for editable orders */}
+                                                {isEditable && !isEditing && (
+                                                    <div className="flex gap-2 justify-end pt-1">
+                                                        {order.status === 'pending' && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-7 text-xs font-bold"
+                                                                onClick={() => {
+                                                                    setEditingOrderId(order.id);
+                                                                    setEditBankCode(order.remittance_bank_code ?? '');
+                                                                    setEditLast5(order.remittance_account_last5 ?? '');
+                                                                    setEditRemDate('');
+                                                                    setEditRemNote('');
+                                                                }}
+                                                            >
+                                                                補匯款
+                                                            </Button>
+                                                        )}
+                                                        {order.status === 'remitted' && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-7 text-xs font-bold"
+                                                                onClick={() => {
+                                                                    setEditingOrderId(order.id);
+                                                                    setEditBankCode(order.remittance_bank_code ?? '');
+                                                                    setEditLast5(order.remittance_account_last5 ?? '');
+                                                                    setEditRemDate(order.remittance_date ?? '');
+                                                                    setEditRemNote(order.remittance_note ?? '');
+                                                                }}
+                                                            >
+                                                                更正匯款
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-7 text-xs font-bold text-destructive hover:bg-destructive/10"
+                                                            onClick={() => handleCancelAnyOrder(order.id)}
+                                                            disabled={isPending}
+                                                        >
+                                                            <XCircle className="h-3.5 w-3.5 mr-1" />
+                                                            取消
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </Card>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </TabsContent>
                 </Tabs>
             </div>
 
