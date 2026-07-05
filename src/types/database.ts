@@ -102,6 +102,8 @@ export interface Course {
   price_guest_full: number | null;
   enroll_full: boolean;
   enroll_single: boolean;
+  enroll_full_identity: string;
+  enroll_single_identity: string;
   created_by?: string | null;
   created_at: string;
   updated_at: string;

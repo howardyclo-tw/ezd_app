@@ -100,6 +100,8 @@ const courseSchema = z.object({
     price_guest_full: optionalPrice,
     enroll_full: z.boolean(),
     enroll_single: z.boolean(),
+    enroll_full_identity: z.enum(['all', 'member']),
+    enroll_single_identity: z.enum(['all', 'member']),
     first_session_at: z.coerce.date({
         message: '請選擇日期',
     }),
@@ -110,7 +112,7 @@ const courseSchema = z.object({
             if (data.price_member_single == null) {
                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: '請輸入社員單堂價格', path: ['price_member_single'] });
             }
-            if (data.price_guest_single == null) {
+            if (data.enroll_single_identity !== 'member' && data.price_guest_single == null) {
                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: '請輸入非社員單堂價格', path: ['price_guest_single'] });
             }
         }
@@ -118,7 +120,7 @@ const courseSchema = z.object({
             if (data.price_member_full == null) {
                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: '請輸入社員整期價格', path: ['price_member_full'] });
             }
-            if (data.price_guest_full == null) {
+            if (data.enroll_full_identity !== 'member' && data.price_guest_full == null) {
                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: '請輸入非社員整期價格', path: ['price_guest_full'] });
             }
         }
@@ -132,16 +134,18 @@ const PRICING_DEFAULTS: Record<string, {
     pricing_mode: 'card' | 'ntd' | 'free';
     enroll_full: boolean;
     enroll_single: boolean;
+    enroll_full_identity: 'all' | 'member';
+    enroll_single_identity: 'all' | 'member';
     price_member_single: number | null;
     price_guest_single: number | null;
     price_member_full: number | null;
     price_guest_full: number | null;
 }> = {
-    normal:   { pricing_mode: 'card', enroll_full: true,  enroll_single: true,  price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
-    trial:    { pricing_mode: 'card', enroll_full: true,  enroll_single: true,  price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
-    special:  { pricing_mode: 'card', enroll_full: true,  enroll_single: true,  price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
-    workshop: { pricing_mode: 'ntd',  enroll_full: true,  enroll_single: true,  price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
-    style:    { pricing_mode: 'ntd',  enroll_full: false, enroll_single: true,  price_member_single: 0,    price_guest_single: null, price_member_full: null, price_guest_full: null },
+    normal:   { pricing_mode: 'card', enroll_full: true,  enroll_single: true,  enroll_full_identity: 'all' as const, enroll_single_identity: 'all' as const, price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
+    trial:    { pricing_mode: 'card', enroll_full: true,  enroll_single: true,  enroll_full_identity: 'all' as const, enroll_single_identity: 'all' as const, price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
+    special:  { pricing_mode: 'card', enroll_full: true,  enroll_single: true,  enroll_full_identity: 'all' as const, enroll_single_identity: 'all' as const, price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
+    workshop: { pricing_mode: 'ntd',  enroll_full: true,  enroll_single: true,  enroll_full_identity: 'all' as const, enroll_single_identity: 'all' as const, price_member_single: null, price_guest_single: null, price_member_full: null, price_guest_full: null },
+    style:    { pricing_mode: 'ntd',  enroll_full: false, enroll_single: true,  enroll_full_identity: 'all' as const, enroll_single_identity: 'all' as const, price_member_single: 0,    price_guest_single: null, price_member_full: null, price_guest_full: null },
 };
 
 function TimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -340,6 +344,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             price_guest_full: initialData?.price_guest_full ?? typeDefaults.price_guest_full,
             enroll_full: initialData?.enroll_full ?? typeDefaults.enroll_full,
             enroll_single: initialData?.enroll_single ?? typeDefaults.enroll_single,
+            enroll_full_identity: initialData?.enroll_full_identity ?? typeDefaults.enroll_full_identity,
+            enroll_single_identity: initialData?.enroll_single_identity ?? typeDefaults.enroll_single_identity,
             first_session_at: initialData?.first_session_at,
             sessions: initialData?.sessions || [],
         },
@@ -411,10 +417,12 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
         prevFirstDate.current = firstDate;
     }, [firstDate, fields.length, setValue]);
 
-    // Watch pricing_mode + enroll switches for conditional rendering
+    // Watch pricing_mode + enroll switches + identity for conditional rendering
     const pricingMode = watch('pricing_mode');
     const enrollFull = watch('enroll_full');
     const enrollSingle = watch('enroll_single');
+    const enrollFullIdentity = watch('enroll_full_identity');
+    const enrollSingleIdentity = watch('enroll_single_identity');
     const courseType = watch('type');
 
     // Apply type-based defaults when course type changes (create mode only)
@@ -427,6 +435,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
         setValue('pricing_mode', defaults.pricing_mode);
         setValue('enroll_full', defaults.enroll_full);
         setValue('enroll_single', defaults.enroll_single);
+        setValue('enroll_full_identity', defaults.enroll_full_identity);
+        setValue('enroll_single_identity', defaults.enroll_single_identity);
         setValue('price_member_single', defaults.price_member_single);
         setValue('price_guest_single', defaults.price_guest_single);
         setValue('price_member_full', defaults.price_member_full);
@@ -966,46 +976,98 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                     )}
                                 </div>
 
-                                {/* Enroll switches — always visible */}
+                                {/* Enroll switches + identity selects — always visible */}
                                 <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control as any}
-                                        name="enroll_full"
-                                        render={({ field }) => (
-                                            <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                                                <div className="space-y-0.5">
-                                                    <FormLabel>允許整期報名</FormLabel>
-                                                    <FormDescription className="text-xs">開啟後學員可報名整期課程</FormDescription>
-                                                </div>
-                                                <FormControl>
-                                                    <Switch
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                        data-testid="enroll-full-switch"
-                                                    />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control as any}
-                                        name="enroll_single"
-                                        render={({ field }) => (
-                                            <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                                                <div className="space-y-0.5">
-                                                    <FormLabel>允許單堂報名</FormLabel>
-                                                    <FormDescription className="text-xs">開啟後學員可報名單堂課程</FormDescription>
-                                                </div>
-                                                <FormControl>
-                                                    <Switch
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                        data-testid="enroll-single-switch"
-                                                    />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
+                                    <div className="space-y-2">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="enroll_full"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel>允許整期報名</FormLabel>
+                                                        <FormDescription className="text-xs">開啟後學員可報名整期課程</FormDescription>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch
+                                                            checked={field.value}
+                                                            onCheckedChange={field.onChange}
+                                                            data-testid="enroll-full-switch"
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="enroll_full_identity"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-xs">開放對象</FormLabel>
+                                                    <Select
+                                                        value={field.value}
+                                                        onValueChange={field.onChange}
+                                                        disabled={!enrollFull}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger data-testid="enroll-full-identity-select" className="h-9">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="all">全部</SelectItem>
+                                                            <SelectItem value="member">僅社員</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="enroll_single"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel>允許單堂報名</FormLabel>
+                                                        <FormDescription className="text-xs">開啟後學員可報名單堂課程</FormDescription>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch
+                                                            checked={field.value}
+                                                            onCheckedChange={field.onChange}
+                                                            data-testid="enroll-single-switch"
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="enroll_single_identity"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-xs">開放對象</FormLabel>
+                                                    <Select
+                                                        value={field.value}
+                                                        onValueChange={field.onChange}
+                                                        disabled={!enrollSingle}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger data-testid="enroll-single-identity-select" className="h-9">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="all">全部</SelectItem>
+                                                            <SelectItem value="member">僅社員</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* NTD Price fields — visible only in ntd mode */}
@@ -1034,26 +1096,28 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                         </FormItem>
                                                     )}
                                                 />
-                                                <FormField
-                                                    control={form.control as any}
-                                                    name="price_guest_single"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>非社員單堂價格</FormLabel>
-                                                            <FormControl>
-                                                                <Input
-                                                                    type="number"
-                                                                    min={0}
-                                                                    className="h-11"
-                                                                    placeholder="必填"
-                                                                    value={field.value ?? ''}
-                                                                    onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
-                                                                />
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
+                                                {enrollSingleIdentity !== 'member' && (
+                                                    <FormField
+                                                        control={form.control as any}
+                                                        name="price_guest_single"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>非社員單堂價格</FormLabel>
+                                                                <FormControl>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        className="h-11"
+                                                                        placeholder="必填"
+                                                                        value={field.value ?? ''}
+                                                                        onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
+                                                                    />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                         {enrollFull && (
@@ -1078,26 +1142,28 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                         </FormItem>
                                                     )}
                                                 />
-                                                <FormField
-                                                    control={form.control as any}
-                                                    name="price_guest_full"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>非社員整期價格</FormLabel>
-                                                            <FormControl>
-                                                                <Input
-                                                                    type="number"
-                                                                    min={0}
-                                                                    className="h-11"
-                                                                    placeholder="必填"
-                                                                    value={field.value ?? ''}
-                                                                    onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
-                                                                />
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
+                                                {enrollFullIdentity !== 'member' && (
+                                                    <FormField
+                                                        control={form.control as any}
+                                                        name="price_guest_full"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>非社員整期價格</FormLabel>
+                                                                <FormControl>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        className="h-11"
+                                                                        placeholder="必填"
+                                                                        value={field.value ?? ''}
+                                                                        onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
+                                                                    />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     </div>

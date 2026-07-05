@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { notFound, redirect } from 'next/navigation';
 import { RegisterWizardClient } from './register-wizard-client';
+import { isMemberActive } from '@/lib/supabase/pricing';
+import { getTaipeiToday } from '@/lib/date';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +56,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
                 price_member_single, price_guest_single,
                 price_member_full, price_guest_full,
                 enroll_full, enroll_single,
+                enroll_full_identity, enroll_single_identity,
                 enrollment_start_at, enrollment_end_at,
                 start_time, end_time,
                 course_sessions ( id, session_date, session_number )
@@ -113,6 +116,16 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
         (userEnrollments ?? []).map(e => e.course_id)
     );
 
+    // Compute member status for identity-gated enrollment
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const groupValidUntil = (profile.member_groups as any)?.valid_until ?? null;
+    const taipeiToday = getTaipeiToday();
+    const userIsMember = isMemberActive(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { role: profile.role as any, member_valid_until: profile.member_valid_until ?? null, groupValidUntil },
+        taipeiToday
+    );
+
     // Map courses to client-friendly data
     const coursesForClient = (courses ?? []).map(c => {
         const sessions = ((c.course_sessions as Array<{ session_date: string }>) ?? []).sort(
@@ -123,7 +136,8 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
         const occupancy = courseMaxOccupancy[c.id] ?? 0;
         const isFull = occupancy >= c.capacity;
         const isEnrolled = enrolledCourseIds.has(c.id);
-        const canEnrollFull = c.enroll_full !== false;
+        const identityLocked = c.enroll_full_identity === 'member' && !userIsMember;
+        const canEnrollFull = c.enroll_full !== false && !identityLocked;
 
         // Determine pricing badge
         let pricingBadge: string;
@@ -154,6 +168,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             isMv,
             pricingBadge,
             canEnrollFull,
+            identityLocked,
             startTime: c.start_time,
             endTime: c.end_time,
             firstSessionDate: sessions[0]?.session_date ?? '',

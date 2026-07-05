@@ -49,6 +49,7 @@ export interface WizardCourse {
     isMv: boolean;
     pricingBadge: string;
     canEnrollFull: boolean;
+    identityLocked?: boolean;
     startTime: string;
     endTime: string;
     firstSessionDate: string;
@@ -241,6 +242,7 @@ export function RegisterWizardClient({
                                 let disabledReason = '';
                                 if (course.isEnrolled) disabledReason = '已報名';
                                 else if (course.isFull) disabledReason = '額滿';
+                                else if (course.identityLocked) disabledReason = '此課程僅開放社員報名';
                                 else if (!course.canEnrollFull) disabledReason = '未開放整期報名';
 
                                 return (

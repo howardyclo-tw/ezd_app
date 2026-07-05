@@ -55,6 +55,22 @@ function guardEnrollSingle(course: { enroll_single?: boolean }): string | null {
     return null;
 }
 
+/** Reject full enrollment if the course is member-only and the user is not an active member. */
+function guardEnrollFullIdentity(course: { enroll_full_identity?: string }, isMember: boolean): string | null {
+    if (course.enroll_full_identity === 'member' && !isMember) {
+        return '此課程整期報名僅開放社員';
+    }
+    return null;
+}
+
+/** Reject single enrollment if the course is member-only and the user is not an active member. */
+function guardEnrollSingleIdentity(course: { enroll_single_identity?: string }, isMember: boolean): string | null {
+    if (course.enroll_single_identity === 'member' && !isMember) {
+        return '此課程單堂報名僅開放社員';
+    }
+    return null;
+}
+
 /**
  * Check course-group phase1 window for full enrollment.
  * Fetches the course_groups row via group_id on the course.
@@ -132,10 +148,10 @@ export async function enrollInCourse(
         return { success: false, status: existing.status as any, message: `您已${typeLabel}報名此課程` };
     }
 
-    // 2. Get course info and profile balance
+    // 2. Get course info and profile balance (expanded for identity check)
     const [courseRes, profileRes] = await Promise.all([
         supabase.from('courses').select('*, course_sessions(count)').eq('id', courseId).maybeSingle(),
-        supabase.from('profiles').select('card_balance, role').eq('id', user.id).maybeSingle(),
+        supabase.from('profiles').select('card_balance, role, member_valid_until, member_group_id, member_groups ( valid_until )').eq('id', user.id).maybeSingle(),
     ]);
 
     const course = courseRes.data;
@@ -144,7 +160,15 @@ export async function enrollInCourse(
     if (!course) throw new Error('課程不存在');
     if (!profile) throw new Error('使用者資料不存在');
 
-    // ── Guards: pricing mode, enroll mode, time windows ──
+    // Compute member status for identity guards
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const legacyGroupValidUntil = (profile.member_groups as any)?.valid_until ?? null;
+    const legacyMemberActive = isMemberActive(
+        { role: profile.role as any, member_valid_until: profile.member_valid_until ?? null, groupValidUntil: legacyGroupValidUntil },
+        getTaipeiToday()
+    );
+
+    // ── Guards: pricing mode, enroll mode, identity, time windows ──
     const pricingMsg = guardPricingMode(course);
     if (pricingMsg) return { success: false, status: 'enrolled', message: pricingMsg };
 
@@ -152,11 +176,17 @@ export async function enrollInCourse(
         const modeMsg = guardEnrollFull(course);
         if (modeMsg) return { success: false, status: 'enrolled', message: modeMsg };
 
+        const fullIdentMsg = guardEnrollFullIdentity(course, legacyMemberActive);
+        if (fullIdentMsg) return { success: false, status: 'enrolled', message: fullIdentMsg };
+
         const windowMsg = await guardGroupPhase1Window(supabase, course.group_id);
         if (windowMsg) return { success: false, status: 'enrolled', message: windowMsg };
     } else {
         const modeMsg = guardEnrollSingle(course);
         if (modeMsg) return { success: false, status: 'enrolled', message: modeMsg };
+
+        const singleIdentMsg = guardEnrollSingleIdentity(course, legacyMemberActive);
+        if (singleIdentMsg) return { success: false, status: 'enrolled', message: singleIdentMsg };
 
         const windowMsg = guardCourseWindow(course);
         if (windowMsg) return { success: false, status: 'enrolled', message: windowMsg };
@@ -295,14 +325,10 @@ export async function batchEnrollInCourses(
 
     if (courseIds.length === 0) return { success: true, message: '無可報名課程' };
 
-    // Guard: non-members cannot do full enrollment
-    const { data: userProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (userProfile?.role === 'guest') throw new Error('非社員無法整期報名，請先加入社員。');
-
-    // 1. Get courses and sessions count
+    // 1. Get courses and sessions count + profile (expanded for identity check)
     const [coursesRes, profileRes] = await Promise.all([
         supabase.from('courses').select('*, course_sessions(count)').in('id', courseIds),
-        supabase.from('profiles').select('card_balance').eq('id', user.id).maybeSingle(),
+        supabase.from('profiles').select('card_balance, role, member_valid_until, member_group_id, member_groups ( valid_until )').eq('id', user.id).maybeSingle(),
     ]);
 
     const courses = coursesRes.data ?? [];
@@ -310,15 +336,26 @@ export async function batchEnrollInCourses(
 
     if (!profile) throw new Error('使用者資料不存在');
 
-    // ── Guards: pricing mode, enroll mode ──
-    // Filter out non-card courses and courses with enroll_full disabled
+    // Compute member status for identity guards
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const groupValidUntil = (profile.member_groups as any)?.valid_until ?? null;
+    const taipeiToday = getTaipeiToday();
+    const memberActive = isMemberActive(
+        { role: profile.role as any, member_valid_until: profile.member_valid_until ?? null, groupValidUntil },
+        taipeiToday
+    );
+
+    // ── Guards: pricing mode, enroll mode, identity ──
+    // Filter out non-card courses, courses with enroll_full disabled, and identity-restricted courses
     const pricingRejected = courses.filter(c => guardPricingMode(c) !== null);
     const modeRejected = courses.filter(c => guardEnrollFull(c) !== null);
-    const guardedCourses = courses.filter(c => guardPricingMode(c) === null && guardEnrollFull(c) === null);
+    const identityRejected = courses.filter(c => guardPricingMode(c) === null && guardEnrollFull(c) === null && guardEnrollFullIdentity(c, memberActive) !== null);
+    const guardedCourses = courses.filter(c => guardPricingMode(c) === null && guardEnrollFull(c) === null && guardEnrollFullIdentity(c, memberActive) === null);
 
     if (guardedCourses.length === 0) {
         if (pricingRejected.length > 0) return { success: false, message: '此課程不適用堂卡報名' };
         if (modeRejected.length > 0) return { success: false, message: '此課程未開放整期報名' };
+        if (identityRejected.length > 0) return { success: false, message: '此課程整期報名僅開放社員' };
         return { success: false, message: '所選課程皆已報名或不開放報名' };
     }
 
@@ -452,7 +489,7 @@ export async function batchEnrollInSessions(
     // 1. Get course and profile (expanded for pricing identity)
     const [courseRes, profileRes] = await Promise.all([
         supabase.from('courses').select('*').eq('id', courseId).maybeSingle(),
-        supabase.from('profiles').select('card_balance, role, member_valid_until, member_group_id').eq('id', user.id).maybeSingle(),
+        supabase.from('profiles').select('card_balance, role, member_valid_until, member_group_id, member_groups ( valid_until )').eq('id', user.id).maybeSingle(),
     ]);
 
     const course = courseRes.data;
@@ -461,13 +498,24 @@ export async function batchEnrollInSessions(
     if (!course) throw new Error('課程不存在');
     if (!profile) throw new Error('使用者資料不存在');
 
-    // ── Guards: enroll mode, course window ──
+    // ── Guards: enroll mode, course window, identity ──
     // (guardPricingMode removed: pricing-aware routing handles all modes)
     const modeMsg = guardEnrollSingle(course);
     if (modeMsg) return { success: false, message: modeMsg };
 
     const windowMsg = guardCourseWindow(course);
     if (windowMsg) return { success: false, message: windowMsg };
+
+    // Identity guard: check member-only single enrollment
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const singleGroupValidUntil = (profile.member_groups as any)?.valid_until ?? null;
+    const singleTaipeiToday = getTaipeiToday();
+    const singleMemberActive = isMemberActive(
+        { role: profile.role as any, member_valid_until: profile.member_valid_until ?? null, groupValidUntil: singleGroupValidUntil },
+        singleTaipeiToday
+    );
+    const identMsg = guardEnrollSingleIdentity(course, singleMemberActive);
+    if (identMsg) return { success: false, message: identMsg };
 
     // ── Route by pricing_mode ──
     const pricingMode = (course.pricing_mode ?? 'card') as string;
@@ -926,12 +974,16 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
     const enrollSingle = data.enroll_single ?? true;
 
     // Defense-in-depth: reject ntd course with missing prices for enabled modes
+    const enrollFullIdentity = data.enroll_full_identity || 'all';
+    const enrollSingleIdentity = data.enroll_single_identity || 'all';
     if (isNtd) {
-        if (enrollSingle && (data.price_member_single == null || data.price_guest_single == null)) {
-            throw new Error('NTD 計費模式下，開放單堂報名時必須設定社員與非社員單堂價格');
+        if (enrollSingle) {
+            if (data.price_member_single == null) throw new Error('NTD 計費模式下，開放單堂報名時必須設定社員單堂價格');
+            if (enrollSingleIdentity !== 'member' && data.price_guest_single == null) throw new Error('NTD 計費模式下，開放單堂報名時必須設定非社員單堂價格');
         }
-        if (enrollFull && (data.price_member_full == null || data.price_guest_full == null)) {
-            throw new Error('NTD 計費模式下，開放整期報名時必須設定社員與非社員整期價格');
+        if (enrollFull) {
+            if (data.price_member_full == null) throw new Error('NTD 計費模式下，開放整期報名時必須設定社員整期價格');
+            if (enrollFullIdentity !== 'member' && data.price_guest_full == null) throw new Error('NTD 計費模式下，開放整期報名時必須設定非社員整期價格');
         }
     }
 
@@ -956,6 +1008,8 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
             price_guest_full:    isNtd ? (data.price_guest_full ?? null)    : null,
             enroll_full: enrollFull,
             enroll_single: enrollSingle,
+            enroll_full_identity: enrollFullIdentity,
+            enroll_single_identity: enrollSingleIdentity,
             enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
             enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
             created_by: user.id
@@ -1006,14 +1060,18 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
     const isNtd = pricingMode === 'ntd';
     const enrollFull = data.enroll_full ?? true;
     const enrollSingle = data.enroll_single ?? true;
+    const enrollFullIdentity = data.enroll_full_identity || 'all';
+    const enrollSingleIdentity = data.enroll_single_identity || 'all';
 
     // Defense-in-depth: reject ntd course with missing prices for enabled modes
     if (isNtd) {
-        if (enrollSingle && (data.price_member_single == null || data.price_guest_single == null)) {
-            throw new Error('NTD 計費模式下，開放單堂報名時必須設定社員與非社員單堂價格');
+        if (enrollSingle) {
+            if (data.price_member_single == null) throw new Error('NTD 計費模式下，開放單堂報名時必須設定社員單堂價格');
+            if (enrollSingleIdentity !== 'member' && data.price_guest_single == null) throw new Error('NTD 計費模式下，開放單堂報名時必須設定非社員單堂價格');
         }
-        if (enrollFull && (data.price_member_full == null || data.price_guest_full == null)) {
-            throw new Error('NTD 計費模式下，開放整期報名時必須設定社員與非社員整期價格');
+        if (enrollFull) {
+            if (data.price_member_full == null) throw new Error('NTD 計費模式下，開放整期報名時必須設定社員整期價格');
+            if (enrollFullIdentity !== 'member' && data.price_guest_full == null) throw new Error('NTD 計費模式下，開放整期報名時必須設定非社員整期價格');
         }
     }
 
@@ -1038,6 +1096,8 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
             price_guest_full:    isNtd ? (data.price_guest_full ?? null)    : null,
             enroll_full: enrollFull,
             enroll_single: enrollSingle,
+            enroll_full_identity: enrollFullIdentity,
+            enroll_single_identity: enrollSingleIdentity,
             enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
             enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
         })
@@ -3371,12 +3431,7 @@ export async function submitGroupEnrollment(
 
     if (!profile) throw new Error('使用者資料不存在');
 
-    // ── 2. Guest guard — guests cannot full-enroll ──
-    if (profile.role === 'guest') {
-        throw new Error('非社員無法整期報名，請先加入社員。');
-    }
-
-    // ── 3. Compute isMember for pricing ──
+    // ── 2. Compute isMember for pricing + identity guards ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const groupValidUntil = (profile.member_groups as any)?.valid_until ?? null;
     const taipeiToday = getTaipeiToday();
@@ -3424,6 +3479,13 @@ export async function submitGroupEnrollment(
         const fullMsg = guardEnrollFull(course);
         if (fullMsg) {
             perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '此課程未開放整期報名' });
+            continue;
+        }
+
+        // Guard: identity — member-only full enrollment
+        const identMsg = guardEnrollFullIdentity(course, memberActive);
+        if (identMsg) {
+            perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: identMsg });
             continue;
         }
 

@@ -110,6 +110,16 @@ const IDS = {
     // Phase 5.5 single-add-enroll sessions
     singleAddNtd1: 'e2e00000-0000-0000-0000-0000000000a4',
     singleAddFree1: 'e2e00000-0000-0000-0000-0000000000a5',
+    // Phase 5R.1 identity-eligibility sessions
+    identCard1:       'e2e00000-0000-0000-0000-0000000001b1',
+    identCard2:       'e2e00000-0000-0000-0000-0000000001b2',
+    identNtd1:        'e2e00000-0000-0000-0000-0000000001b3',
+    identNtd2:        'e2e00000-0000-0000-0000-0000000001b4',
+    identMemberFull1: 'e2e00000-0000-0000-0000-0000000001b5',
+    identMemberFull2: 'e2e00000-0000-0000-0000-0000000001b6',
+    identMemberSingle1:'e2e00000-0000-0000-0000-0000000001b7',
+    identNtdNoGP1:    'e2e00000-0000-0000-0000-0000000001b8',
+    identNtdNoGP2:    'e2e00000-0000-0000-0000-0000000001b9',
     // Phase 5.4 resubmit-rebook sessions
     resubA1: 'e2e00000-0000-0000-0000-0000000000f1',
     resubA2: 'e2e00000-0000-0000-0000-0000000000f2',
@@ -131,6 +141,13 @@ const IDS = {
   resubCardCourseA:  'e2e00000-0000-0000-0000-0000000000e1', // card, 2 cards/session, 2 sessions
   resubCardCourseB:  'e2e00000-0000-0000-0000-0000000000e2', // card, 1 card/session, 2 sessions
   resubConfCourse:   'e2e00000-0000-0000-0000-0000000000e3', // ntd, for confirmed-order test
+  // Phase 5R.1 identity-eligibility fixtures
+  identGroup:             'e2e00000-0000-0000-0000-000000000014',
+  identCardCourse:        'e2e00000-0000-0000-0000-0000000001a1', // card, enroll_full_identity='all'
+  identNtdCourse:         'e2e00000-0000-0000-0000-0000000001a2', // ntd, identity='all', guest_full price set
+  identMemberOnlyFull:    'e2e00000-0000-0000-0000-0000000001a3', // card, enroll_full_identity='member'
+  identMemberOnlySingle:  'e2e00000-0000-0000-0000-0000000001a4', // card, enroll_single_identity='member'
+  identNtdNoGuestPrice:   'e2e00000-0000-0000-0000-0000000001a5', // ntd, identity='all', price_guest_full=null
   // Phase 5.5 single-add-enroll + no-self-cancel fixtures
   singleAddNtd:      'e2e00000-0000-0000-0000-000000000029', // ntd course with single prices
   singleAddFree:     'e2e00000-0000-0000-0000-00000000002a', // free course
@@ -501,6 +518,90 @@ export default async function globalSetup() {
     price_member_single: 300, price_guest_single: 400,
   }, { onConflict: 'id' }));
 
+  // ── 4e. Phase 5R.1 identity-eligibility fixtures ────────────────
+  const identEnrollStart = new Date(Date.now() - 7 * 86400000).toISOString();
+  const identEnrollEnd   = new Date(Date.now() + 14 * 86400000).toISOString();
+
+  check('identGroup', await sb.from('course_groups').upsert({
+    id: IDS.identGroup,
+    title: 'E2E Identity Eligibility Group',
+    description: 'Open-phase1 group for identity-eligibility tests',
+    region: 'HQ',
+    period_start: today,
+    period_end: addDays(today, 90),
+    registration_phase1_start: new Date(Date.now() - 7 * 86400000).toISOString(),
+    registration_phase1_end:   new Date(Date.now() + 7 * 86400000).toISOString(),
+  }, { onConflict: 'id' }));
+
+  // Card course: enroll_full_identity='all' (guests CAN full-enroll)
+  check('identCardCourse', await sb.from('courses').upsert({
+    id: IDS.identCardCourse,
+    name: 'E2E Identity Card All',
+    description: 'Card course with identity=all for identity-eligibility test',
+    type: 'normal', start_time: '11:00', end_time: '12:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.identGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: identEnrollStart, enrollment_end_at: identEnrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+    enroll_full_identity: 'all', enroll_single_identity: 'all',
+  }, { onConflict: 'id' }));
+
+  // NTD course: identity='all', guest_full price set
+  check('identNtdCourse', await sb.from('courses').upsert({
+    id: IDS.identNtdCourse,
+    name: 'E2E Identity NTD All',
+    description: 'NTD course with identity=all for identity-eligibility test',
+    type: 'workshop', start_time: '12:00', end_time: '13:00', capacity: 20, cards_per_session: 0,
+    group_id: IDS.identGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: identEnrollStart, enrollment_end_at: identEnrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'ntd',
+    price_member_full: 800, price_guest_full: 1200,
+    price_member_single: 300, price_guest_single: 400,
+    enroll_full_identity: 'all', enroll_single_identity: 'all',
+  }, { onConflict: 'id' }));
+
+  // Card course: enroll_full_identity='member' (guests CANNOT full-enroll)
+  check('identMemberOnlyFull', await sb.from('courses').upsert({
+    id: IDS.identMemberOnlyFull,
+    name: 'E2E Identity Member-Only Full',
+    description: 'Card course with enroll_full_identity=member',
+    type: 'normal', start_time: '13:00', end_time: '14:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.identGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: identEnrollStart, enrollment_end_at: identEnrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+    enroll_full_identity: 'member', enroll_single_identity: 'all',
+  }, { onConflict: 'id' }));
+
+  // Card course: enroll_single_identity='member' (guests CANNOT single-enroll)
+  check('identMemberOnlySingle', await sb.from('courses').upsert({
+    id: IDS.identMemberOnlySingle,
+    name: 'E2E Identity Member-Only Single',
+    description: 'Card course with enroll_single_identity=member',
+    type: 'normal', start_time: '14:00', end_time: '15:00', capacity: 20, cards_per_session: 1,
+    group_id: IDS.identGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: identEnrollStart, enrollment_end_at: identEnrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'card',
+    enroll_full_identity: 'all', enroll_single_identity: 'member',
+  }, { onConflict: 'id' }));
+
+  // NTD course: identity='all' but price_guest_full=null (will fail resolvePrice for guests)
+  check('identNtdNoGuestPrice', await sb.from('courses').upsert({
+    id: IDS.identNtdNoGuestPrice,
+    name: 'E2E Identity NTD No Guest Price',
+    description: 'NTD course with null guest_full price',
+    type: 'workshop', start_time: '15:00', end_time: '16:00', capacity: 20, cards_per_session: 0,
+    group_id: IDS.identGroup,
+    teacher: 'E2E Teacher', room: 'E2E Room',
+    enrollment_start_at: identEnrollStart, enrollment_end_at: identEnrollEnd,
+    enroll_full: true, enroll_single: true, pricing_mode: 'ntd',
+    price_member_full: 800, price_guest_full: null,
+    price_member_single: 300, price_guest_single: null,
+    enroll_full_identity: 'all', enroll_single_identity: 'all',
+  }, { onConflict: 'id' }));
+
   // ── 5. Upsert course_sessions ─────────────────────────────────
   const sessions = [
     // Basic Groove: 2 past + 3 future
@@ -550,6 +651,16 @@ export default async function globalSetup() {
     { id: IDS.sessions.regFull1, course_id: IDS.regFullCourse, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.regFree1, course_id: IDS.regFreeCourse, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.regFree2, course_id: IDS.regFreeCourse, session_date: addDays(today, 14), session_number: 2 },
+    // Phase 5R.1 identity-eligibility sessions
+    { id: IDS.sessions.identCard1, course_id: IDS.identCardCourse, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.identCard2, course_id: IDS.identCardCourse, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.identNtd1, course_id: IDS.identNtdCourse, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.identNtd2, course_id: IDS.identNtdCourse, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.identMemberFull1, course_id: IDS.identMemberOnlyFull, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.identMemberFull2, course_id: IDS.identMemberOnlyFull, session_date: addDays(today, 14), session_number: 2 },
+    { id: IDS.sessions.identMemberSingle1, course_id: IDS.identMemberOnlySingle, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.identNtdNoGP1, course_id: IDS.identNtdNoGuestPrice, session_date: addDays(today, 7), session_number: 1 },
+    { id: IDS.sessions.identNtdNoGP2, course_id: IDS.identNtdNoGuestPrice, session_date: addDays(today, 14), session_number: 2 },
     // Phase 5.4 resubmit-rebook sessions
     { id: IDS.sessions.resubA1, course_id: IDS.resubCardCourseA, session_date: addDays(today, 7), session_number: 1 },
     { id: IDS.sessions.resubA2, course_id: IDS.resubCardCourseA, session_date: addDays(today, 14), session_number: 2 },
