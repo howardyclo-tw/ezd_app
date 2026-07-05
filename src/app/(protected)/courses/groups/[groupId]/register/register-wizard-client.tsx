@@ -77,6 +77,7 @@ interface RegisterWizardClientProps {
     userRole: string;
     groupSlug: string;
     existingEnrollments?: ExistingEnrollment[];
+    purchaseUnit?: number;
 }
 
 type Step = 'select' | 'mv' | 'leader' | 'payment' | 'done';
@@ -95,6 +96,7 @@ export function RegisterWizardClient({
     userRole,
     groupSlug,
     existingEnrollments = [],
+    purchaseUnit = 5,
 }: RegisterWizardClientProps) {
     const router = useRouter();
     const hasExisting = existingEnrollments.length > 0;
@@ -102,7 +104,7 @@ export function RegisterWizardClient({
     const [step, setStep] = useState<Step>('select');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [wantsLeader, setWantsLeader] = useState<Record<string, boolean>>({});
-    const [buyCardsQty, setBuyCardsQty] = useState<number>(0);
+    const [buyCardsQtyRaw, setBuyCardsQtyRaw] = useState<number | null>(null);
     const [includeMembership, setIncludeMembership] = useState(false);
     const [remittanceBank, setRemittanceBank] = useState('');
     const [remittanceLast5, setRemittanceLast5] = useState('');
@@ -123,6 +125,8 @@ export function RegisterWizardClient({
         .reduce((sum, c) => sum + (c.priceMemberFull ?? c.priceGuestFull ?? 0), 0);
     const cardShortfall = Math.max(0, totalCards - cardBalance);
     const hasShortfall = cardShortfall > 0;
+    const prefillBuyQty = hasShortfall ? Math.ceil(cardShortfall / purchaseUnit) * purchaseUnit : 0;
+    const buyCardsQty = buyCardsQtyRaw ?? prefillBuyQty;
 
     const toggleCourse = (id: string) => {
         const next = new Set(selectedIds);
@@ -541,12 +545,12 @@ export function RegisterWizardClient({
                                 <Input
                                     id="buy-qty"
                                     type="number"
-                                    min={cardShortfall}
-                                    step={5}
+                                    min={prefillBuyQty}
+                                    step={purchaseUnit}
                                     value={buyCardsQty || ''}
-                                    onChange={e => setBuyCardsQty(parseInt(e.target.value) || 0)}
+                                    onChange={e => setBuyCardsQtyRaw(parseInt(e.target.value) || 0)}
                                     className="w-24"
-                                    placeholder={String(cardShortfall)}
+                                    placeholder={String(prefillBuyQty)}
                                 />
                             </div>
 
@@ -608,7 +612,7 @@ export function RegisterWizardClient({
                         </Button>
                         <Button
                             onClick={handleSubmit}
-                            disabled={isPending || (hasShortfall && buyCardsQty < cardShortfall)}
+                            disabled={isPending || (hasShortfall && buyCardsQty < prefillBuyQty)}
                             className="gap-2"
                         >
                             {isPending ? (

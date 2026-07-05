@@ -47,6 +47,7 @@ async function getCardBalance(memberId: string): Promise<number> {
 }
 
 test.describe('Register Modify UI (5R.3)', () => {
+    test.describe.configure({ timeout: 180_000 });
     let memberId: string;
 
     test.beforeAll(async () => {

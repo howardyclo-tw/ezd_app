@@ -3461,6 +3461,16 @@ export async function submitGroupEnrollment(
     // ── 6. Check group phase1 window (single check since all courses share groupId) ──
     const phase1Msg = await guardGroupPhase1Window(adminClient, payload.groupId);
 
+    // ── 6b. Validate buyCards quantity upfront (fail-fast before any enrollment) ──
+    if (payload.buyCards) {
+        const config = await getSystemConfig();
+        const rawUnit = parseInt(config['card_purchase_unit'] ?? '5', 10);
+        const qtyCheck = validatePurchaseQuantity(payload.buyCards.quantity, rawUnit);
+        if (!qtyCheck.ok) {
+            throw new Error(qtyCheck.message!);
+        }
+    }
+
     // ── 7. Process each selection independently ──
     const perCourse: PerCourseResult[] = [];
     const ntdEnrollmentIds: string[] = [];

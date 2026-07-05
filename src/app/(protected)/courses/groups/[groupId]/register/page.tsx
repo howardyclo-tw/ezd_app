@@ -102,11 +102,12 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
 
     const adminDb = createAdminClient();
 
-    // Fetch courses + sessions + polls + user enrollments in parallel
+    // Fetch courses + sessions + polls + user enrollments + purchase unit in parallel
     const [
         { data: courses },
         { data: userEnrollments },
         { data: openPolls },
+        { data: purchaseUnitRow },
     ] = await Promise.all([
         adminDb
             .from('courses')
@@ -132,6 +133,11 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             .from('course_polls')
             .select('id, course_id, title, vote_type, poll_options ( id, label, youtube_url, sort_order )')
             .eq('status', 'open'),
+        adminDb
+            .from('system_config')
+            .select('value')
+            .eq('key', 'card_purchase_unit')
+            .maybeSingle(),
     ]);
 
     // Compute per-session occupancy for capacity check
@@ -264,6 +270,8 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
         return a.name.localeCompare(b.name);
     });
 
+    const purchaseUnit = parseInt(purchaseUnitRow?.value ?? '5', 10) || 5;
+
     return (
         <RegisterWizardClient
             groupId={groupData.id}
@@ -273,6 +281,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             userRole={profile.role}
             groupSlug={groupData.slug || groupData.id}
             existingEnrollments={existingEnrollments}
+            purchaseUnit={purchaseUnit}
         />
     );
 }
