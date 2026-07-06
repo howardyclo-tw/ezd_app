@@ -78,14 +78,15 @@ interface RegisterWizardClientProps {
     groupSlug: string;
     existingEnrollments?: ExistingEnrollment[];
     purchaseUnit?: number;
+    isMember?: boolean;
 }
 
 type Step = 'select' | 'mv' | 'leader' | 'payment' | 'done';
 
 const PRICING_BADGE_COLORS: Record<string, string> = {
-    '堂卡': 'bg-blue-500/10 text-blue-600',
-    'NTD': 'bg-amber-500/10 text-amber-600',
-    '免費': 'bg-green-500/10 text-green-600',
+    '堂卡': 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+    '現金': 'bg-green-500/10 text-green-600 dark:text-green-400',
+    '免費': 'bg-muted text-muted-foreground',
 };
 
 export function RegisterWizardClient({
@@ -97,6 +98,7 @@ export function RegisterWizardClient({
     groupSlug,
     existingEnrollments = [],
     purchaseUnit = 5,
+    isMember = false,
 }: RegisterWizardClientProps) {
     const router = useRouter();
     const hasExisting = existingEnrollments.length > 0;
@@ -122,7 +124,7 @@ export function RegisterWizardClient({
         .reduce((sum, c) => sum + c.cardsPerSession * c.sessionsCount, 0);
     const totalNtd = selectedCourses
         .filter(c => c.pricingMode === 'ntd')
-        .reduce((sum, c) => sum + (c.priceMemberFull ?? c.priceGuestFull ?? 0), 0);
+        .reduce((sum, c) => sum + ((isMember ? c.priceMemberFull : c.priceGuestFull) ?? 0), 0);
     const cardShortfall = Math.max(0, totalCards - cardBalance);
     const hasShortfall = cardShortfall > 0;
     const prefillBuyQty = hasShortfall ? Math.ceil(cardShortfall / purchaseUnit) * purchaseUnit : 0;
@@ -206,16 +208,16 @@ export function RegisterWizardClient({
     };
 
     const statusLabels: Record<string, { label: string; color: string }> = {
-        enrolled: { label: '報名成功', color: 'bg-green-500/10 text-green-600' },
-        pending_payment: { label: '待繳費', color: 'bg-amber-500/10 text-amber-600' },
-        pending_vote: { label: '待選歌', color: 'bg-blue-500/10 text-blue-600' },
-        full: { label: '額滿', color: 'bg-red-500/10 text-red-500' },
-        rejected: { label: '失敗', color: 'bg-red-500/10 text-red-500' },
+        enrolled: { label: '報名成功', color: 'bg-green-500/10 text-green-600 dark:text-green-400' },
+        pending_payment: { label: '待繳費', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+        pending_vote: { label: '待選歌', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+        full: { label: '額滿', color: 'bg-red-500/10 text-red-500 dark:text-red-400' },
+        rejected: { label: '失敗', color: 'bg-red-500/10 text-red-500 dark:text-red-400' },
     };
 
     if (hasExisting && !isModifyMode) {
         return (
-            <div className="container max-w-2xl py-6 space-y-6">
+            <div className="container max-w-2xl mx-auto py-6 space-y-6">
                 <div className="flex items-center gap-3">
                     <Button
                         variant="ghost"
@@ -274,7 +276,7 @@ export function RegisterWizardClient({
     }
 
     return (
-        <div className="container max-w-2xl py-6 space-y-6">
+        <div className="container max-w-2xl mx-auto py-6 space-y-6">
             {/* Header */}
             <div className="flex items-center gap-3">
                 <Button
@@ -342,7 +344,7 @@ export function RegisterWizardClient({
                                             isDisabled
                                                 ? 'opacity-50 cursor-not-allowed bg-muted/10 border-muted'
                                                 : isSelected
-                                                    ? 'bg-primary/[0.03] border-primary'
+                                                    ? 'bg-primary/10 border-primary'
                                                     : 'bg-muted/5 border-transparent hover:border-primary/20'
                                         )}
                                         data-testid={`course-option-${course.id}`}
@@ -363,17 +365,12 @@ export function RegisterWizardClient({
                                                 </span>
                                                 <Badge
                                                     variant="secondary"
-                                                    className={cn('text-[10px] font-bold px-1.5 py-0',
+                                                    className={cn('text-xs font-bold px-1.5 py-0',
                                                         PRICING_BADGE_COLORS[course.pricingBadge] ?? ''
                                                     )}
                                                 >
                                                     {course.pricingBadge}
                                                 </Badge>
-                                                {course.isMv && (
-                                                    <Badge variant="secondary" className="text-[10px] font-bold px-1.5 py-0 bg-purple-500/10 text-purple-600">
-                                                        MV
-                                                    </Badge>
-                                                )}
                                             </div>
                                             <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                                                 <span>{course.sessionsCount} 堂</span>
@@ -385,16 +382,16 @@ export function RegisterWizardClient({
                                                         <span>{course.cardsPerSession * course.sessionsCount} 堂卡</span>
                                                     </>
                                                 )}
-                                                {course.pricingMode === 'ntd' && course.priceMemberFull != null && (
+                                                {course.pricingMode === 'ntd' && (
                                                     <>
                                                         <span>|</span>
-                                                        <span>${course.priceMemberFull}</span>
+                                                        <span>${(isMember ? course.priceMemberFull : course.priceGuestFull) ?? 0}</span>
                                                     </>
                                                 )}
                                             </div>
                                         </div>
                                         {disabledReason && (
-                                            <Badge variant="secondary" className="text-[10px] shrink-0">
+                                            <Badge variant="secondary" className="text-xs shrink-0">
                                                 {disabledReason}
                                             </Badge>
                                         )}
@@ -436,7 +433,7 @@ export function RegisterWizardClient({
                                         <div key={opt.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/10">
                                             <span className="text-sm">{opt.label}</span>
                                             {opt.youtubeUrl && (
-                                                <Badge variant="outline" className="text-[10px]">
+                                                <Badge variant="outline" className="text-xs">
                                                     YT
                                                 </Badge>
                                             )}
@@ -505,7 +502,6 @@ export function RegisterWizardClient({
                         <CreditCard className="h-5 w-5" /> 費用結算
                     </h2>
 
-                    {/* Card summary */}
                     {totalCards > 0 && (
                         <div className="border rounded-xl p-4 space-y-2">
                             <div className="flex justify-between text-sm">
@@ -526,15 +522,27 @@ export function RegisterWizardClient({
                         </div>
                     )}
 
-                    {/* NTD summary */}
                     {totalNtd > 0 && (
                         <div className="border rounded-xl p-4">
                             <div className="flex justify-between text-sm">
-                                <span>課程費用</span>
+                                <span>現金費用</span>
                                 <span className="font-bold">${totalNtd}</span>
                             </div>
                         </div>
                     )}
+
+                    {totalCards === 0 && totalNtd === 0 && (
+                        <div className="border rounded-xl p-4">
+                            <div className="flex justify-between text-sm">
+                                <span>費用合計</span>
+                                <span className="font-bold">$0（免費）</span>
+                            </div>
+                        </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground">
+                        報名完成後，可至「個人中心」→「我的堂卡」→「繳費紀錄」查看繳費狀態與繳費方式。
+                    </p>
 
                     {/* Buy cards option */}
                     {hasShortfall && (
@@ -643,7 +651,7 @@ export function RegisterWizardClient({
                                         {course ? `${course.teacher} ${course.name}` : r.courseId}
                                     </span>
                                     <div className="flex items-center gap-2">
-                                        <Badge className={cn('text-[10px] font-bold', info.color)}>
+                                        <Badge className={cn('text-xs font-bold', info.color)}>
                                             {info.label}
                                         </Badge>
                                         {r.reason && (
@@ -655,12 +663,23 @@ export function RegisterWizardClient({
                         })}
                     </div>
 
-                    <div className="flex justify-center pt-4">
+                    <div className="border rounded-xl p-4 text-sm text-muted-foreground space-y-1">
+                        <p>如有需繳費的課程，請至「個人中心」→「我的堂卡」→「繳費紀錄」查看繳費方式與狀態。</p>
+                    </div>
+
+                    <div className="flex justify-center gap-3 pt-4">
                         <Button
+                            variant="outline"
                             onClick={() => router.push(`/courses/groups/${groupSlug}`)}
                             className="gap-2"
                         >
                             返回課程列表
+                        </Button>
+                        <Button
+                            onClick={() => router.push('/dashboard/my_cards?tab=payments')}
+                            className="gap-2"
+                        >
+                            前往個人中心
                         </Button>
                     </div>
                 </div>

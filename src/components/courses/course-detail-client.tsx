@@ -984,7 +984,7 @@ export function CourseDetailClient({
                                                             <Crown className="h-3.5 w-3.5 text-white fill-white/10 animate-in fade-in zoom-in duration-300" />
                                                         )}
                                                         {student.wantsLeader && !student.isLeader && (
-                                                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-500/30 text-amber-500 shadow-none">志願</Badge>
+                                                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shadow-none">班長候選人</Badge>
                                                         )}
                                                         {student.enrollmentStatus === 'pending_payment' && (
                                                             <Badge variant="outline" className={cn("text-[9px] px-1 py-0 h-4 shadow-none", ENROLLMENT_STATUS_COLORS.pending_payment)}>待繳費</Badge>

@@ -27,7 +27,6 @@ test.describe('Refund Count: cards_per_session', () => {
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
 
-    await page.getByRole('tab', { name: '使用中' }).click();
 
     const balanceEl = page.locator('[data-testid="card-balance"]');
     await expect(balanceEl).toBeVisible();
@@ -59,7 +58,6 @@ test.describe('Refund Count: cards_per_session', () => {
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
 
-    await page.getByRole('tab', { name: '使用中' }).click();
 
     const newBalanceEl = page.locator('[data-testid="card-balance"]');
     await expect(newBalanceEl).toBeVisible();

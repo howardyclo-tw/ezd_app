@@ -20,6 +20,7 @@ const reviewTransferRequest = safe(_reviewTransferRequest);
 const reviewSingleEnrollment = safe(_reviewSingleEnrollment);
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, ORDER_TYPE_COLORS } from '@/lib/constants';
 
 interface ApprovalsTabsClientProps {
     paymentOrders: any[];
@@ -169,36 +170,6 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
     };
 
     const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
-    const now = new Date();
-
-    const paymentGroups = (() => {
-        if (tab !== 'payment_orders') return [];
-        const filtered = paymentOrders.filter(o => paymentFilter === 'all' || o.order_type === paymentFilter);
-        const groupMap = new Map<string, { title: string; phase1End: string | null; orders: any[] }>();
-        for (const order of filtered) {
-            const gid = order.course_group_id || '__none__';
-            if (!groupMap.has(gid)) {
-                groupMap.set(gid, {
-                    title: order.course_groups?.title || '其他',
-                    phase1End: order.course_groups?.registration_phase1_end || null,
-                    orders: [],
-                });
-            }
-            groupMap.get(gid)!.orders.push(order);
-        }
-        return Array.from(groupMap.entries())
-            .map(([gid, g]) => {
-                const hasPendingReview = g.orders.some(o => o.status === 'pending' || o.status === 'remitted');
-                const phase1Closed = g.phase1End ? new Date(g.phase1End) < now : false;
-                return { gid, ...g, hasPendingReview, phase1Closed, needsReview: phase1Closed && hasPendingReview };
-            })
-            .sort((a, b) => {
-                if (a.needsReview !== b.needsReview) return a.needsReview ? -1 : 1;
-                if (a.gid === '__none__') return 1;
-                if (b.gid === '__none__') return -1;
-                return a.title.localeCompare(b.title);
-            });
-    })();
 
     const tabHints: Record<string, { title: string; hint: string }> = {
         payment_orders: {
@@ -234,60 +205,58 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
     const renderPaymentCard = (req: any) => {
         const isCardOrder = req.order_type === 'card_purchase';
         const isCourseFeeOrder = req.order_type === 'course_fee';
+        const typeLabel = ORDER_TYPE_LABELS[req.order_type] ?? req.order_type;
+        const typeColor = ORDER_TYPE_COLORS[req.order_type] ?? 'bg-muted text-muted-foreground';
+        const statusColor = ORDER_STATUS_COLORS[req.status] ?? '';
+        const statusLabel = ORDER_STATUS_LABELS[req.status] ?? req.status;
+        const courseNames: string[] = req.courseNames ?? [];
         return (
-            <Card key={req.id} className="relative overflow-hidden border-muted/50 bg-card/40 backdrop-blur-md shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
+            <Card key={req.id} className={cn(
+                "relative overflow-hidden border-muted/50 bg-card/40 shadow-sm transition-all hover:border-primary/30 hover:shadow-md",
+                (req.status === 'cancelled' || req.status === 'rejected') && "opacity-60"
+            )}>
                 <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-4">
                     <div className="flex-1 space-y-3">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                            <Badge variant="outline" className={cn(
-                                "text-[10px] font-bold uppercase tracking-wider",
-                                isCardOrder && "bg-blue-500/10 text-blue-600 border-blue-200",
-                                isCourseFeeOrder && "bg-purple-500/10 text-purple-600 border-purple-200",
-                            )}>
-                                {isCardOrder ? '堂卡購買' : '報名繳費'}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="secondary" className={cn("text-xs h-5 px-1.5 font-medium border-none", typeColor)}>
+                                {typeLabel}
                             </Badge>
-                            {(req.status === 'confirmed') ? (
-                                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-transparent text-[10px] font-bold">
-                                    {isCourseFeeOrder ? '已確認' : '已核准'}
-                                </Badge>
-                            ) : (req.status === 'rejected' || req.status === 'cancelled') ? (
-                                <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-transparent text-[10px] font-bold">
-                                    {isCourseFeeOrder ? '已取消' : '已駁回'}
-                                </Badge>
-                            ) : req.status === 'remitted' ? (
-                                <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 border-transparent text-[10px] font-bold">
-                                    已匯款
-                                </Badge>
-                            ) : (
-                                <Badge variant="secondary" className="bg-muted text-muted-foreground border-transparent text-[10px] font-semi-bold">
-                                    待審核
-                                </Badge>
-                            )}
-                            <span className="text-[11px] text-muted-foreground/70 font-medium">
-                                申請時間: {format(parseISO(req.created_at), "yyyy/MM/dd HH:mm")}
+                            <Badge variant="outline" className={cn("text-xs h-5 px-1.5 border-none font-bold", statusColor)}>
+                                {statusLabel}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground/70 font-medium">
+                                {format(parseISO(req.created_at), "yyyy/MM/dd HH:mm")}
                             </span>
                         </div>
-                        <h3 className="text-[15px] font-bold flex items-center gap-2 text-foreground/90 leading-none">
+                        <h3 className="text-sm font-bold flex items-center gap-2 leading-none">
                             <User className="h-4 w-4 opacity-40 shrink-0" />
                             {req.profiles?.name || '未知使用者'}
                         </h3>
-                        <div className="flex items-start gap-2.5 text-[13px] sm:text-sm font-medium text-foreground/80 leading-relaxed">
-                            <CreditCard className="h-4 w-4 opacity-50 shrink-0 relative top-0.5" />
-                            <span className="flex flex-wrap items-center gap-y-0.5">
-                                {isCardOrder && (
-                                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                        <span>購買 {req.quantity} 堂卡，金額 ${req.total_amount}</span>
-                                        {req.total_amount > (req.quantity * req.unit_price) && (
-                                            <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-600 border-none px-1.5 h-5 shadow-none">
-                                                包含社員年費
-                                            </Badge>
-                                        )}
-                                    </span>
-                                )}
-                                {isCourseFeeOrder && (
-                                    <span>報名繳費 ${req.amount ?? 0}</span>
-                                )}
-                            </span>
+                        {req.course_groups?.title && (
+                            <p className="text-xs text-muted-foreground font-medium">{req.course_groups.title}</p>
+                        )}
+                        <div className="text-sm font-medium text-foreground/80 leading-relaxed">
+                            {isCardOrder && (
+                                <div className="space-y-1">
+                                    <span>{req.course_group_id ? '整期報名購卡' : '堂卡購買'} {req.quantity} 堂，NT$ {req.total_amount.toLocaleString()}</span>
+                                    {req.total_amount > (req.quantity * req.unit_price) && (
+                                        <span className="text-xs text-muted-foreground">（{req.quantity} × NT$ {req.unit_price} + 社員年費 NT$ 1,800）</span>
+                                    )}
+                                    {courseNames.length > 0 && (
+                                        <div className="text-xs text-muted-foreground">報名課程：{courseNames.join('、')}</div>
+                                    )}
+                                </div>
+                            )}
+                            {isCourseFeeOrder && (
+                                <div className="space-y-1">
+                                    <span>繳費 NT$ {(req.amount ?? 0).toLocaleString()}</span>
+                                    {courseNames.length > 0 && (
+                                        <div className="text-xs text-muted-foreground">
+                                            {courseNames.join('、')}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         {req.remittance_bank_code && (
                             <div className="mt-3 overflow-hidden rounded-xl border border-muted/30 bg-muted/10">
@@ -424,14 +393,14 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
                                     : "bg-muted/30 text-muted-foreground border-muted/50 hover:bg-muted/50"
                             )}
                         >
-                            {f === 'all' ? '全部' : f === 'card_purchase' ? '堂卡' : '課程費'}
+                            {f === 'all' ? '全部' : f === 'card_purchase' ? '堂卡' : '現金'}
                         </button>
                     ))}
                 </div>
             )}
 
             {/* Content */}
-            {(tab === 'payment_orders' ? paymentGroups.length === 0 : currentList.length === 0) ? (
+            {currentList.length === 0 ? (
                 <Card className="border-dashed border-muted/50 bg-muted/5 mt-6">
                     <CardContent className="flex flex-col items-center justify-center py-20 text-center">
                         <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
@@ -448,32 +417,15 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
                     </CardContent>
                 </Card>
             ) : tab === 'payment_orders' ? (
-                <div className="space-y-8 mt-6">
-                    {paymentGroups.map((group) => (
-                        <div key={group.gid}>
-                            <div className="flex items-center gap-2.5 mb-3 px-1">
-                                <h2 className="text-sm font-black tracking-wide text-foreground/80">{group.title}</h2>
-                                {group.needsReview && (
-                                    <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 border-transparent text-[10px] font-bold px-2 h-5">
-                                        待審
-                                    </Badge>
-                                )}
-                                <span className="text-[11px] text-muted-foreground font-medium">
-                                    {group.orders.length} 筆
-                                </span>
-                            </div>
-                            <div className="space-y-4">
-                                {group.orders.map((req) => renderPaymentCard(req))}
-                            </div>
-                        </div>
-                    ))}
+                <div className="space-y-4 mt-6">
+                    {currentList.map((req) => renderPaymentCard(req))}
                 </div>
             ) : (
                 <div className="space-y-4 mt-6">
                     {currentList.map((req) => {
-                        const isCardOrder = false;
-                        const isCourseFeeOrder = false;
-                        const isPaymentOrder = false;
+                        const isCardOrder = false as const;
+                        const isCourseFeeOrder = false as const;
+                        const isPaymentOrder = false as const;
                         const isSingleEnrollment = tab === 'single_enrollments';
                         const sessionDate = tab === 'makeups'
                             ? req.target_sessions?.session_date

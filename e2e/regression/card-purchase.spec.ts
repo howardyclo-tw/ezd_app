@@ -29,7 +29,7 @@ test.describe('Card Purchase Flow', () => {
     await page.goto('/dashboard/my_cards');
 
     // Check if purchase button says "購買未開放"
-    const purchaseButton = page.getByRole('button', { name: /立即購卡|購買未開放/ });
+    const purchaseButton = page.getByRole('button', { name: /購買堂卡|購買未開放/ });
     await expect(purchaseButton).toBeVisible();
     const buttonText = await purchaseButton.textContent();
 
@@ -76,10 +76,7 @@ test.describe('Card Purchase Flow', () => {
 
     }
 
-    // ── Step 1: Record initial balance ──
-    await page.getByRole('tab', { name: '使用中' }).click();
-
-    // Get balance from the big number display (tab switch auto-renders; no timeout needed)
+    // ── Step 1: Record initial balance (on default '堂卡' tab) ──
     const balanceElement = page.locator('[data-testid="card-balance"]');
     let initialBalance = 0;
     if (await balanceElement.count() > 0) {
@@ -88,10 +85,10 @@ test.describe('Card Purchase Flow', () => {
     }
 
     // ── Step 2: Member clicks "立即購卡" ──
-    await page.getByRole('button', { name: '立即購卡' }).click();
+    await page.getByRole('button', { name: '購買堂卡' }).click();
 
     // Step 1 of purchase dialog: quantity selection
-    await expect(page.getByText('購買堂卡')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '購買堂卡' })).toBeVisible();
     await expect(page.getByText('選擇購買數量')).toBeVisible();
 
     // Default quantity should be 5
@@ -125,11 +122,9 @@ test.describe('Card Purchase Flow', () => {
     // Wait for success dialog to close (replaces waitForTimeout)
     await expect(page.getByText('訂單已建立')).not.toBeVisible({ timeout: 10000 });
 
-    // ── Step 3: Verify order appears in "未開通" tab ──
-    await page.getByRole('tab', { name: /未開通/ }).click();
-
-    // Should see a pending order with status "財務審核中" (remitted status)
-    await expect(page.getByText('財務審核中').first()).toBeVisible();
+    // ── Step 3: Verify order appears in pending section of '堂卡' tab ──
+    // Pending orders show under "待審核" section in the '堂卡' tab (default)
+    await expect(page.getByText('待審核').first()).toBeVisible();
     await expect(page.getByText('5 堂卡').first()).toBeVisible();
 
     // ── Step 4: Admin approves the order ──
@@ -157,9 +152,7 @@ test.describe('Card Purchase Flow', () => {
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
 
-    // Go to 使用中 tab
-    await page.getByRole('tab', { name: '使用中' }).click();
-
+    // Balance is on the default '堂卡' tab
     // Poll the balance display until it reflects the card purchase.
     // The alert above proves the action completed, but polling handles
     // any residual Next.js data-cache propagation delay.
@@ -176,11 +169,10 @@ test.describe('Card Purchase Flow', () => {
     }).toBe(expectedBalance);
 
     // ── Step 6: Verify FIFO expiry is displayed on the card pool ──
-    // The "使用中" tab shows active (confirmed) orders. Each order card displays
-    // the expiry date as "到期 YYYY-MM-DD" text. After approval, the newly
+    // The '堂卡' tab shows active (confirmed) orders. Each order card displays
+    // the expiry date as "YYYY-MM-DD 到期" text. After approval, the newly
     // issued card pool should have an expiry date visible.
-    // Card orders show "到期 YYYY" pattern in the active tab.
-    const expiryText = page.locator('text=/到期 \\d{4}/');
+    const expiryText = page.locator('text=/\\d{4}.*到期/');
     await expect(expiryText.first()).toBeVisible();
   });
 });

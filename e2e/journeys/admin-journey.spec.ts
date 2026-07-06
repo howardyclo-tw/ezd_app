@@ -20,18 +20,18 @@ test.describe.serial('Admin journey (5R.8)', () => {
         await loginAs(page, 'admin');
         await page.goto('/leader/approvals');
 
-        // Verify group header is visible
-        await expect(page.getByText(COURSE_GROUP_TITLE)).toBeVisible({ timeout: 10000 });
+        // Verify group title is visible (may appear on multiple cards; use .first() to avoid strict-mode violation)
+        await expect(page.getByText(COURSE_GROUP_TITLE).first()).toBeVisible({ timeout: 10000 });
 
         // Verify the seed courseFee order card is visible
         const orderCard = page.locator('[data-slot="card"]')
             .filter({ hasText: 'E2E Member' })
-            .filter({ hasText: '報名繳費' })
+            .filter({ hasText: '繳費' })
             .filter({ hasText: '54321' });
         await expect(orderCard).toBeVisible();
 
         // Verify order amount
-        await expect(orderCard.getByText('$800')).toBeVisible();
+        await expect(orderCard.getByText('800')).toBeVisible();
 
         // Verify remittance info box is shown
         await expect(orderCard.getByText('012')).toBeVisible();

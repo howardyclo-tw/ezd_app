@@ -45,7 +45,7 @@ test.describe('Card Purchase Unit — UI stepper enforcement', () => {
     await page.goto('/dashboard/my_cards');
 
     // Open purchase dialog
-    const purchaseButton = page.getByRole('button', { name: /立即購卡/ });
+    const purchaseButton = page.getByRole('button', { name: /購買堂卡/ });
     await expect(purchaseButton).toBeVisible({ timeout: 15000 });
     await purchaseButton.click();
 
@@ -72,8 +72,8 @@ test.describe('Card Purchase Unit — UI stepper enforcement', () => {
     await loginAs(page, 'member');
     await page.goto('/dashboard/my_cards');
 
-    await page.getByRole('button', { name: /立即購卡/ }).click();
-    await expect(page.getByText('購買堂卡')).toBeVisible();
+    await page.getByRole('button', { name: /購買堂卡/ }).click();
+    await expect(page.getByRole('heading', { name: '購買堂卡' })).toBeVisible();
 
     const qtyDisplay = page.locator('[data-testid="purchase-qty"]');
     await expect(qtyDisplay).toHaveText('5');

@@ -5,7 +5,37 @@ Guidance for Claude Code in this repository. **Sections 1–3 are binding agent 
 ## 1. Operating Rules (MUST)
 
 - Communicate with the user primarily in 繁體中文.
-- **MTK build = subagent-driven development** (user's standing authorization — no per-task re-confirmation needed). One task = an Implement phase and an INDEPENDENT Review phase, both pinned via `opts.model: 'claude-opus-4-6'` (fallback `claude-opus-4-8` if unavailable — tell the user). **Follow `docs/superpowers/mtk-execution-playbook.md` verbatim** for the script template, brief clauses, review schema, impact map, effort table, and phase-gate checklist.
+- **MTK build = subagent-driven development** (user's standing authorization). Full templates: `docs/superpowers/mtk-execution-playbook.md`. Critical steps inlined below (§1.1) to survive context compaction.
+- **Model dispatch architecture** (orchestrator coordinates, never implements beyond trivial < 5-line single-file fixes):
+  - **Implementation:** Backend/logic/DB → **Opus 4.6** subagent (fallback 4.8) · Frontend 外觀 → **Gemini via `/agy`** (`flash`/`pro`/`flash-low`; run: `bash /Users/Howard/.claude/plugins/cache/antigravity-cc/agy/0.4.1/scripts/agy-run.sh ask --model <alias> "<prompt>"`; fallback: Claude subagent) · Frontend 流程/UX → **Opus 4.6** subagent
+  - **Review:** Frontend 外觀 → **Gemini `pro`** via `/agy` · General non-frontend → **Fable 5** (`claude-fable-5`) · **Money/enrollment/pricing → Opus 4.6 (MUST escalate; never Fable for money)**
+  - **Effort:** `max`=money/RPC/authz/concurrency · `high`=normal impl + all reviews · `low/medium`=types/docs/seed/labels
+  - **Dispatch log:** append to `.superpowers/sdd/dispatch-log.jsonl` per dispatch: `{task, type, model, effort, tokens_in, tokens_out, wall_time_s, test_pass, reviewer_findings, user_rejected, retry_count}`.
+  - **Reflection:** at each phase end, read dispatch-log → analyze model perf → update memory.
+
+### 1.1 Task Execution Checklist (INLINE — survives context compaction)
+
+Every MTK task follows this exact sequence. **Skipping any step = workflow violation.** After context compaction the playbook file is NOT in context — this checklist IS.
+
+| Phase | Step | Who | Action |
+|-------|------|-----|--------|
+| **A. Pre** | 1 | orchestrator | Read plan entry (`docs/superpowers/plans/2026-07-02-mtk-features.md`) + relevant spec |
+| | 2 | orchestrator | **Tier the task**: 金流/守衛 (money/guard/RPC/authz) · 混合 (server+UI) · 純 UI · 測試/文件 |
+| | 3 | orchestrator | **Ground truth**: Read actual code (file:line), fixtures, guards → write into brief |
+| | 4 | orchestrator | Write IMPL brief with: scope, file:line targets, edge cases, adversarial test spec, anti-false-green clause |
+| **B. Impl** | 5 | subagent | Dispatch to correct model per tier (see dispatch table above) |
+| | 6 | orchestrator | Verify: `npx tsc --noEmit` + scoped spec only (NOT full suite) |
+| **C. Review** | 7 | subagent | Dispatch **independent** reviewer (correct model — money MUST be Opus 4.6) |
+| | 8 | reviewer | Runs full e2e (implementer does NOT run full suite) |
+| **D. Post** | 9 | orchestrator | **Immediately** append dispatch-log.jsonl (before moving to next task) |
+| | 10 | orchestrator | **Immediately** append progress.md ledger |
+| **E. Gate** | 11 | orchestrator | Phase end: one clean full e2e (single-threaded, no contention) |
+| | 12 | orchestrator | Update dashboard + redeploy Artifact (fixed URL) |
+| | 13 | orchestrator | Reflection → memory |
+
+### 1.2 Post-Compaction Re-Orient
+
+After context auto-compaction, CLAUDE.md is reloaded but external files (playbook, specs) are NOT. If you find yourself mid-task without having completed steps A→D above, **STOP** and backfill the missing steps before continuing. Common compaction-induced violations: skipping brief, wrong reviewer model, forgetting dispatch log, forgetting progress ledger.
 - **No self-review, ever.** The orchestrator never accepts a task by reading the diff itself; an independent reviewer verifies by running tests and MUTATION-TESTING guards (removed guard ⇒ test must go red). Reviewer severity labels do NOT override user rules: money/important features need 100% happy+adversarial coverage before a task counts as done.
 - **Anti-false-green:** adversarial tests must invoke the real server action, assert DB state, and fail if the guard were removed. No UI-only tests claiming server coverage; no tautological assertions.
 - **Test scope is assigned by the orchestrator** (impact map in the playbook), never chosen by the implementer (驗者不自驗). Implementer runs only its assigned specs; **the reviewer alone runs the full e2e suite** (two concurrent Playwright runs against the one dev server cause false timeouts); orchestrator does one clean full run at each phase end.

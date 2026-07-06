@@ -1,8 +1,6 @@
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { ChevronLeft } from 'lucide-react';
-import Link from 'next/link';
 import { MyCardsClient } from '@/components/dashboard/my-cards-client';
 import { isCardWindowOpen } from '@/lib/card-window';
 import { sanitizePurchaseUnit } from '@/lib/card-purchase';
@@ -27,10 +25,10 @@ export default async function MyCardsPage() {
     const isMember = profile?.role !== 'guest' &&
         (!groupValidUntil || groupValidUntil >= today);
 
-    // Fetch ALL orders (card_purchase + course_fee + membership_fee)
+    // Fetch ALL orders with group title join
     const { data: orders } = await supabase
         .from('orders')
-        .select('*')
+        .select('*, course_groups(title)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -74,16 +72,14 @@ export default async function MyCardsPage() {
         }))
         .sort((a, b) => (a.expires_at ?? '9999').localeCompare(b.expires_at ?? '9999'));
 
-    // For course_fee orders, fetch associated enrollment course names
-    const courseFeeOrders = (orders ?? []).filter(o => o.order_type === 'course_fee');
-    const courseFeeGroupIds = [...new Set(courseFeeOrders.map(o => o.course_group_id).filter(Boolean))];
-    let courseNamesByOrder: Record<string, string[]> = {};
-    if (courseFeeGroupIds.length > 0) {
-        const orderIds = courseFeeOrders.map(o => o.id);
+    // Fetch associated enrollment course names for ALL orders with order_id link
+    const allOrderIds = (orders ?? []).map(o => o.id);
+    const courseNamesByOrder: Record<string, string[]> = {};
+    if (allOrderIds.length > 0) {
         const { data: relatedEnrollments } = await supabase
             .from('enrollments')
             .select('order_id, courses ( name )')
-            .in('order_id', orderIds);
+            .in('order_id', allOrderIds);
         for (const e of relatedEnrollments ?? []) {
             if (!e.order_id) continue;
             if (!courseNamesByOrder[e.order_id]) courseNamesByOrder[e.order_id] = [];
@@ -94,7 +90,7 @@ export default async function MyCardsPage() {
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-            <MyCardsClient
+            <Suspense fallback={<div className="animate-pulse h-96" />}><MyCardsClient
                 balance={profile?.card_balance ?? 0}
                 cardPools={cardPools}
                 orders={(orders ?? []).map(o => ({
@@ -114,6 +110,8 @@ export default async function MyCardsPage() {
                     confirmed_at: o.confirmed_at,
                     used: o.used ?? 0,
                     courseNames: courseNamesByOrder[o.id] ?? [],
+                    groupTitle: (o.course_groups as any)?.title ?? null,
+                    courseGroupId: o.course_group_id ?? null,
                 }))}
                 isPurchaseOpen={isPurchaseOpen}
                 priceMember={priceMember}
@@ -122,7 +120,7 @@ export default async function MyCardsPage() {
                 purchaseUnit={purchaseUnit}
                 isMember={isMember}
                 bankInfo={bankInfo}
-            />
+            /></Suspense>
         </div>
     );
 }

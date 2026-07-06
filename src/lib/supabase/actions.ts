@@ -783,9 +783,22 @@ export async function cancelEnrollment(courseId: string): Promise<{ success: boo
         if (order?.status === 'confirmed') {
             return { success: false, message: '已確認的繳費單無法自行取消，請洽幹部。' };
         }
+
+        // Block partial cancel: if order has other active enrollments, redirect to cancel order
+        const adminClient = createAdminClient();
+        const { data: siblings } = await adminClient
+            .from('enrollments')
+            .select('id')
+            .eq('order_id', enrollment.order_id)
+            .in('status', ['enrolled', 'pending_payment', 'pending_vote'])
+            .neq('id', enrollment.id);
+
+        if (siblings && siblings.length > 0) {
+            return { success: false, message: '此報名屬於群組報名訂單，請透過「取消訂單」或「修改報名」來處理。' };
+        }
     }
 
-    // Self-cancel allowed: waitlist or pending_payment with non-confirmed order
+    // Self-cancel allowed: waitlist or pending_payment with non-confirmed order (single enrollment on order)
 
     // Cancel
     const { error } = await supabase
@@ -2982,8 +2995,8 @@ export async function cancelOrder(orderId: string, reason?: string): Promise<{ s
 
     if (error) return { success: false, message: '取消失敗' };
 
-    // For course_fee: cancel linked enrollments (releases seats since cancelled does not occupy)
-    if (order.order_type === 'course_fee') {
+    // Cancel linked enrollments (releases seats since cancelled does not occupy)
+    if (order.order_type === 'course_fee' || order.order_type === 'card_purchase') {
         const { error: enrollError } = await adminClient
             .from('enrollments')
             .update({
@@ -3124,6 +3137,55 @@ export async function confirmOrder(orderId: string): Promise<{ success: boolean;
             created_by: user.id,
         });
 
+        // Activate linked pending_payment enrollments (shortfall card order from group enrollment)
+        const { data: linkedPending } = await adminClient
+            .from('enrollments')
+            .select('id, course_id, courses ( cards_per_session, course_sessions ( id, session_date ) )')
+            .eq('order_id', orderId)
+            .eq('status', 'pending_payment');
+
+        if (linkedPending && linkedPending.length > 0) {
+            const { deductCardsFIFO } = await import('./card-utils');
+            const taipeiNow = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+            const activated: string[] = [];
+
+            for (const enrollment of linkedPending) {
+                const course = enrollment.courses as any;
+                const cardsPerSession = course?.cards_per_session ?? 0;
+                const sessions = (course?.course_sessions ?? []) as { id: string; session_date: string }[];
+                const futureSessions = sessions.filter(s => s.session_date >= taipeiNow);
+                const cardsToDeduct = cardsPerSession * futureSessions.length;
+
+                if (cardsToDeduct > 0) {
+                    const lastSession = [...sessions].sort((a, b) => b.session_date.localeCompare(a.session_date))[0]?.session_date ?? taipeiNow;
+                    try {
+                        await deductCardsFIFO(
+                            order.user_id,
+                            cardsToDeduct,
+                            lastSession,
+                            `整期報名扣卡（課程 ${enrollment.course_id.slice(0, 8)}，訂單 ${orderId.slice(0, 8)}）`,
+                            enrollment.id,
+                            user.id,
+                        );
+                    } catch {
+                        continue;
+                    }
+                }
+                activated.push(enrollment.id);
+            }
+
+            if (activated.length > 0) {
+                await adminClient.from('enrollments')
+                    .update({ status: 'enrolled' })
+                    .in('id', activated);
+            }
+
+            const msg = activated.length === linkedPending.length
+                ? `已核發 ${order.quantity} 堂卡並啟動 ${linkedPending.length} 筆報名`
+                : `已核發 ${order.quantity} 堂卡，啟動 ${activated.length}/${linkedPending.length} 筆報名（部分堂卡不足）`;
+            return { success: true, message: msg };
+        }
+
         return { success: true, message: `已核發 ${order.quantity} 堂卡給使用者` };
 
     } else if (order.order_type === 'course_fee') {
@@ -3195,8 +3257,10 @@ export async function rejectOrder(orderId: string, reason?: string): Promise<{ s
         // Sync balance from pools (rejected orders are excluded)
         const { syncCardBalance } = await import('./card-utils');
         await syncCardBalance(order.user_id);
-    } else if (order.order_type === 'course_fee') {
-        // Cancel linked enrollments (releases seats since cancelled does not occupy)
+    }
+
+    // Cancel linked enrollments for both card_purchase and course_fee
+    if (order.order_type === 'card_purchase' || order.order_type === 'course_fee') {
         const { error: enrollError } = await adminClient
             .from('enrollments')
             .update({
@@ -3789,6 +3853,7 @@ export async function submitGroupEnrollment(
                 include_membership: includeMembership,
                 expires_at: expiresAt,
                 order_type: 'card_purchase' as const,
+                course_group_id: payload.groupId,
             })
             .select('id')
             .single();

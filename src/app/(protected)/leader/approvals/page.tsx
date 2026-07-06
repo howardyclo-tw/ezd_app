@@ -99,11 +99,28 @@ export default async function LeaderApprovalsPage() {
         { data: singleEnrollments }
     ] = await Promise.all([cardOrderQuery, courseFeeOrderQuery, leaveQuery, makeupQuery, transferQuery, singleEnrollmentQuery]);
 
+    // Fetch associated enrollment course names for ALL payment orders
+    const allPaymentIds = [...(cardOrders || []), ...(courseFeeOrders || [])].map(o => o.id);
+    const courseNamesByOrder: Record<string, string[]> = {};
+    if (allPaymentIds.length > 0) {
+        const { data: relatedEnrollments } = await adminDb
+            .from('enrollments')
+            .select('order_id, courses ( name )')
+            .in('order_id', allPaymentIds);
+        for (const e of relatedEnrollments ?? []) {
+            if (!e.order_id) continue;
+            if (!courseNamesByOrder[e.order_id]) courseNamesByOrder[e.order_id] = [];
+            const courseName = (e.courses as any)?.name;
+            if (courseName) courseNamesByOrder[e.order_id].push(courseName);
+        }
+    }
+
     // Merge card_purchase + course_fee orders into one list, sorted by created_at desc
     const paymentOrders = [
         ...(cardOrders || []),
         ...(courseFeeOrders || []),
-    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    ].map(o => ({ ...o, courseNames: courseNamesByOrder[o.id] ?? [] }))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     return (
         <div className="container max-w-5xl py-6 space-y-6">

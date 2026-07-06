@@ -39,17 +39,17 @@ const review = await agent([ /* REVIEW 必備條款 + impl 報告內嵌 */ ].joi
 return { impl_report: impl, review }
 ```
 
-- **模型**:`opts.model: 'claude-opus-4-6'` 是唯一能釘住確切模型的方式(使用者指定)。若派工報 invalid model → 改 `'claude-opus-4-8'` 並回報使用者。
+- **模型**:`opts.model: 'claude-opus-4-6'` 是唯一能釘住確切模型的方式(使用者指定)。若派工報 invalid model → 改 `'claude-opus-4-8'` 並回報使用者。**審查模型依任務分級表選**(金流→Opus 4.6 強制、一般→`claude-fable-5` 可、UI→Gemini pro via /agy);模板裡的 review model 欄位要照分級改,不是永遠 opus-4-6。金流審查若沒顯式給 opus 模型,dispatch-guard hook 會擋。
 - **effort 表**:`max`=碰錢/並發/RPC/authz 的核心(如原子重報、結算);`high`=一般實作與所有審查;`low/medium`=純機械(型別、文案、種子、docs)。
 
 ## 任務分級(編排者在 brief 前先判定)
 
-| 級別 | 判定條件 | 審核方式 | 範例 |
-|------|---------|---------|------|
-| **金流/守衛** | 碰錢(訂單/扣卡/退款)、authz 守衛、RPC、併發 | 完整 mutation test + 獨占全套 e2e | 5R.1 identity guard, 5R.4 unit validation |
-| **混合(server+UI)** | 含 server action 呼叫的 UI 功能 | server 邏輯 mutation test + UI 視覺審查 | 5R.3 rebook UI, 5R.6 restrictions |
-| **純 UI** | 不含/不改 server logic,只改渲染/佈局/文案 | 視覺審查(截圖+token 掃描),免 mutation test | 5R.2 window states, 5R.5 personal center, 5R.7 group-by |
-| **測試/文件** | 只動 e2e/unit/docs,不改 app source | 編排者自驗,免獨立 reviewer | 5R.8 journey e2e |
+| 級別 | 判定條件 | 審核方式 | 審查模型 | 範例 |
+|------|---------|---------|---------|------|
+| **金流/守衛** | 碰錢(訂單/扣卡/退款)、authz 守衛、RPC、併發 | 完整 mutation test + 獨占全套 e2e | **Opus 4.6(hook 強制,永不 Fable)** | 5R.1 identity guard, 5R.4 unit validation |
+| **混合(server+UI)** | 含 server action 呼叫的 UI 功能 | server 邏輯 mutation test + UI 視覺審查 | server 部分 Opus 4.6;UI 部分 Gemini pro | 5R.3 rebook UI, 5R.6 restrictions |
+| **純 UI** | 不含/不改 server logic,只改渲染/佈局/文案 | 視覺審查(截圖+token 掃描),免 mutation test | Gemini pro via /agy | 5R.2 window states, 5R.5 personal center, 5R.7 group-by |
+| **測試/文件** | 只動 e2e/unit/docs,不改 app source | 編排者自驗,免獨立 reviewer | —(一般邏輯審查需要時用 Fable 5) | 5R.8 journey e2e |
 
 **合併規則**:相鄰同級 UI 任務若檔案高度重疊(≥60% 共同檔案)→ 合併為一個 task,省去重複 review 開銷。
 
@@ -114,11 +114,27 @@ return { impl_report: impl, review }
 
 ## 進度同步規則(強制)
 
-> PreToolUse hook `check-progress-sync.py` 在每次 `git commit` 時檢查:若 commit 包含 `src/` 或 `e2e/` 檔案,progress.md 必須也在 staging area。違反時警告(非阻斷)。
+> PreToolUse hook `check-progress-sync.py` 在每次 `git commit` 時檢查:若 commit 包含 `src/`、`e2e/` 或 `supabase/` 檔案,progress.md 必須也在 staging area。**違反時硬擋(exit 2)**;蓄意繞過(罕見):`touch .claude/allow-commit-nosync`(用一次即銷毀)。註:`.superpowers/` 被 gitignore 但 progress.md 是已追蹤例外,`git add` 會出 ignore 警告但照常 stage,屬正常。
 
 1. **每個 task commit 後**:立即 append task log entry 到 `.superpowers/sdd/progress.md`(格式見下)。
 2. **每個 phase 結尾**:更新 `docs/mtk-progress-dashboard.html` → 重新部署 Artifact(固定 URL)。
 3. **dashboard 與 ledger 不同步 = phase gate FAIL**:gate 時比對 dashboard 任務列表 vs ledger 已完成任務,不一致不得通過。
+
+## Enforcement Layer(hooks = 機器;本文件只是說明書)
+
+> 2026-07-06 教訓:context compaction 後,md 規則會被忘掉(D1/D2/D3 session 違反 8 步中 6 步)。文字規則不是 enforcement——以下 hooks 才是,全部確定性攔截、不依賴 agent 記憶。設定於 `.claude/settings.json`,腳本在 `.claude/hooks/`。
+
+| Hook | 事件 | 行為 |
+|------|------|------|
+| `sdd-session-context.py` | SessionStart(startup/resume/compact/clear) | 自動注入:branch/HEAD、未 commit 的 src 變更、HEAD 是否漏記 ledger、`current-task.json` 語意狀態、ledger 尾兩行、流程規則摘要。**compaction 失憶的直接解法** |
+| `sdd-dispatch-guard.py` | PreToolUse(Agent/Task/Workflow) | 金流字面(actions.ts/confirmOrder/扣卡/退款…)+ 實作或審查意圖 + 未顯式指定 opus 模型 → **硬擋**。繼承 session 模型也算弱(session 可能是 Fable)。bypass:`.claude/allow-weak-money-review`(一次性) |
+| `check-progress-sync.py` | PreToolUse(Bash git commit) | src/e2e/supabase 有 stage 但 progress.md 沒 stage → **硬擋**。bypass:`.claude/allow-commit-nosync`(一次性) |
+| `sdd-stop-gate.py` | Stop | HEAD(<24h)含 src 變更卻沒同 commit 更新 ledger、且 ledger 也沒有未 commit 的補記 → 擋一次提醒補記(respect stop_hook_active,不迴圈) |
+| `block-git-push.py` | PreToolUse(Bash) | 未經使用者要求的 push → 硬擋(既有) |
+
+**語意狀態檔 `.superpowers/sdd/current-task.json`**(gitignored,本地作業檔):編排者在每個步驟轉換時更新(task/tier/steps/next_action)。SessionStart hook 會自動注入它——compaction 後你會直接看到「上次做到哪、下一步是什麼」。hooks 不依賴此檔(它們自己從 git 推導),此檔只服務 re-orientation。
+
+**Hook 生效時機**:`.claude/settings.json` 的 hook 註冊在 session 啟動時快照;**新增**的事件註冊(SessionStart/Stop/Agent matcher)要下個 session 才生效,但**既有註冊指到的腳本內容**每次呼叫都重讀(改腳本立即生效)。
 
 ## Ledger 格式(`.superpowers/sdd/progress.md`,每 task append)
 

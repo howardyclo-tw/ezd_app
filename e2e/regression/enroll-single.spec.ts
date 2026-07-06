@@ -28,8 +28,7 @@ test.describe('Single-Session Enrollment', () => {
     // ── Step 1: Record initial card balance ──
     await page.goto('/dashboard/my_cards');
 
-    await page.getByRole('tab', { name: '使用中' }).click();
-
+    // Balance is on the default '堂卡' tab — no tab click needed
     const balanceEl = page.locator('[data-testid="card-balance"]');
     await expect(balanceEl).toBeVisible();
     const balText = await balanceEl.textContent();
@@ -108,9 +107,7 @@ test.describe('Single-Session Enrollment', () => {
     // ── Step 6: Verify balance decreased by 1 ──
     await page.goto('/dashboard/my_cards');
 
-    await page.getByRole('tab', { name: '使用中' }).click();
-
-    // Poll the balance display until it reflects the deduction.
+    // Poll the balance display (balance is on default '堂卡' tab) until it reflects the deduction.
     // Belt-and-suspenders: the toast already proves the action completed,
     // but polling handles any residual Next.js data-cache propagation delay.
     const expectedBalance = initialBalance - 1;

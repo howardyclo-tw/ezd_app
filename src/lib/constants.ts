@@ -57,10 +57,10 @@ export const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
 /** Order status badges (5R.5) */
 export const ORDER_STATUS_COLORS: Record<string, string> = {
     pending: 'bg-amber-500/10 text-amber-600',
-    remitted: 'bg-orange-500/10 text-orange-600',
+    remitted: 'bg-amber-500/10 text-amber-600',
     confirmed: 'bg-green-500/10 text-green-600',
     rejected: 'bg-red-500/10 text-red-500',
-    cancelled: 'bg-slate-500/10 text-slate-500',
+    cancelled: 'bg-red-500/10 text-red-500',
 };
 
 export const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -74,6 +74,12 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
 /** Order type labels */
 export const ORDER_TYPE_LABELS: Record<string, string> = {
     card_purchase: '堂卡',
-    course_fee: '課程費',
+    course_fee: '現金',
     membership_fee: '會費',
+};
+
+export const ORDER_TYPE_COLORS: Record<string, string> = {
+    card_purchase: 'bg-muted text-muted-foreground',
+    course_fee: 'bg-muted text-muted-foreground',
+    membership_fee: 'bg-muted text-muted-foreground',
 };

@@ -53,7 +53,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
 
     if (!hasWindow) {
         return (
-            <div className="container max-w-2xl py-16 text-center space-y-4">
+            <div className="container max-w-2xl mx-auto py-16 text-center space-y-4">
                 <CalendarOff className="h-12 w-12 mx-auto text-muted-foreground/40" />
                 <h2 className="text-xl font-bold">報名時段尚未設定</h2>
                 <p className="text-muted-foreground text-sm">此檔期的報名時段尚未開放，請稍後再來。</p>
@@ -68,7 +68,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
 
     if (now < windowStart!) {
         return (
-            <div className="container max-w-2xl py-16 text-center space-y-4">
+            <div className="container max-w-2xl mx-auto py-16 text-center space-y-4">
                 <CalendarOff className="h-12 w-12 mx-auto text-muted-foreground/40" />
                 <h2 className="text-xl font-bold">整期報名尚未開放</h2>
                 <p className="text-muted-foreground text-sm">
@@ -85,7 +85,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
 
     if (now > windowEnd!) {
         return (
-            <div className="container max-w-2xl py-16 text-center space-y-4">
+            <div className="container max-w-2xl mx-auto py-16 text-center space-y-4">
                 <CalendarOff className="h-12 w-12 mx-auto text-muted-foreground/40" />
                 <h2 className="text-xl font-bold">整期報名已截止</h2>
                 <p className="text-muted-foreground text-sm">
@@ -220,7 +220,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
         if (c.pricing_mode === 'free') {
             pricingBadge = '免費';
         } else if (c.pricing_mode === 'ntd') {
-            pricingBadge = 'NTD';
+            pricingBadge = '現金';
         } else {
             pricingBadge = '堂卡';
         }
@@ -282,6 +282,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             groupSlug={groupData.slug || groupData.id}
             existingEnrollments={existingEnrollments}
             purchaseUnit={purchaseUnit}
+            isMember={userIsMember}
         />
     );
 }
