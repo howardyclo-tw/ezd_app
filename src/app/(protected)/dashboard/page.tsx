@@ -237,8 +237,8 @@ export default async function DashboardPage() {
         <DashboardNavCard
           href={pendingOrdersCount ? "/dashboard/my_cards?tab=payments" : "/dashboard/my_cards"}
           icon={CreditCard}
-          title="我的堂卡・繳費"
-          description="管理餘額、購卡與繳費紀錄"
+          title="我的購買"
+          description="購卡、繳費與訂單管理"
           stats={[
             {
               label: "剩餘堂數",

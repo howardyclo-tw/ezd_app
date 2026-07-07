@@ -105,13 +105,15 @@ export default async function LeaderApprovalsPage() {
     if (allPaymentIds.length > 0) {
         const { data: relatedEnrollments } = await adminDb
             .from('enrollments')
-            .select('order_id, courses ( name )')
+            .select('order_id, courses ( name, teacher )')
             .in('order_id', allPaymentIds);
         for (const e of relatedEnrollments ?? []) {
             if (!e.order_id) continue;
             if (!courseNamesByOrder[e.order_id]) courseNamesByOrder[e.order_id] = [];
             const courseName = (e.courses as any)?.name;
-            if (courseName) courseNamesByOrder[e.order_id].push(courseName);
+            const teacher = (e.courses as any)?.teacher;
+            const display = teacher && courseName ? `${teacher} ${courseName}` : (courseName || '');
+            if (display) courseNamesByOrder[e.order_id].push(display);
         }
     }
 

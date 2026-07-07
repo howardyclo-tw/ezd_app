@@ -79,6 +79,7 @@ interface RegisterWizardClientProps {
     existingEnrollments?: ExistingEnrollment[];
     purchaseUnit?: number;
     isMember?: boolean;
+    bankInfo?: string;
 }
 
 type Step = 'select' | 'mv' | 'leader' | 'payment' | 'done';
@@ -99,6 +100,7 @@ export function RegisterWizardClient({
     existingEnrollments = [],
     purchaseUnit = 5,
     isMember = false,
+    bankInfo = '',
 }: RegisterWizardClientProps) {
     const router = useRouter();
     const hasExisting = existingEnrollments.length > 0;
@@ -541,7 +543,7 @@ export function RegisterWizardClient({
                     )}
 
                     <p className="text-xs text-muted-foreground">
-                        報名完成後，可至「個人中心」→「我的堂卡」→「繳費紀錄」查看繳費狀態與繳費方式。
+                        報名完成後，可至「個人中心」→「我的購買」查看繳費狀態。
                     </p>
 
                     {/* Buy cards option */}
@@ -663,8 +665,29 @@ export function RegisterWizardClient({
                         })}
                     </div>
 
+                    {results.some(r => r.status === 'pending_payment') && (
+                        <div className="border-2 border-amber-500/50 bg-amber-500/10 rounded-xl p-4 space-y-2">
+                            <p className="text-sm font-bold text-amber-600 flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                                報名尚未完成
+                            </p>
+                            <p className="text-sm text-foreground/80">
+                                您有待繳費的課程，未繳費的報名僅為佔位，不算報名成功。請儘速完成匯款。
+                            </p>
+                            {bankInfo && (
+                                <div className="mt-2 rounded-lg bg-background/60 p-3 space-y-1 border border-muted/30">
+                                    <p className="text-xs font-bold text-muted-foreground">匯款帳號</p>
+                                    <p className="text-sm font-medium whitespace-pre-line">{bankInfo}</p>
+                                </div>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                                匯款完成後，請至「我的購買」→「繳費紀錄」填寫匯款資訊。
+                            </p>
+                        </div>
+                    )}
+
                     <div className="border rounded-xl p-4 text-sm text-muted-foreground space-y-1">
-                        <p>如有需繳費的課程，請至「個人中心」→「我的堂卡」→「繳費紀錄」查看繳費方式與狀態。</p>
+                        <p>匯款完成後至「我的購買」填寫匯款資訊，待財務確認後即完成報名。</p>
                     </div>
 
                     <div className="flex justify-center gap-3 pt-4">
@@ -679,7 +702,7 @@ export function RegisterWizardClient({
                             onClick={() => router.push('/dashboard/my_cards?tab=payments')}
                             className="gap-2"
                         >
-                            前往個人中心
+                            前往我的購買
                         </Button>
                     </div>
                 </div>

@@ -8,7 +8,7 @@ Guidance for Claude Code in this repository. **Sections 1–3 are binding agent 
 - **MTK build = subagent-driven development** (user's standing authorization). Full templates: `docs/superpowers/mtk-execution-playbook.md`. Critical steps inlined below (§1.1) to survive context compaction.
 - **Model dispatch architecture** (orchestrator coordinates, never implements beyond trivial < 5-line single-file fixes):
   - **Implementation:** Backend/logic/DB → **Opus 4.6** subagent (fallback 4.8) · Frontend 外觀 → **Gemini via `/agy`** (`flash`/`pro`/`flash-low`; run: `bash /Users/Howard/.claude/plugins/cache/antigravity-cc/agy/0.4.1/scripts/agy-run.sh ask --model <alias> "<prompt>"`; fallback: Claude subagent) · Frontend 流程/UX → **Opus 4.6** subagent
-  - **Review:** Frontend 外觀 → **Gemini `pro`** via `/agy` · General non-frontend → **Fable 5** (`claude-fable-5`) · **Money/enrollment/pricing → Opus 4.6 (MUST escalate; never Fable for money)**
+  - **Review:** Frontend 外觀 → **Gemini `pro`** via `/agy` · All other (including money/enrollment/pricing) → **Fable 5** (`claude-fable-5`) as default · Fable unavailable → fallback **Opus 4.6**
   - **Effort:** `max`=money/RPC/authz/concurrency · `high`=normal impl + all reviews · `low/medium`=types/docs/seed/labels
   - **Dispatch log:** append to `.superpowers/sdd/dispatch-log.jsonl` per dispatch: `{task, type, model, effort, tokens_in, tokens_out, wall_time_s, test_pass, reviewer_findings, user_rejected, retry_count}`.
   - **Reflection:** at each phase end, read dispatch-log → analyze model perf → update memory.
@@ -25,7 +25,7 @@ Every MTK task follows this exact sequence. **Skipping any step = workflow viola
 | | 4 | orchestrator | Write IMPL brief with: scope, file:line targets, edge cases, adversarial test spec, anti-false-green clause |
 | **B. Impl** | 5 | subagent | Dispatch to correct model per tier (see dispatch table above) |
 | | 6 | orchestrator | Verify: `npx tsc --noEmit` + scoped spec only (NOT full suite) |
-| **C. Review** | 7 | subagent | Dispatch **independent** reviewer (correct model — money MUST be Opus 4.6) |
+| **C. Review** | 7 | subagent | Dispatch **independent** reviewer (default Fable 5; fallback Opus 4.6 if Fable unavailable; frontend visual → Gemini pro) |
 | | 8 | reviewer | Runs full e2e (implementer does NOT run full suite) |
 | **D. Post** | 9 | orchestrator | **Immediately** append dispatch-log.jsonl (before moving to next task) |
 | | 10 | orchestrator | **Immediately** append progress.md ledger |

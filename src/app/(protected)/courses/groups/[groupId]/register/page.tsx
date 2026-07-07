@@ -108,6 +108,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
         { data: userEnrollments },
         { data: openPolls },
         { data: purchaseUnitRow },
+        { data: bankInfoRow },
     ] = await Promise.all([
         adminDb
             .from('courses')
@@ -137,6 +138,11 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             .from('system_config')
             .select('value')
             .eq('key', 'card_purchase_unit')
+            .maybeSingle(),
+        adminDb
+            .from('system_config')
+            .select('value')
+            .eq('key', 'bank_info')
             .maybeSingle(),
     ]);
 
@@ -271,6 +277,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
     });
 
     const purchaseUnit = parseInt(purchaseUnitRow?.value ?? '5', 10) || 5;
+    const bankInfo = bankInfoRow?.value ?? '';
 
     return (
         <RegisterWizardClient
@@ -283,6 +290,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             existingEnrollments={existingEnrollments}
             purchaseUnit={purchaseUnit}
             isMember={userIsMember}
+            bankInfo={bankInfo}
         />
     );
 }
