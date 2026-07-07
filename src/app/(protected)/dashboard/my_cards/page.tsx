@@ -74,7 +74,7 @@ export default async function MyCardsPage() {
 
     // Fetch associated enrollment course names for ALL orders with order_id link
     const allOrderIds = (orders ?? []).map(o => o.id);
-    const courseNamesByOrder: Record<string, string[]> = {};
+    const courseDetailsByOrder: Record<string, { name: string; teacher: string | null }[]> = {};
     if (allOrderIds.length > 0) {
         const { data: relatedEnrollments } = await supabase
             .from('enrollments')
@@ -82,11 +82,10 @@ export default async function MyCardsPage() {
             .in('order_id', allOrderIds);
         for (const e of relatedEnrollments ?? []) {
             if (!e.order_id) continue;
-            if (!courseNamesByOrder[e.order_id]) courseNamesByOrder[e.order_id] = [];
-            const courseName = (e.courses as any)?.name;
-            const teacher = (e.courses as any)?.teacher;
-            const display = teacher && courseName ? `${teacher} ${courseName}` : (courseName || '');
-            if (display) courseNamesByOrder[e.order_id].push(display);
+            if (!courseDetailsByOrder[e.order_id]) courseDetailsByOrder[e.order_id] = [];
+            const name = (e.courses as any)?.name ?? '';
+            const teacher = (e.courses as any)?.teacher ?? null;
+            if (name) courseDetailsByOrder[e.order_id].push({ name, teacher });
         }
     }
 
@@ -111,7 +110,7 @@ export default async function MyCardsPage() {
                     created_at: o.created_at,
                     confirmed_at: o.confirmed_at,
                     used: o.used ?? 0,
-                    courseNames: courseNamesByOrder[o.id] ?? [],
+                    courseDetails: courseDetailsByOrder[o.id] ?? [],
                     groupTitle: (o.course_groups as any)?.title ?? null,
                     courseGroupId: o.course_group_id ?? null,
                 }))}

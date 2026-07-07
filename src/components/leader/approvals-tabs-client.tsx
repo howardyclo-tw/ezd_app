@@ -209,7 +209,7 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
         const typeColor = ORDER_TYPE_COLORS[req.order_type] ?? 'bg-muted text-muted-foreground';
         const statusColor = ORDER_STATUS_COLORS[req.status] ?? '';
         const statusLabel = ORDER_STATUS_LABELS[req.status] ?? req.status;
-        const courseNames: string[] = req.courseNames ?? [];
+        const courseDetails: { name: string; teacher: string | null }[] = req.courseDetails ?? [];
         return (
             <Card key={req.id} className={cn(
                 "relative overflow-hidden border-muted/50 bg-card/40 shadow-sm transition-all hover:border-primary/30 hover:shadow-md",
@@ -242,17 +242,17 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
                                     {req.total_amount > (req.quantity * req.unit_price) && (
                                         <span className="text-xs text-muted-foreground">（{req.quantity} × NT$ {req.unit_price} + 社員年費 NT$ 1,800）</span>
                                     )}
-                                    {courseNames.length > 0 && (
-                                        <div className="text-xs text-muted-foreground">報名課程：{courseNames.join('、')}</div>
+                                    {courseDetails.length > 0 && (
+                                        <div className="text-xs text-muted-foreground">報名課程：{courseDetails.map(c => c.teacher ? `${c.teacher} ${c.name}` : c.name).join('、')}</div>
                                     )}
                                 </div>
                             )}
                             {isCourseFeeOrder && (
                                 <div className="space-y-1">
                                     <span>繳費 NT$ {(req.amount ?? 0).toLocaleString()}</span>
-                                    {courseNames.length > 0 && (
+                                    {courseDetails.length > 0 && (
                                         <div className="text-xs text-muted-foreground">
-                                            {courseNames.join('、')}
+                                            {courseDetails.map(c => c.teacher ? `${c.teacher} ${c.name}` : c.name).join('、')}
                                         </div>
                                     )}
                                 </div>

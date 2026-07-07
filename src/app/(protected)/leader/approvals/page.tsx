@@ -101,7 +101,7 @@ export default async function LeaderApprovalsPage() {
 
     // Fetch associated enrollment course names for ALL payment orders
     const allPaymentIds = [...(cardOrders || []), ...(courseFeeOrders || [])].map(o => o.id);
-    const courseNamesByOrder: Record<string, string[]> = {};
+    const courseDetailsByOrder: Record<string, { name: string; teacher: string | null }[]> = {};
     if (allPaymentIds.length > 0) {
         const { data: relatedEnrollments } = await adminDb
             .from('enrollments')
@@ -109,11 +109,10 @@ export default async function LeaderApprovalsPage() {
             .in('order_id', allPaymentIds);
         for (const e of relatedEnrollments ?? []) {
             if (!e.order_id) continue;
-            if (!courseNamesByOrder[e.order_id]) courseNamesByOrder[e.order_id] = [];
-            const courseName = (e.courses as any)?.name;
-            const teacher = (e.courses as any)?.teacher;
-            const display = teacher && courseName ? `${teacher} ${courseName}` : (courseName || '');
-            if (display) courseNamesByOrder[e.order_id].push(display);
+            if (!courseDetailsByOrder[e.order_id]) courseDetailsByOrder[e.order_id] = [];
+            const name = (e.courses as any)?.name ?? '';
+            const teacher = (e.courses as any)?.teacher ?? null;
+            if (name) courseDetailsByOrder[e.order_id].push({ name, teacher });
         }
     }
 
@@ -121,7 +120,7 @@ export default async function LeaderApprovalsPage() {
     const paymentOrders = [
         ...(cardOrders || []),
         ...(courseFeeOrders || []),
-    ].map(o => ({ ...o, courseNames: courseNamesByOrder[o.id] ?? [] }))
+    ].map(o => ({ ...o, courseDetails: courseDetailsByOrder[o.id] ?? [] }))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     return (

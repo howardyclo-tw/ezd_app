@@ -14,7 +14,7 @@ import {
     DialogFooter,
     DialogDescription
 } from '@/components/ui/dialog';
-import { CreditCard, Plus, Minus, CheckCircle2, ChevronLeft, Check, XCircle } from 'lucide-react';
+import { CreditCard, Plus, Minus, CheckCircle2, ChevronLeft, Check, XCircle, User, BookOpen, Calendar } from 'lucide-react';
 import { cancelCardOrder as _cancelCardOrder, cancelOrder as _cancelOrder, createCardOrderWithRemittance as _createCardOrderWithRemittance, submitRemittanceInfo as _submitRemittanceInfo } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 const cancelCardOrder = safe(_cancelCardOrder);
@@ -43,7 +43,7 @@ interface CardOrder {
     created_at: string;
     confirmed_at: string | null;
     used: number;
-    courseNames: string[];
+    courseDetails: { name: string; teacher: string | null }[];
     groupTitle: string | null;
     courseGroupId: string | null;
 }
@@ -198,61 +198,145 @@ export function MyCardsClient({
         const isEditing = editingOrderId === order.id;
         const displayAmount = order.order_type === 'course_fee' ? (order.amount ?? order.total_amount) : order.total_amount;
         const isGroupCardPurchase = order.order_type === 'card_purchase' && !!order.courseGroupId;
-        const summary = order.order_type === 'card_purchase'
-            ? isGroupCardPurchase ? `整期報名購卡 ×${order.quantity}` : `堂卡購買 ×${order.quantity}`
-            : order.courseNames.length > 0
-                ? order.courseNames.join('、')
-                : typeLabel;
 
         return (
             <Card key={order.id} className={cn(
-                "border-muted/60 shadow-sm rounded-xl overflow-hidden transition-all hover:shadow-md hover:border-primary/20",
-                isEditable && "border-l-2 border-l-amber-500/70",
+                "border border-border/40 bg-muted/20 shadow-sm rounded-xl overflow-hidden transition-all hover:shadow-md hover:border-orange-500/20",
+                isEditable && "border-l-2 border-l-orange-500",
                 (order.status === 'cancelled' || order.status === 'rejected') && "opacity-50 hover:opacity-70 hover:shadow-none"
             )}>
-                <div className="p-4 sm:p-5 space-y-3">
+                <div className="p-4 sm:p-5 space-y-4">
                     <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-2 min-w-0 flex-1">
+                        <div className="space-y-1.5 min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                <Badge variant="secondary" className={cn("text-xs h-5 px-1.5 font-medium border-none shrink-0", typeColor)}>
+                                <Badge variant="secondary" className={cn("text-[10px] sm:text-xs h-5 px-2 font-bold border-none shrink-0", typeColor)}>
                                     {typeLabel}
                                 </Badge>
-                                <Badge variant="outline" className={cn("text-xs h-5 px-1.5 border-none font-bold shrink-0", statusColor)}>
+                                <Badge variant="outline" className={cn("text-[10px] sm:text-xs h-5 px-2 border-none font-bold shrink-0", statusColor)}>
                                     {statusLabel}
                                 </Badge>
+                                <span className="text-[11px] text-muted-foreground/80 font-medium shrink-0 flex items-center gap-1 sm:ml-2">
+                                    <Calendar className="h-3.5 w-3.5 opacity-60" />
+                                    {order.created_at.slice(0, 10)}
+                                </span>
                             </div>
                             {order.groupTitle && (
-                                <p className="text-xs text-muted-foreground font-medium">{order.groupTitle}</p>
-                            )}
-                            <h3 className="text-sm font-bold leading-tight">{summary}</h3>
-                            {order.order_type === 'card_purchase' && (
-                                <p className="text-xs text-muted-foreground">
-                                    {order.quantity} 堂 × NT$ {order.unit_price}
-                                    {order.total_amount > (order.quantity * order.unit_price) && ' + 社員年費 NT$ 1,800'}
+                                <p className="text-xs text-orange-500 font-bold bg-orange-500/10 px-2 py-0.5 rounded w-fit tracking-tight border border-orange-500/10">
+                                    {order.groupTitle}
                                 </p>
                             )}
-                            {isGroupCardPurchase && order.courseNames.length > 0 && (
-                                <div className="text-xs text-muted-foreground">
-                                    報名課程：{order.courseNames.join('、')}
-                                </div>
-                            )}
-                            <p className="text-xs text-muted-foreground">{order.created_at.slice(0, 10)}</p>
                         </div>
-                        <p className="text-sm font-black shrink-0 tabular-nums">NT$ {displayAmount.toLocaleString()}</p>
+                        <div className="text-right shrink-0">
+                            <span className="text-[10px] text-muted-foreground font-semibold block tracking-wider uppercase mb-0.5">總額</span>
+                            <p className="text-[15px] font-bold text-foreground tracking-tight tabular-nums">NT$ {displayAmount.toLocaleString()}</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        {order.order_type === 'course_fee' ? (
+                            order.courseDetails.length > 0 ? (
+                                <div className="space-y-2.5">
+                                    <div className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground tracking-wider uppercase">
+                                        <BookOpen className="h-3.5 w-3.5 text-orange-500/80" />
+                                        <span>報名課程</span>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        {order.courseDetails.map((c, idx) => (
+                                            <div key={idx} className="flex flex-col p-3 rounded-lg bg-muted/30 border border-border/20 hover:bg-muted/40 transition-colors">
+                                                <span className="text-[14px] font-bold text-foreground tracking-tight leading-snug">
+                                                    {c.name}
+                                                </span>
+                                                {c.teacher && (
+                                                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground">
+                                                        <User className="h-3.5 w-3.5 text-muted-foreground/60" />
+                                                        <span>{c.teacher} 老師</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-3 rounded-lg bg-muted/30 border border-border/20">
+                                    <h3 className="text-[14px] font-bold tracking-tight text-foreground">{typeLabel}</h3>
+                                </div>
+                            )
+                        ) : order.order_type === 'card_purchase' ? (
+                            <div className="space-y-3">
+                                <div className="p-3 rounded-lg bg-muted/30 border border-border/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div className="space-y-1">
+                                        <h3 className="text-[14px] font-bold tracking-tight text-foreground">
+                                            {isGroupCardPurchase ? '整期報名購卡' : '堂卡購買'}
+                                        </h3>
+                                        <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                            <span>{order.quantity} 堂 × NT$ {order.unit_price}</span>
+                                            {order.total_amount > (order.quantity * order.unit_price) && (
+                                                <>
+                                                    <span className="text-muted-foreground/50">•</span>
+                                                    <span className="text-orange-500/90 font-medium">含社員年費 NT$ 1,800</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="text-[11px] font-bold text-orange-500 bg-orange-500/10 px-2 py-1 rounded-md shrink-0 self-start sm:self-center border border-orange-500/20">
+                                        ×{order.quantity} 堂
+                                    </div>
+                                </div>
+
+                                {isGroupCardPurchase && order.courseDetails.length > 0 && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground tracking-wider uppercase">
+                                            <BookOpen className="h-3.5 w-3.5 text-orange-500/80" />
+                                            <span>對應報名課程</span>
+                                        </div>
+                                        <div className="grid gap-2">
+                                            {order.courseDetails.map((c, idx) => (
+                                                <div key={idx} className="flex flex-col p-2.5 rounded-lg bg-muted/10 border border-border/10">
+                                                    <span className="text-[13px] font-bold text-foreground tracking-tight leading-snug">
+                                                        {c.name}
+                                                    </span>
+                                                    {c.teacher && (
+                                                        <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                                                            <User className="h-3 w-3 text-muted-foreground/60" />
+                                                            <span>{c.teacher} 老師</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="p-3 rounded-lg bg-muted/30 border border-border/20">
+                                <h3 className="text-[14px] font-bold tracking-tight text-foreground">{typeLabel}</h3>
+                            </div>
+                        )}
                     </div>
 
                     {['remitted', 'confirmed', 'rejected'].includes(order.status) && order.remittance_bank_code && !isEditing && (
-                        <div className="bg-muted/30 rounded-lg p-3 text-xs flex flex-wrap items-center gap-x-4 gap-y-1">
-                            <span><span className="text-muted-foreground">銀行</span> {order.remittance_bank_code}</span>
-                            <span><span className="text-muted-foreground">末五碼</span> {order.remittance_account_last5}</span>
+                        <div className="bg-muted/30 border border-border/10 rounded-lg p-3 text-xs flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+                            <span><span className="font-semibold text-foreground/80 mr-1">銀行:</span> {order.remittance_bank_code}</span>
+                            <span><span className="font-semibold text-foreground/80 mr-1">末五碼:</span> {order.remittance_account_last5}</span>
                             {order.remittance_date && (
-                                <span><span className="text-muted-foreground">匯款時間</span> {new Date(order.remittance_date).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                                <span>
+                                    <span className="font-semibold text-foreground/80 mr-1">匯款時間:</span> 
+                                    {new Date(order.remittance_date).toLocaleString('zh-TW', { 
+                                        month: '2-digit', 
+                                        day: '2-digit', 
+                                        hour: '2-digit', 
+                                        minute: '2-digit', 
+                                        hour12: false 
+                                    })}
+                                </span>
                             )}
                         </div>
                     )}
 
                     {order.status === 'rejected' && (
-                        <p className="text-xs text-destructive">此筆繳費已被駁回，如有疑問請聯繫幹部。</p>
+                        <p className="text-xs text-destructive font-medium bg-destructive/10 border border-destructive/20 p-2.5 rounded-lg">
+                            此筆繳費已被駁回，如有疑問請聯繫幹部。
+                        </p>
                     )}
 
                     {isEditing && (
@@ -285,13 +369,13 @@ export function MyCardsClient({
                     {isEditable && !isEditing && (
                         <div className="flex gap-2 justify-end pt-1">
                             {order.status === 'pending' && (
-                                <Button variant="outline" size="sm" className="h-7 text-xs font-bold"
+                                <Button variant="outline" size="sm" className="h-7 text-xs font-bold border-orange-500/30 text-orange-500 hover:bg-orange-500/10"
                                     onClick={() => { setEditingOrderId(order.id); setEditBankCode(order.remittance_bank_code ?? ''); setEditLast5(order.remittance_account_last5 ?? ''); setEditRemDate(''); setEditRemNote(''); }}>
                                     補匯款
                                 </Button>
                             )}
                             {order.status === 'remitted' && (
-                                <Button variant="outline" size="sm" className="h-7 text-xs font-bold"
+                                <Button variant="outline" size="sm" className="h-7 text-xs font-bold border-orange-500/30 text-orange-500 hover:bg-orange-500/10"
                                     onClick={() => { setEditingOrderId(order.id); setEditBankCode(order.remittance_bank_code ?? ''); setEditLast5(order.remittance_account_last5 ?? ''); setEditRemDate(order.remittance_date ?? ''); setEditRemNote(order.remittance_note ?? ''); }}>
                                     更正匯款
                                 </Button>
@@ -335,11 +419,11 @@ export function MyCardsClient({
             </div>
 
             {/* Tabs */}
-            <div className="w-full max-w-lg mx-auto mt-6 sm:mt-8">
-                <Tabs defaultValue={defaultTab} className="w-full">
+            <div className="w-full mt-6 sm:mt-8">
+                <Tabs defaultValue={defaultTab} className="w-full sm:w-auto">
                     <div className="flex justify-center mb-8 px-4 sm:px-0">
-                        <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-2">
-                            <TabsTrigger value="cards" className="text-sm font-bold data-[state=active]:shadow-sm">
+                        <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-2 sm:flex sm:grid-cols-none sm:w-auto">
+                            <TabsTrigger value="cards" className="text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                                 堂卡
                                 {pendingCardOrders.length > 0 && (
                                     <span className="ml-1.5 bg-amber-500/20 text-amber-600 px-1.5 py-0.5 text-xs rounded-full leading-none font-bold">
@@ -347,7 +431,7 @@ export function MyCardsClient({
                                     </span>
                                 )}
                             </TabsTrigger>
-                            <TabsTrigger value="payments" className="text-sm font-bold data-[state=active]:shadow-sm">
+                            <TabsTrigger value="payments" className="text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                                 繳費紀錄
                                 {pendingCount > 0 && (
                                     <span className="ml-1.5 bg-amber-500/20 text-amber-600 px-1.5 py-0.5 text-xs rounded-full leading-none font-bold">
@@ -507,14 +591,26 @@ export function MyCardsClient({
                 {/* ===== 繳費紀錄 Tab ===== */}
                 <TabsContent value="payments" className="space-y-4 m-0 border-none p-0 outline-none">
                     {/* Filter chips */}
-                    <div className="flex gap-1.5">
-                        {([['all', '全部'], ['card_purchase', '堂卡'], ['course_fee', '現金']] as const).map(([key, label]) => (
-                            <Button key={key} variant={paymentFilter === key ? 'default' : 'outline'} size="sm"
-                                className={cn("h-7 text-xs font-bold rounded-full px-3", paymentFilter !== key && "text-muted-foreground")}
-                                onClick={() => setPaymentFilter(key)}>
-                                {label}
-                            </Button>
-                        ))}
+                    <div className="flex gap-2">
+                        {([['all', '全部'], ['card_purchase', '堂卡'], ['course_fee', '現金']] as const).map(([key, label]) => {
+                            const isActive = paymentFilter === key;
+                            return (
+                                <Button
+                                    key={key}
+                                    variant={isActive ? 'default' : 'outline'}
+                                    size="sm"
+                                    className={cn(
+                                        "h-7 text-xs font-bold rounded-full px-4 border border-border/40 transition-all",
+                                        isActive
+                                            ? "bg-orange-600 hover:bg-orange-700 text-white border-transparent shadow-sm"
+                                            : "bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                                    )}
+                                    onClick={() => setPaymentFilter(key)}
+                                >
+                                    {label}
+                                </Button>
+                            );
+                        })}
                     </div>
 
                     {filteredOrders.length === 0 ? (
