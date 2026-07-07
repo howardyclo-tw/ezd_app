@@ -20,3 +20,4 @@
 {"task":"5R-UX-round2","type":"impl-data","model":"opus-4-6","effort":"medium","tokens_in":8000,"tokens_out":4000,"wall_time_s":80,"test_pass":true,"reviewer_findings":0,"user_rejected":false,"retry_count":0}
 {"task":"5R-UX-round2","type":"impl-visual","model":"gemini-flash(/agy)","effort":"high","tokens_in":6000,"tokens_out":8000,"wall_time_s":329,"test_pass":true,"reviewer_findings":1,"user_rejected":false,"retry_count":0}
 {"task":"5R-UX-round2","type":"review","model":"opus-4-6","effort":"high","tokens_in":60000,"tokens_out":12000,"wall_time_s":497,"test_pass":true,"reviewer_findings":1,"user_rejected":false,"retry_count":0}
+{"task":"5R-UX-round2-testfix","type":"impl-fix","model":"orchestrator-trivial","effort":"low","tokens_in":500,"tokens_out":200,"wall_time_s":120,"test_pass":true,"reviewer_findings":0,"user_rejected":false,"retry_count":0,"note":"繳費合計 total line + test locator .first() fix. 3 files, trivial < 5 line each."}

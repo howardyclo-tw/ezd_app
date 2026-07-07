@@ -7,7 +7,7 @@ Guidance for Claude Code in this repository. **Sections 1–3 are binding agent 
 - Communicate with the user primarily in 繁體中文.
 - **MTK build = subagent-driven development** (user's standing authorization). Full templates: `docs/superpowers/mtk-execution-playbook.md`. Critical steps inlined below (§1.1) to survive context compaction.
 - **Model dispatch architecture** (orchestrator coordinates, never implements beyond trivial < 5-line single-file fixes):
-  - **Implementation:** Backend/logic/DB → **Opus 4.6** subagent (fallback 4.8) · Frontend 外觀 → **Gemini via `/agy`** (`flash`/`pro`/`flash-low`; run: `bash /Users/Howard/.claude/plugins/cache/antigravity-cc/agy/0.4.1/scripts/agy-run.sh ask --model <alias> "<prompt>"`; fallback: Claude subagent) · Frontend 流程/UX → **Opus 4.6** subagent
+  - **Implementation:** Backend/logic/DB → **Opus 4.6** subagent (fallback 4.8) · Frontend 外觀 → **Gemini `pro` via `/agy`** for quality visual work (only `flash` for trivial CSS fixes like dark: variants or text-size; run: `bash /Users/Howard/.claude/plugins/cache/antigravity-cc/agy/0.4.1/scripts/agy-run.sh ask --model <alias> "<prompt>"`; fallback: Claude subagent) · Frontend 流程/UX → **Opus 4.6** subagent
   - **Review:** Frontend 外觀 → **Gemini `pro`** via `/agy` · All other (including money/enrollment/pricing) → **Fable 5** (`claude-fable-5`) as default · Fable unavailable → fallback **Opus 4.6**
   - **Effort:** `max`=money/RPC/authz/concurrency · `high`=normal impl + all reviews · `low/medium`=types/docs/seed/labels
   - **Dispatch log:** append to `.superpowers/sdd/dispatch-log.jsonl` per dispatch: `{task, type, model, effort, tokens_in, tokens_out, wall_time_s, test_pass, reviewer_findings, user_rejected, retry_count}`.

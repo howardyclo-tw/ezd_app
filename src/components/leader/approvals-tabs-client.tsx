@@ -248,12 +248,29 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
                                 </div>
                             )}
                             {isCourseFeeOrder && (
-                                <div className="space-y-1">
-                                    <span>繳費 NT$ {(req.amount ?? 0).toLocaleString()}</span>
-                                    {courseDetails.length > 0 && (
-                                        <div className="text-xs text-muted-foreground">
-                                            {courseDetails.map(c => c.teacher ? `${c.teacher} ${c.name}` : c.name).join('、')}
+                                <div className="space-y-2">
+                                    {courseDetails.length > 0 ? (
+                                        <div className="grid gap-2">
+                                            {courseDetails.map((c, idx) => (
+                                                <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 border border-border/20 gap-3">
+                                                    <div className="min-w-0 flex-1">
+                                                        <span className="text-sm font-bold text-foreground tracking-tight block">{c.name}</span>
+                                                        {c.teacher && (
+                                                            <span className="text-xs text-muted-foreground">{c.teacher} 老師</span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-sm font-bold text-foreground tabular-nums shrink-0">
+                                                        NT$ {Math.round((req.amount ?? 0) / courseDetails.length).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                            <div className="flex items-center justify-between pt-1 text-xs text-muted-foreground">
+                                                <span>繳費合計</span>
+                                                <span className="font-medium tabular-nums">NT$ {(req.amount ?? 0).toLocaleString()}</span>
+                                            </div>
                                         </div>
+                                    ) : (
+                                        <span className="text-sm font-medium">繳費 NT$ {(req.amount ?? 0).toLocaleString()}</span>
                                     )}
                                 </div>
                             )}

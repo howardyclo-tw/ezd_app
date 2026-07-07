@@ -30,8 +30,8 @@ test.describe.serial('Admin journey (5R.8)', () => {
             .filter({ hasText: '54321' });
         await expect(orderCard).toBeVisible();
 
-        // Verify order amount
-        await expect(orderCard.getByText('800')).toBeVisible();
+        // Verify order amount (may appear in per-course breakdown + total)
+        await expect(orderCard.getByText('800').first()).toBeVisible();
 
         // Verify remittance info box is shown
         await expect(orderCard.getByText('012')).toBeVisible();

@@ -92,8 +92,8 @@ test.describe('Review Center: Course Fee Payment Tab', () => {
       .filter({ hasText: '54321' });
     await expect(orderCard).toBeVisible({ timeout: 10000 });
 
-    // Verify order details: amount, remittance info
-    await expect(orderCard.getByText('800')).toBeVisible();
+    // Verify order details: amount, remittance info (may appear in per-course breakdown + total)
+    await expect(orderCard.getByText('800').first()).toBeVisible();
     await expect(orderCard.getByText('012')).toBeVisible();
 
     // Verify course group title is visible (may appear on multiple cards)

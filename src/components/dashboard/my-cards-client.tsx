@@ -242,16 +242,21 @@ export function MyCardsClient({
                                     </div>
                                     <div className="grid gap-2">
                                         {order.courseDetails.map((c, idx) => (
-                                            <div key={idx} className="flex flex-col p-3 rounded-lg bg-muted/30 border border-border/20 hover:bg-muted/40 transition-colors">
-                                                <span className="text-[14px] font-bold text-foreground tracking-tight leading-snug">
-                                                    {c.name}
+                                            <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/20 hover:bg-muted/40 transition-colors gap-3">
+                                                <div className="min-w-0 flex-1">
+                                                    <span className="text-[14px] font-bold text-foreground tracking-tight leading-snug block">
+                                                        {c.name}
+                                                    </span>
+                                                    {c.teacher && (
+                                                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                                                            <User className="h-3.5 w-3.5 text-muted-foreground/60" />
+                                                            <span>{c.teacher} 老師</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <span className="text-sm font-bold text-foreground tabular-nums shrink-0">
+                                                    NT$ {Math.round(displayAmount / order.courseDetails.length).toLocaleString()}
                                                 </span>
-                                                {c.teacher && (
-                                                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground">
-                                                        <User className="h-3.5 w-3.5 text-muted-foreground/60" />
-                                                        <span>{c.teacher} 老師</span>
-                                                    </div>
-                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -419,7 +424,7 @@ export function MyCardsClient({
             </div>
 
             {/* Tabs */}
-            <div className="w-full mt-6 sm:mt-8">
+            <div className="w-full max-w-lg mx-auto mt-6 sm:mt-8">
                 <Tabs defaultValue={defaultTab} className="w-full sm:w-auto">
                     <div className="flex justify-center mb-8 px-4 sm:px-0">
                         <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-2 sm:flex sm:grid-cols-none sm:w-auto">
