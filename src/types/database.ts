@@ -74,6 +74,7 @@ export interface CourseGroup {
   registration_phase1_start: string | null; // ISO string
   registration_phase1_end: string | null;   // ISO string
   allocation_policy: string;
+  payment_deadline_days: number | null;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
@@ -149,6 +150,7 @@ export interface Enrollment {
   wants_leader: boolean;
   cancel_reason: string | null;
   order_id: string | null;
+  payment_deadline_at: string | null;
 }
 
 export interface AttendanceRecord {
