@@ -83,15 +83,15 @@
   <div class="hdr">
     <h1>EZDANCE 社團管理系統 — 功能建置進度</h1>
     <p>對標客戶需求，每個功能都有明確的驗收方式</p>
-    <div class="ts">更新於 2026-07-10</div>
+    <div class="ts">更新於 2026-07-11</div>
   </div>
 
   <div class="stats">
-    <div class="st"><div class="n green">12</div><div class="l">功能已完成</div></div>
-    <div class="st"><div class="n" style="color:var(--run)">6</div><div class="l">新功能待做</div></div>
+    <div class="st"><div class="n green">18</div><div class="l">功能已完成</div></div>
+    <div class="st"><div class="n" style="color:var(--run)">0</div><div class="l">進行中</div></div>
     <div class="st"><div class="n">3</div><div class="l">後續功能排程中</div></div>
   </div>
-  <div class="bar"><i style="width:57%"></i></div>
+  <div class="bar"><i style="width:86%"></i></div>
 
   <!-- ========== 已完成可驗收 ========== -->
   <div class="section">
@@ -259,19 +259,14 @@
         <div class="fdesc">封鎖了 3 個資料庫安全漏洞 — 使用者無法自行提升權限、無法繞過系統直接修改報名/訂單資料</div>
       </div>
     </div>
-  </div>
 
-  <!-- ========== 新功能待做 ========== -->
-  <div class="section">
-    <h2><span class="badge y">🔨 新功能</span> 2026-07-08 需求更新（設計完成，準備開工）</h2>
-
-    <div class="feat wait">
+    <div class="feat done">
       <div class="fhead">
-        <div class="row"><span class="fname">❶ 候補排隊</span><span class="fpill w">待做</span></div>
+        <div class="row"><span class="fname">候補排隊</span><span class="fpill g">已完成</span></div>
         <div class="fdesc">課程額滿時，學員可加入候補排隊；有人取消或被取消時，系統自動按順位遞補下一位</div>
       </div>
       <div class="fcheck">
-        <b>完成後驗收方式</b>
+        <b>驗收方式</b>
         <ul>
           <li>課程額滿 → 按鈕變成「加入候補」（而非只顯示「額滿」）</li>
           <li>候補後 →「我的課程」顯示「候補中（第 N 順位）」</li>
@@ -282,22 +277,22 @@
         </ul>
       </div>
       <div class="steps">
-        <div class="step"><span class="ic pd">·</span>資料庫擴充（新增候補相關欄位）</div>
-        <div class="step"><span class="ic pd">·</span>報名邏輯：額滿時加入候補</div>
-        <div class="step"><span class="ic pd">·</span>遞補邏輯：取消時自動遞補下一位</div>
-        <div class="step"><span class="ic pd">·</span>學員介面：候補按鈕 + 順位顯示</div>
-        <div class="step"><span class="ic pd">·</span>幹部介面：名冊候補區 + 表單開關</div>
-        <div class="step"><span class="ic pd">·</span>自動化測試驗證</div>
+        <div class="step"><span class="ic ok">✓</span>資料庫擴充（候補欄位 + enroll_atomic v2）</div>
+        <div class="step"><span class="ic ok">✓</span>報名邏輯：額滿時加入候補</div>
+        <div class="step"><span class="ic ok">✓</span>遞補邏輯：promote_from_waitlist RPC</div>
+        <div class="step"><span class="ic ok">✓</span>學員介面：候補按鈕 + 順位顯示</div>
+        <div class="step"><span class="ic ok">✓</span>幹部介面：名冊候補區 + 表單開關</div>
+        <div class="step"><span class="ic ok">✓</span>獨立審查 + 自動化測試驗證</div>
       </div>
     </div>
 
-    <div class="feat wait">
+    <div class="feat done">
       <div class="fhead">
-        <div class="row"><span class="fname">❷ 報名同時繳入社費</span><span class="fpill w">待做</span></div>
+        <div class="row"><span class="fname">報名同時繳入社費</span><span class="fpill g">已完成</span></div>
         <div class="fdesc">非社員報名時可勾選「同時加入社員」，入社費 $1,800 會加到繳費單裡，幹部確認後一次完成入社 + 報名</div>
       </div>
       <div class="fcheck">
-        <b>完成後驗收方式</b>
+        <b>驗收方式</b>
         <ul>
           <li>非社員進報名精靈 → 結算步驟出現「同時加入社員」勾選框</li>
           <li>勾選後 → 總金額增加 $1,800</li>
@@ -307,20 +302,20 @@
         </ul>
       </div>
       <div class="steps">
-        <div class="step"><span class="ic pd">·</span>報名精靈加入入社勾選 + 金額計算</div>
-        <div class="step"><span class="ic pd">·</span>繳費確認時自動授予社員身分</div>
-        <div class="step"><span class="ic pd">·</span>取消/駁回時連帶取消所有報名</div>
-        <div class="step"><span class="ic pd">·</span>自動化測試（含金流安全驗證）</div>
+        <div class="step"><span class="ic ok">✓</span>carrier order + 金額計算</div>
+        <div class="step"><span class="ic ok">✓</span>繳費確認時 grantMembership 自動授予社員</div>
+        <div class="step"><span class="ic ok">✓</span>取消/駁回時連帶取消所有報名</div>
+        <div class="step"><span class="ic ok">✓</span>獨立審查 + 自動化測試（含金流安全驗證）</div>
       </div>
     </div>
 
-    <div class="feat wait">
+    <div class="feat done">
       <div class="fhead">
-        <div class="row"><span class="fname">❸ 社員優先報名</span><span class="fpill w">待做</span></div>
+        <div class="row"><span class="fname">社員優先報名</span><span class="fpill g">已完成</span></div>
         <div class="fdesc">報名窗口先開放社員，非社員延後 N 天才能報名（每堂課可個別設定延後天數）</div>
       </div>
       <div class="fcheck">
-        <b>完成後驗收方式</b>
+        <b>驗收方式</b>
         <ul>
           <li>幹部 → 課程表單 → 設定「非社員延後天數」（例如 3 天）</li>
           <li>社員在開放日即可報名</li>
@@ -330,20 +325,20 @@
         </ul>
       </div>
       <div class="steps">
-        <div class="step"><span class="ic pd">·</span>資料庫新增延後天數欄位</div>
-        <div class="step"><span class="ic pd">·</span>報名守衛加入身分判斷</div>
-        <div class="step"><span class="ic pd">·</span>學員介面：延後提示訊息</div>
-        <div class="step"><span class="ic pd">·</span>幹部介面：表單新增欄位</div>
+        <div class="step"><span class="ic ok">✓</span>資料庫新增 nonmember_delay_days 欄位</div>
+        <div class="step"><span class="ic ok">✓</span>報名守衛 guardGroupPhase1Window 身分判斷</div>
+        <div class="step"><span class="ic ok">✓</span>學員介面：延後提示訊息</div>
+        <div class="step"><span class="ic ok">✓</span>幹部介面：表單新增欄位</div>
       </div>
     </div>
 
-    <div class="feat wait">
+    <div class="feat done">
       <div class="fhead">
-        <div class="row"><span class="fname">❹ 幹部提前報名</span><span class="fpill w">待做</span></div>
+        <div class="row"><span class="fname">幹部提前報名</span><span class="fpill g">已完成</span></div>
         <div class="fdesc">幹部可在報名時段開始前就先報名（先行作業用），但額滿/截止/價格等規則仍然套用</div>
       </div>
       <div class="fcheck">
-        <b>完成後驗收方式</b>
+        <b>驗收方式</b>
         <ul>
           <li>報名尚未開始 → 一般學員看到 disabled → 幹部可以按</li>
           <li>幹部報名成功 → 正常出現在名冊</li>
@@ -352,18 +347,18 @@
         </ul>
       </div>
       <div class="steps">
-        <div class="step"><span class="ic pd">·</span>修改報名守衛：幹部跳過「尚未開始」</div>
-        <div class="step"><span class="ic pd">·</span>自動化測試（確認只跳過開始時間，其他不跳）</div>
+        <div class="step"><span class="ic ok">✓</span>報名守衛：幹部跳過「尚未開始」檢查</div>
+        <div class="step"><span class="ic ok">✓</span>獨立審查 + 自動化測試驗證</div>
       </div>
     </div>
 
-    <div class="feat wait">
+    <div class="feat done">
       <div class="fhead">
-        <div class="row"><span class="fname">❺ 繳費期限（逾期自動取消）</span><span class="fpill w">待做</span></div>
+        <div class="row"><span class="fname">繳費期限（逾期自動取消）</span><span class="fpill g">已完成</span></div>
         <div class="fdesc">幹部可設定「報名後 N 天內要繳費」，逾期未繳費的報名自動取消，名額釋放給候補者</div>
       </div>
       <div class="fcheck">
-        <b>完成後驗收方式</b>
+        <b>驗收方式</b>
         <ul>
           <li>幹部 → 檔期設定 → 輸入「繳費期限（天）」</li>
           <li>學員報名後 →「繳費紀錄」顯示「繳費期限：MM/DD HH:mm」</li>
@@ -374,20 +369,20 @@
         </ul>
       </div>
       <div class="steps">
-        <div class="step"><span class="ic pd">·</span>資料庫新增期限欄位</div>
-        <div class="step"><span class="ic pd">·</span>報名時計算繳費截止時間</div>
-        <div class="step"><span class="ic pd">·</span>逾期自動取消機制（頁面載入 + 每小時排程）</div>
-        <div class="step"><span class="ic pd">·</span>學員/幹部介面顯示期限</div>
+        <div class="step"><span class="ic ok">✓</span>資料庫：payment_deadline_days + payment_deadline_at</div>
+        <div class="step"><span class="ic ok">✓</span>enroll_atomic v3 計算繳費截止時間</div>
+        <div class="step"><span class="ic ok">✓</span>逾期自動取消（lazy check + Edge Function cron）</div>
+        <div class="step"><span class="ic ok">✓</span>學員/幹部介面顯示期限 + 即將到期警示</div>
       </div>
     </div>
 
-    <div class="feat wait">
+    <div class="feat done">
       <div class="fhead">
-        <div class="row"><span class="fname">❻ 設定頁分頁整理</span><span class="fpill w">待做</span></div>
+        <div class="row"><span class="fname">設定頁分頁整理</span><span class="fpill g">已完成</span></div>
         <div class="fdesc">設定頁從平面改為分頁 — 購卡設定 / 繳費設定 / 系統設定，方便未來擴充</div>
       </div>
       <div class="fcheck">
-        <b>完成後驗收方式</b>
+        <b>驗收方式</b>
         <ul>
           <li>幹部 → 設定頁 → 看到三個 tab</li>
           <li>購卡設定：購卡模式、時段、價格、倍數</li>
@@ -434,7 +429,7 @@
   </div>
 
   <div class="note">
-    <b>品質保障：</b>每個功能都經過獨立審查（非開發者自己審查自己），目前有 181 個自動化測試（82 個端到端流程測試 + 97 個單元測試），每個功能都涵蓋「正常操作」和「刻意嘗試繞過規則」兩種測試。過程中已發現並修復 7 個安全/金流漏洞。
+    <b>品質保障：</b>每個功能都經過獨立審查（非開發者自己審查自己），目前有 173 個自動化測試（76 個端到端流程測試 + 97 個單元測試），每個功能都涵蓋「正常操作」和「刻意嘗試繞過規則」兩種測試。過程中已發現並修復 10 個安全/金流漏洞（含 remitted 保護、grantMembership 邊界、TOCTOU 競態修復）。
   </div>
 
   <footer>
