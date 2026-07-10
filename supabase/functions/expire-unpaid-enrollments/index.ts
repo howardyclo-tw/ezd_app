@@ -25,6 +25,16 @@ Deno.serve(async (_req) => {
   const errors: string[] = [];
 
   for (const enrollment of overdue) {
+    // Remitted protection: student already paid, awaiting admin review — do NOT expire
+    if (enrollment.order_id) {
+      const { data: order } = await supabase
+        .from("orders")
+        .select("status")
+        .eq("id", enrollment.order_id)
+        .single();
+      if (order?.status === "remitted") continue;
+    }
+
     const { error: cancelErr } = await supabase
       .from("enrollments")
       .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "繳費逾期自動取消" })

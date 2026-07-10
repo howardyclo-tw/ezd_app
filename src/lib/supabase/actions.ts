@@ -912,12 +912,13 @@ export async function expireEnrollment(enrollmentId: string): Promise<void> {
         if (order?.status === 'remitted') return; // student already paid, protect them
     }
 
-    // 3. Cancel enrollment
+    // 3. Cancel enrollment (optimistic lock: only cancel if still pending_payment)
     await adminClient.from('enrollments').update({
         status: 'cancelled',
         cancel_reason: '繳費逾期自動取消',
         cancelled_at: new Date().toISOString(),
-    }).eq('id', enrollmentId);
+    }).eq('id', enrollmentId)
+      .eq('status', 'pending_payment');
 
     // 4. Cancel linked order if all sibling enrollments are now cancelled
     if (enrollment.order_id) {
@@ -3171,9 +3172,6 @@ async function grantMembership(userId: string, adminClient: ReturnType<typeof cr
 
     if (!profile) return;
 
-    // Already member/admin with group? Skip
-    if (profile.role !== 'guest' && profile.member_group_id) return;
-
     // Get latest member group
     const { data: latestGroup } = await adminClient
         .from('member_groups')
@@ -3181,6 +3179,9 @@ async function grantMembership(userId: string, adminClient: ReturnType<typeof cr
         .order('valid_until', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+    // Already member with latest group assigned? Skip (idempotent)
+    if (profile.role !== 'guest' && latestGroup && profile.member_group_id === latestGroup.id) return;
 
     const updateData: Record<string, any> = {};
     if (profile.role === 'guest') updateData.role = 'member';
