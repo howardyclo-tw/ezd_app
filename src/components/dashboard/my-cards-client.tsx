@@ -46,6 +46,7 @@ interface CardOrder {
     courseDetails: { name: string; teacher: string | null }[];
     groupTitle: string | null;
     courseGroupId: string | null;
+    paymentDeadlineAt: string | null;
 }
 
 interface CardPoolInfo {
@@ -225,6 +226,31 @@ export function MyCardsClient({
                                     {order.groupTitle}
                                 </p>
                             )}
+                            {order.paymentDeadlineAt && (order.status === 'pending' || order.status === 'remitted') && (() => {
+                                const deadlineDate = new Date(order.paymentDeadlineAt);
+                                const now = new Date();
+                                const hoursRemaining = (deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+                                const isUrgent = hoursRemaining > 0 && hoursRemaining < 24;
+                                const isExpired = hoursRemaining <= 0;
+                                const formatted = new Intl.DateTimeFormat('zh-TW', {
+                                    timeZone: 'Asia/Taipei',
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: false,
+                                }).format(deadlineDate);
+                                return (
+                                    <p className={cn(
+                                        "text-xs font-medium",
+                                        isExpired ? "text-destructive" : isUrgent ? "text-destructive" : "text-muted-foreground"
+                                    )}>
+                                        繳費期限：{formatted}
+                                        {isUrgent && !isExpired && " (即將到期)"}
+                                    </p>
+                                );
+                            })()}
                         </div>
                         <div className="text-right shrink-0">
                             <span className="text-[10px] text-muted-foreground font-semibold block tracking-wider uppercase mb-0.5">總額</span>

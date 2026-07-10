@@ -94,6 +94,8 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
         enroll_single: course.enroll_single,
         enroll_full_identity: course.enroll_full_identity as any,
         enroll_single_identity: course.enroll_single_identity as any,
+        waitlist_enabled: course.waitlist_enabled ?? false,
+        nonmember_delay_days: course.nonmember_delay_days ?? null,
         sessions: sessions.map(s => ({
             id: s.id,
             date: s.date,

@@ -56,6 +56,7 @@ interface CourseGroup {
     title: string;
     registration_phase1_start?: string | null;
     registration_phase1_end?: string | null;
+    payment_deadline_days?: number | null;
 }
 
 interface Profile {
@@ -102,6 +103,11 @@ const courseSchema = z.object({
     enroll_single: z.boolean(),
     enroll_full_identity: z.enum(['all', 'member']),
     enroll_single_identity: z.enum(['all', 'member']),
+    waitlist_enabled: z.boolean(),
+    nonmember_delay_days: z.preprocess(
+        (val) => (val === '' || val === undefined || val === null) ? null : Number(val),
+        z.number().min(0, { message: '延後天數不能為負數' }).nullable(),
+    ),
     enrollment_start_at: z.coerce.date().nullable().optional(),
     enrollment_end_at: z.coerce.date().nullable().optional(),
     first_session_at: z.coerce.date({
@@ -223,6 +229,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
     const [groupTitle, setGroupTitle] = useState('');
     const [groupRegStart, setGroupRegStart] = useState<Date | null>(null);
     const [groupRegEnd, setGroupRegEnd] = useState<Date | null>(null);
+    const [groupPaymentDeadlineDays, setGroupPaymentDeadlineDays] = useState<number | null>(null);
     const [isGroupSubmitting, setIsGroupSubmitting] = useState(false);
 
     const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
@@ -265,17 +272,18 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
         setIsGroupSubmitting(true);
         try {
             if (editingGroup) {
-                await updateCourseGroup(editingGroup.id, groupTitle, groupRegStart, groupRegEnd);
-                setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, title: groupTitle, registration_phase1_start: groupRegStart?.toISOString(), registration_phase1_end: groupRegEnd?.toISOString() } : g));
+                await updateCourseGroup(editingGroup.id, groupTitle, groupRegStart, groupRegEnd, groupPaymentDeadlineDays);
+                setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, title: groupTitle, registration_phase1_start: groupRegStart?.toISOString(), registration_phase1_end: groupRegEnd?.toISOString(), payment_deadline_days: groupPaymentDeadlineDays } : g));
                 toast.success('已修正檔期資訊');
             } else {
-                const res = await createCourseGroup(groupTitle, groupRegStart, groupRegEnd);
+                const res = await createCourseGroup(groupTitle, groupRegStart, groupRegEnd, groupPaymentDeadlineDays);
                 if (res.id) {
-                    const newGroup = { 
-                        id: res.id, 
+                    const newGroup = {
+                        id: res.id,
                         title: groupTitle,
                         registration_phase1_start: groupRegStart?.toISOString(),
-                        registration_phase1_end: groupRegEnd?.toISOString()
+                        registration_phase1_end: groupRegEnd?.toISOString(),
+                        payment_deadline_days: groupPaymentDeadlineDays,
                     };
                     setGroups(prev => [...prev, newGroup]);
                     form.setValue('groupId', res.id);
@@ -287,6 +295,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             setGroupTitle('');
             setGroupRegStart(null);
             setGroupRegEnd(null);
+            setGroupPaymentDeadlineDays(null);
         } catch (err: any) {
             toast.error(err.message || '操作失敗');
         } finally {
@@ -348,6 +357,8 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             enroll_single: initialData?.enroll_single ?? typeDefaults.enroll_single,
             enroll_full_identity: initialData?.enroll_full_identity ?? typeDefaults.enroll_full_identity,
             enroll_single_identity: initialData?.enroll_single_identity ?? typeDefaults.enroll_single_identity,
+            waitlist_enabled: initialData?.waitlist_enabled ?? false,
+            nonmember_delay_days: initialData?.nonmember_delay_days ?? null,
             enrollment_start_at: initialData?.enrollment_start_at ? new Date(initialData.enrollment_start_at) : null,
             enrollment_end_at: initialData?.enrollment_end_at ? new Date(initialData.enrollment_end_at) : null,
             first_session_at: initialData?.first_session_at,
@@ -642,6 +653,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                     setGroupTitle(g.title);
                                                                     setGroupRegStart(g.registration_phase1_start ? new Date(g.registration_phase1_start) : null);
                                                                     setGroupRegEnd(g.registration_phase1_end ? new Date(g.registration_phase1_end) : null);
+                                                                    setGroupPaymentDeadlineDays(g.payment_deadline_days ?? null);
                                                                     setIsGroupModalOpen(true);
                                                                 }}
                                                             >
@@ -1128,6 +1140,49 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                     </div>
                                 )}
 
+                                {/* Waitlist + Nonmember delay */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control as any}
+                                        name="waitlist_enabled"
+                                        render={({ field }) => (
+                                            <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                                                <div className="space-y-0.5">
+                                                    <FormLabel>候補功能</FormLabel>
+                                                    <FormDescription className="text-xs">額滿時允許學員加入候補名單</FormDescription>
+                                                </div>
+                                                <FormControl>
+                                                    <Switch
+                                                        checked={field.value}
+                                                        onCheckedChange={field.onChange}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control as any}
+                                        name="nonmember_delay_days"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>非社員延後天數</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        className="h-11"
+                                                        placeholder="留空=不延後"
+                                                        value={field.value ?? ''}
+                                                        onChange={(e) => field.onChange(e.target.value === '' ? null : e.target.value)}
+                                                    />
+                                                </FormControl>
+                                                <FormDescription className="text-[11px]">非社員報名延後開放的天數</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
                                 {/* NTD Price fields — visible only in ntd mode */}
                                 {pricingMode === 'ntd' && (
                                     <div className="space-y-3">
@@ -1437,6 +1492,17 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                     </PopoverContent>
                                 </Popover>
                             </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <FormLabel>繳費期限（天）</FormLabel>
+                            <Input
+                                type="number"
+                                min={1}
+                                placeholder="留空=不設限"
+                                value={groupPaymentDeadlineDays ?? ''}
+                                onChange={(e) => setGroupPaymentDeadlineDays(e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                            />
+                            <p className="text-xs text-muted-foreground">學員報名後須在此天數內完成繳費，否則自動取消。留空=不設限。</p>
                         </div>
                     </div>
                     <DialogFooter>

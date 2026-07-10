@@ -113,10 +113,18 @@ interface StudentInfo {
 
 type AttendanceMap = Record<string, Record<string, string>>;
 
+interface WaitlistStudent {
+    id: string;
+    name: string;
+    role: string;
+    position: number;
+}
+
 interface CourseDetailClientProps {
     course: CourseInfo;
     sessions: SessionInfo[];
     roster: StudentInfo[];
+    waitlistStudents?: WaitlistStudent[];
     enrolledCount: number;
     userEnrollment: {
         userId: string;
@@ -155,6 +163,7 @@ export function CourseDetailClient({
     course,
     sessions,
     roster,
+    waitlistStudents = [],
     enrolledCount,
     userEnrollment,
     cardBalance,
@@ -1079,6 +1088,34 @@ export function CourseDetailClient({
                                         </tr>
                                     ));
                                 })()}
+
+                                {/* Waitlist Section */}
+                                {waitlistStudents.length > 0 && canManageAttendance && (
+                                    <>
+                                        <tr className="bg-muted/5">
+                                            <td colSpan={sessions.length + 1} className="px-3 py-2 text-[11px] font-black text-muted-foreground uppercase tracking-widest border-b border-muted/20 border-t border-muted/20">
+                                                候補名單 ({waitlistStudents.length})
+                                            </td>
+                                        </tr>
+                                        {waitlistStudents.map((student) => (
+                                            <tr key={student.id} className="border-b border-muted/10 hover:bg-white/[0.02] transition-colors opacity-60">
+                                                <td className="p-3 text-xs font-bold sticky left-0 bg-card/95 backdrop-blur-sm z-30 border-r border-muted/50">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold">{student.name}</span>
+                                                        <Badge variant="outline" className={cn("text-[9px] px-1 py-0 h-4 shadow-none", ENROLLMENT_STATUS_COLORS.waitlist)}>
+                                                            候補 {student.position > 0 ? student.position : ''}
+                                                        </Badge>
+                                                    </div>
+                                                </td>
+                                                {sessions.map(s => (
+                                                    <td key={s.id} className="border-r border-muted/10 last:border-0 h-14">
+                                                        <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">—</div>
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </>
+                                )}
                             </tbody>
                         </table>
                     </div>

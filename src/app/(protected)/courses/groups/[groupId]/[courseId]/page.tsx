@@ -267,6 +267,24 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         }
     });
 
+    // Build waitlist students (separate from enrolled/pending roster)
+    const waitlistStudents: { id: string; name: string; role: string; position: number }[] = [];
+    Object.entries(enrollmentsByUser).forEach(([userId, userEnrollments]) => {
+        const isWaitlisted = userEnrollments.some(e => e.status === 'waitlist');
+        const isAlsoEnrolled = enrolledUserIds.has(userId);
+        if (isWaitlisted && !isAlsoEnrolled) {
+            const waitlistEnrollment = userEnrollments.find(e => e.status === 'waitlist');
+            const p = userEnrollments[0].profiles;
+            waitlistStudents.push({
+                id: p.id,
+                name: p.name,
+                role: p.role,
+                position: waitlistEnrollment?.waitlist_position ?? 0,
+            });
+        }
+    });
+    waitlistStudents.sort((a, b) => a.position - b.position);
+
     // 2. Find additional students from approved makeup/transfer only (NOT from attendanceMap to prevent ghost students)
     const otherParticipantUserIds = Array.from(new Set(
         Object.keys(externalParticipantsMap)
@@ -373,6 +391,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
                 number: i + 1,
             }))}
             roster={rosterWithAttendance}
+            waitlistStudents={waitlistStudents}
             transferMetadata={transferMetadata}
             makeupSessionMap={Object.fromEntries(Object.entries(makeupSessionMap).map(([k, v]) => [k, Array.from(v)]))}
             enrolledCount={enrolledCount ?? 0}

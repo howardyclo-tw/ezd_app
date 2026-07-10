@@ -1147,6 +1147,8 @@ export async function createCourse(data: any): Promise<{ success: boolean; messa
             enroll_single_identity: enrollSingleIdentity,
             enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
             enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
+            waitlist_enabled: data.waitlist_enabled ?? false,
+            nonmember_delay_days: data.nonmember_delay_days ?? null,
             created_by: user.id
         })
         .select()
@@ -1235,6 +1237,8 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
             enroll_single_identity: enrollSingleIdentity,
             enrollment_start_at: data.enrollment_start_at ? data.enrollment_start_at.toISOString() : null,
             enrollment_end_at: data.enrollment_end_at ? data.enrollment_end_at.toISOString() : null,
+            waitlist_enabled: data.waitlist_enabled ?? false,
+            nonmember_delay_days: data.nonmember_delay_days ?? null,
         })
         .eq('id', id);
 
