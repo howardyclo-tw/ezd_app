@@ -1,5 +1,7 @@
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { expireEnrollment } from '@/lib/supabase/actions';
 import { redirect } from 'next/navigation';
 import { MyCardsClient } from '@/components/dashboard/my-cards-client';
 import { isCardWindowOpen } from '@/lib/card-window';
@@ -11,6 +13,22 @@ export default async function MyCardsPage() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
+
+    // Lazy check: expire overdue pending_payment enrollments before rendering
+    const adminClient = createAdminClient();
+    const { data: overdueEnrollments } = await adminClient
+        .from('enrollments')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'pending_payment')
+        .not('payment_deadline_at', 'is', null)
+        .lt('payment_deadline_at', new Date().toISOString());
+
+    if (overdueEnrollments && overdueEnrollments.length > 0) {
+        for (const e of overdueEnrollments) {
+            await expireEnrollment(e.id);
+        }
+    }
 
     // Fetch user profile for balance and membership
     const { data: profile } = await supabase
@@ -72,13 +90,14 @@ export default async function MyCardsPage() {
         }))
         .sort((a, b) => (a.expires_at ?? '9999').localeCompare(b.expires_at ?? '9999'));
 
-    // Fetch associated enrollment course names for ALL orders with order_id link
+    // Fetch associated enrollment course names + payment deadline for ALL orders with order_id link
     const allOrderIds = (orders ?? []).map(o => o.id);
     const courseDetailsByOrder: Record<string, { name: string; teacher: string | null }[]> = {};
+    const paymentDeadlineByOrder: Record<string, string> = {};
     if (allOrderIds.length > 0) {
         const { data: relatedEnrollments } = await supabase
             .from('enrollments')
-            .select('order_id, courses ( name, teacher )')
+            .select('order_id, payment_deadline_at, courses ( name, teacher )')
             .in('order_id', allOrderIds);
         for (const e of relatedEnrollments ?? []) {
             if (!e.order_id) continue;
@@ -86,6 +105,13 @@ export default async function MyCardsPage() {
             const name = (e.courses as any)?.name ?? '';
             const teacher = (e.courses as any)?.teacher ?? null;
             if (name) courseDetailsByOrder[e.order_id].push({ name, teacher });
+            // Track earliest payment deadline for this order
+            if (e.payment_deadline_at) {
+                const existing = paymentDeadlineByOrder[e.order_id];
+                if (!existing || e.payment_deadline_at < existing) {
+                    paymentDeadlineByOrder[e.order_id] = e.payment_deadline_at;
+                }
+            }
         }
     }
 
@@ -113,6 +139,7 @@ export default async function MyCardsPage() {
                     courseDetails: courseDetailsByOrder[o.id] ?? [],
                     groupTitle: (o.course_groups as any)?.title ?? null,
                     courseGroupId: o.course_group_id ?? null,
+                    paymentDeadlineAt: paymentDeadlineByOrder[o.id] ?? null,
                 }))}
                 isPurchaseOpen={isPurchaseOpen}
                 priceMember={priceMember}

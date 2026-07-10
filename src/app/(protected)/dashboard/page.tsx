@@ -1,4 +1,6 @@
 import { createClient, getServerProfile } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { expireEnrollment } from '@/lib/supabase/actions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +47,22 @@ const roleLabels: Record<string, string> = {
 export default async function DashboardPage() {
   const { user, profile } = await getServerProfile();
   if (!user) redirect('/login');
+
+  // Lazy check: expire overdue pending_payment enrollments before rendering
+  const adminClient = createAdminClient();
+  const { data: overdueEnrollments } = await adminClient
+      .from('enrollments')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'pending_payment')
+      .not('payment_deadline_at', 'is', null)
+      .lt('payment_deadline_at', new Date().toISOString());
+
+  if (overdueEnrollments && overdueEnrollments.length > 0) {
+      for (const e of overdueEnrollments) {
+          await expireEnrollment(e.id);
+      }
+  }
 
   const supabase = await createClient();
 
