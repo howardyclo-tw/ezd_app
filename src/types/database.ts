@@ -104,6 +104,8 @@ export interface Course {
   enroll_single: boolean;
   enroll_full_identity: string;
   enroll_single_identity: string;
+  waitlist_enabled: boolean;
+  nonmember_delay_days: number | null;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
