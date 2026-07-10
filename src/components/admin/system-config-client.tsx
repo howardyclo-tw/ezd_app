@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Save, ChevronLeft, Settings } from 'lucide-react';
 import { updateSystemConfig } from '@/lib/supabase/actions';
 import { useRouter } from 'next/navigation';
@@ -25,6 +26,12 @@ const KNOWN_KEYS: Record<string, { label: string; description: string; type: 'te
     card_purchase_unit: { label: '購買單位', description: '購卡數量必須為此數的倍數 (預設 5)', type: 'number' },
     bank_info: { label: '匯款帳號資訊', description: '公告於購卡頁面的指定匯款帳號、銀行代碼與戶名', type: 'text' },
 };
+
+const TAB_CONFIG = [
+    { value: 'card', label: '購卡設定', keys: ['card_purchase_mode', 'card_purchase_open', 'card_purchase_start', 'card_purchase_end', 'card_price_member', 'card_price_non_member', 'card_min_purchase', 'card_purchase_unit'] },
+    { value: 'payment', label: '繳費設定', keys: ['bank_info'] },
+    { value: 'system', label: '系統設定', keys: [] as string[] },
+] as const;
 
 interface ConfigEntry {
     key: string;
@@ -109,75 +116,97 @@ export function SystemConfigClient({ initialConfig }: SystemConfigClientProps) {
                 </Button>
             </div>
 
-            {/* Config Layout - Compact Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {sortedEntries.map((entry) => {
-                    const meta = KNOWN_KEYS[entry.key];
-                    const isModified = originalMap.get(entry.key) !== entry.value;
+            {/* Config Layout - Tabbed Grid */}
+            <Tabs defaultValue="card">
+                <TabsList className="w-full justify-start">
+                    {TAB_CONFIG.map((tab) => (
+                        <TabsTrigger key={tab.value} value={tab.value}>
+                            {tab.label}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
 
-                    return (
-                        <Card key={entry.key} className={cn(
-                            "border-muted/40 transition-all duration-200 shadow-none",
-                            isModified ? "border-orange-500/30 bg-orange-500/[0.03] ring-1 ring-orange-500/10" : "bg-card hover:bg-muted/5"
-                        )}>
-                            <CardContent className="p-3.5 space-y-3">
-                                <div className="flex items-start justify-between gap-2 min-h-[32px]">
-                                    <div className="space-y-0.5">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className="text-[11px] font-black text-foreground uppercase tracking-wider">
-                                                {meta?.label || entry.key}
-                                            </span>
-                                            {isModified && (
-                                                <Badge variant="secondary" className="bg-orange-500 text-white px-1 h-3.5 text-[8px] font-black leading-none">MODIFIED</Badge>
-                                            )}
-                                        </div>
-                                        <p className="text-[10px] text-muted-foreground font-medium leading-tight line-clamp-1">
-                                            {meta?.description || `Key: ${entry.key}`}
-                                        </p>
-                                    </div>
+                {TAB_CONFIG.map((tab) => (
+                    <TabsContent key={tab.value} value={tab.value}>
+                        {tab.keys.length === 0 ? (
+                            <div className="flex items-center justify-center py-16">
+                                <p className="text-sm text-muted-foreground">尚無系統設定項目</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {sortedEntries
+                                    .filter((entry) => (tab.keys as readonly string[]).includes(entry.key))
+                                    .map((entry) => {
+                                    const meta = KNOWN_KEYS[entry.key];
+                                    const isModified = originalMap.get(entry.key) !== entry.value;
 
-                                    {meta?.type === 'boolean' && (
-                                        <Switch
-                                            checked={entry.value === 'true'}
-                                            onCheckedChange={(checked) => updateEntry(entry.key, String(checked))}
-                                            className="scale-[0.85]"
-                                        />
-                                    )}
-                                </div>
+                                    return (
+                                        <Card key={entry.key} className={cn(
+                                            "border-muted/40 transition-all duration-200 shadow-none",
+                                            isModified ? "border-orange-500/30 bg-orange-500/[0.03] ring-1 ring-orange-500/10" : "bg-card hover:bg-muted/5"
+                                        )}>
+                                            <CardContent className="p-3.5 space-y-3">
+                                                <div className="flex items-start justify-between gap-2 min-h-[32px]">
+                                                    <div className="space-y-0.5">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span className="text-[11px] font-black text-foreground uppercase tracking-wider">
+                                                                {meta?.label || entry.key}
+                                                            </span>
+                                                            {isModified && (
+                                                                <Badge variant="secondary" className="bg-orange-500 text-white px-1 h-3.5 text-[8px] font-black leading-none">MODIFIED</Badge>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[10px] text-muted-foreground font-medium leading-tight line-clamp-1">
+                                                            {meta?.description || `Key: ${entry.key}`}
+                                                        </p>
+                                                    </div>
 
-                                {meta?.type !== 'boolean' && (
-                                    <div className="relative">
-                                        <Input
-                                            type={meta?.type === 'number' ? 'number' : meta?.type === 'date' ? 'date' : 'text'}
-                                            value={entry.value}
-                                            onChange={(e) => updateEntry(entry.key, e.target.value)}
-                                            className={cn(
-                                                "h-8 text-xs font-bold px-2.5 bg-muted/20 border-muted/40 focus-visible:ring-orange-500/20",
-                                                isModified && "border-orange-500/40 text-orange-600 bg-orange-500/[0.01]"
-                                            )}
-                                        />
-                                        {meta?.type === 'number' && (
-                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-muted-foreground/40 pointer-events-none">VAL</span>
-                                        )}
-                                        {meta?.type === 'date' && (
-                                            <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[9px] font-black text-muted-foreground/40 pointer-events-none">DATE</span>
-                                        )}
-                                    </div>
-                                )}
+                                                    {meta?.type === 'boolean' && (
+                                                        <Switch
+                                                            checked={entry.value === 'true'}
+                                                            onCheckedChange={(checked) => updateEntry(entry.key, String(checked))}
+                                                            className="scale-[0.85]"
+                                                        />
+                                                    )}
+                                                </div>
 
-                                {meta?.type === 'boolean' && (
-                                    <div className="flex items-center gap-1.5 text-[9px] font-black">
-                                        <div className={cn("h-1.5 w-1.5 rounded-full", entry.value === 'true' ? "bg-green-500" : "bg-muted-foreground/30")} />
-                                        <span className={entry.value === 'true' ? "text-green-600" : "text-muted-foreground"}>
-                                            {entry.value === 'true' ? 'SYSTEM OPEN' : 'SYSTEM CLOSED'}
-                                        </span>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    );
-                })}
-            </div>
+                                                {meta?.type !== 'boolean' && (
+                                                    <div className="relative">
+                                                        <Input
+                                                            type={meta?.type === 'number' ? 'number' : meta?.type === 'date' ? 'date' : 'text'}
+                                                            value={entry.value}
+                                                            onChange={(e) => updateEntry(entry.key, e.target.value)}
+                                                            className={cn(
+                                                                "h-8 text-xs font-bold px-2.5 bg-muted/20 border-muted/40 focus-visible:ring-orange-500/20",
+                                                                isModified && "border-orange-500/40 text-orange-600 bg-orange-500/[0.01]"
+                                                            )}
+                                                        />
+                                                        {meta?.type === 'number' && (
+                                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-muted-foreground/40 pointer-events-none">VAL</span>
+                                                        )}
+                                                        {meta?.type === 'date' && (
+                                                            <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[9px] font-black text-muted-foreground/40 pointer-events-none">DATE</span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {meta?.type === 'boolean' && (
+                                                    <div className="flex items-center gap-1.5 text-[9px] font-black">
+                                                        <div className={cn("h-1.5 w-1.5 rounded-full", entry.value === 'true' ? "bg-green-500" : "bg-muted-foreground/30")} />
+                                                        <span className={entry.value === 'true' ? "text-green-600" : "text-muted-foreground"}>
+                                                            {entry.value === 'true' ? 'SYSTEM OPEN' : 'SYSTEM CLOSED'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </TabsContent>
+                ))}
+            </Tabs>
 
             {/* Notice Footer */}
             <p className="text-[10px] text-muted-foreground text-center font-medium pt-4 opacity-60">
