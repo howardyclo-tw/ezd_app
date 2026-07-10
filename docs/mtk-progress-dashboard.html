@@ -1,0 +1,274 @@
+<title>MTK Build Progress</title>
+<meta name="description" content="MTK 功能實作進度 — 階段、任務狀態、CI gate、localhost 檢視方式">
+<style>
+  :root{
+    --ground:#F7F8FA; --card:#FFFFFF; --ink:#1A1D24; --muted:#5B6472;
+    --hair:#E4E7EC; --accent:#0F766E; --accent-soft:#E6F2F0;
+    --done:#059669; --run:#B45309; --pend:#94A3B8; --attn:#E11D48;
+    --done-bg:#E7F6EF; --run-bg:#FBF0E1; --pend-bg:#EEF1F4; --attn-bg:#FCE8ED;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:32px 20px 72px}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;letter-spacing:-.02em;text-wrap:balance}
+  .sub{color:var(--muted);font-size:15px;margin:0}
+  .sub code{font-family:var(--mono);font-size:13px}
+  .updated{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:8px}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:26px 0 8px}
+  .stat{background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:14px 16px}
+  .stat .k{font-size:12px;color:var(--muted);letter-spacing:.03em}
+  .stat .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:3px}
+  .stat .v small{font-size:13px;font-weight:600;color:var(--muted)}
+  .bar{height:7px;border-radius:99px;background:var(--pend-bg);overflow:hidden;margin-top:10px}
+  .bar>i{display:block;height:100%;background:var(--accent);border-radius:99px}
+  .gates{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 24px}
+  .gate{display:inline-flex;align-items:center;gap:7px;background:var(--card);
+    border:1px solid var(--hair);border-radius:99px;padding:6px 13px;font-size:13px;font-weight:600}
+  .gate .dot{width:8px;height:8px;border-radius:99px;background:var(--done)}
+  .gate .n{font-family:var(--mono);color:var(--muted);font-weight:600}
+  .banner{background:#0B5C55;color:#EAFBF7;border-radius:14px;padding:16px 20px;margin-bottom:14px}
+  .banner b{color:#fff}
+  .banner .h{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#8FD8CE;font-weight:700}
+  .banner p{margin:5px 0 0;font-size:14px}
+  .review{background:var(--accent-soft);border:1px solid #CFE6E2;border-radius:14px;padding:18px 20px;margin-bottom:30px}
+  .review h2{margin:0 0 6px;font-size:16px;color:#0B5C55;letter-spacing:-.01em}
+  .review p{margin:6px 0;font-size:14px;color:#255}
+  .review code{font-family:var(--mono);font-size:12.5px;background:#fff;border:1px solid #CFE6E2;border-radius:6px;padding:1px 6px}
+  .review ol{margin:8px 0 0;padding-left:20px;font-size:13.5px;color:#255}
+  .review ol li{margin:3px 0}
+  .phase{background:var(--card);border:1px solid var(--hair);border-radius:14px;margin-bottom:14px;overflow:hidden}
+  .phead{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--hair)}
+  .phead.plain{border-bottom:none}
+  .pnum{font-family:var(--mono);font-size:12px;font-weight:700;color:#fff;background:var(--ink);border-radius:7px;padding:4px 8px;flex:none}
+  .ptitle{font-weight:700;font-size:15.5px;letter-spacing:-.01em;flex:1;min-width:0}
+  .ptitle small{display:block;font-weight:500;font-size:12.5px;color:var(--muted);letter-spacing:0}
+  .plist{list-style:none;margin:0;padding:6px 8px 10px}
+  .task{display:flex;align-items:flex-start;gap:11px;padding:8px 10px;border-radius:9px}
+  .task+.task{border-top:1px solid #F1F3F5}
+  .tid{font-family:var(--mono);font-size:12px;color:var(--muted);flex:none;width:30px;padding-top:1px;font-weight:600}
+  .tbody{flex:1;min-width:0}
+  .tname{font-size:14px}
+  .tmeta{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:2px}
+  .tmeta .sha{color:var(--accent)}
+  .pill{flex:none;font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:99px;display:inline-flex;align-items:center;gap:5px;text-transform:uppercase}
+  .pill.done{background:var(--done-bg);color:var(--done)}
+  .pill.run{background:var(--run-bg);color:var(--run)}
+  .pill.pend{background:var(--pend-bg);color:#64748B}
+  .pill .d{width:6px;height:6px;border-radius:99px;background:currentColor}
+  .pill.run .d{animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @media (prefers-reduced-motion:reduce){.pill.run .d{animation:none}}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:26px;font-size:12.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:9px;height:9px;border-radius:99px;display:inline-block}
+  footer{margin-top:22px;font-size:12px;color:var(--muted);border-top:1px solid var(--hair);padding-top:14px}
+  footer code{font-family:var(--mono)}
+  @media(max-width:680px){.summary{grid-template-columns:repeat(2,1fr)}}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">EZDANCE · MTK 需求實作</div>
+  <h1>建置進度儀表板</h1>
+  <p class="sub">自主多代理實作 — 編排層 + <code>claude-opus-4-6</code> 實作與獨立審查(無自我審查),全程在 <b>dev</b> 分支。</p>
+  <p class="updated">更新於 2026-07-10 · 5S 設計完成 → 5T/5U/5V/5W 實作計畫就緒</p>
+
+  <div class="summary">
+    <div class="stat"><div class="k">目前進度</div><div class="v">5T<small> 引擎核心(migration 017)</small></div></div>
+    <div class="stat"><div class="k">任務完成</div><div class="v">38<small> / 67</small></div>
+      <div class="bar"><i style="width:57%"></i></div></div>
+    <div class="stat"><div class="k">E2E 測試</div><div class="v" style="color:var(--done)">82 / 82<small> 綠·97單元</small></div></div>
+    <div class="stat"><div class="k">審查把關</div><div class="v">100%<small> 獨立 opus-4-6</small></div></div>
+  </div>
+
+  <div class="gates">
+    <span class="gate"><span class="dot"></span>tsc --noEmit <span class="n">clean</span></span>
+    <span class="gate"><span class="dot"></span>e2e (13 回歸 + 61 功能 + 8 旅程) <span class="n">82/82</span></span>
+    <span class="gate"><span class="dot"></span>單元測試 (5 檔) <span class="n">86/86</span></span>
+    <span class="gate"><span class="dot"></span>lint (改動檔) <span class="n">clean</span></span>
+    <span class="gate"><span class="dot" style="background:var(--pend)"></span>lint (全 repo) <span class="n">430 待清 · Phase 9</span></span>
+  </div>
+
+  <div class="review" style="background:#F3F6FA;border-color:#DDE4EC">
+    <h2 style="color:#1A2A3A">測試套件組成 &amp; 範圍策略(透明化)</h2>
+    <p style="color:#33455a"><b>「全套」(phase gate 跑的,目前 97 單元 + 84 e2e = 181)=</b> 單元測試(pricing / allocation / capacity / card-window / card-purchase)＋ regression e2e(7 spec, 13 tests)＋ feature e2e(18 spec, 63 tests)＋ journey e2e(2 spec, 8 tests:學員旅程 5 + 幹部旅程 3)＋ <code>tsc --noEmit</code> ＋ 改動檔 lint。<br><b>Phase 5W 驗證掃瞄後預估: ~242 total</b>(+20 新機制 e2e · +6 gap backfill · +6 security · +4 journey · +4 unit)。</p>
+    <p style="color:#33455a"><b>範圍策略(效率 × 防作弊 <code>驗者不自驗</code>):</b> 實作者<b>不能自選</b>過關標準。① 每個 task 的測試範圍由<b>編排者依「影響對照表」預先指定</b>(純邏輯模組→只跑單元＋tsc;動到報名/訂單/容量→跑相關 e2e)。② <b>獨立審查者</b>對照實際 diff 稽核範圍是否足夠。③ <b>每階段結束跑全套</b>作為獨立、不可被自我服務的防護網。</p>
+  </div>
+
+  <div class="banner">
+    <div class="h">🔒 對抗式測試的實際戰果</div>
+    <p><b>Task 2.3 揪出並修復了一個既有漏洞</b>:<code style="background:rgba(255,255,255,.12);border:0;color:#EAFBF7">confirmOrder</code> / <code style="background:rgba(255,255,255,.12);border:0;color:#EAFBF7">rejectOrder</code> 原本<b>完全沒有角色檢查</b> —— 任何登入者都能核准/駁回任意訂單(含堂卡訂單,自堂卡系統上線以來即存在)。現已改為僅限幹部、fail-closed,並有對抗式 e2e 證明社員直呼會被擋。</p>
+    <p style="margin-top:9px"><b>Task 5.3 因堅持金流 100% 覆蓋,又揪出一個潛在正式環境 bug</b>:整期報名精靈的「堂卡不足→加購」路徑原本呼叫使用者端 <code style="background:rgba(255,255,255,.12);border:0;color:#EAFBF7">createCardOrder</code>,會誤套「單獨購卡窗口/最低數量」限制,且<b>靜默忽略建單失敗</b>。</p>
+    <p style="margin-top:9px"><b>D1/D2/D3 hotfix 揪出 3 個金流漏洞</b>:確認堂卡訂單後沒啟動報名(D1)、取消/駁回堂卡訂單沒連帶取消報名(D2)、單筆取消繞過群組訂單(D3)。Mutation-test 3/3 RED 確認所有 guard 有效。因 context compaction 導致 6/8 工作流步驟違規→<b>建立 hook-based 強制層</b>(dispatch-guard / commit-gate / session-context / stop-gate)。</p>
+    <p style="margin-top:9px"><b>S0 安全熱修(2026-07-10)</b>:設計 v2 對抗式審查揭發 3 個<b>既有 RLS 漏洞</b> — ① profiles UPDATE 允許自升 admin ② enrollments ALL 可繞過全部 server guard 直寫 ③ orders 允許竄改 pending 訂單金額。所有寫入已遷移至 service-role，write policies 全部 DROP，敏感 RPC EXECUTE 已 REVOKE。</p>
+  </div>
+
+  <div class="review">
+    <h2>在 localhost 檢視 — Phase 5R UX 補完完成 🎉</h2>
+    <p>整期報名精靈全流程＋個人中心＋雙角色旅程已完整。驗收步驟:</p>
+    <ol>
+      <li>切到 <code>dev</code> 分支 → <code>pnpm dev</code> → <code>http://[::1]:3000/login</code></li>
+      <li><b>學員視角</b>(<code>e2e-member@mediatek.com</code> / <code>mediatek</code>):Dashboard→「我的堂卡」(餘額/FIFO)＋「繳費紀錄」(補匯款/取消)＋「我的課程」(待繳費/已取消+原因)→ 課程頁 整期報名按鈕(時窗狀態)→ 精靈(選課→MV→班長→結算→加購倍數預填→完成)→ 修改報名(AlertDialog 確認)</li>
+      <li><b>幹部視角</b>(<code>e2e-admin@mediatek.com</code>):「繳費對帳」按檔期分組+待審標記 → 確認/駁回/取消 → 名冊(待繳費/待開票/志願者 徽章)→ 課程表單(身分限制 + NTD 價格 + 單堂時窗預填)</li>
+    </ol>
+    <p style="margin-top:10px;font-size:13px">示範資料由 <code>e2e/global-setup.ts</code> 每次跑測試時自動重種。作廢重報:精靈可在報名截止前重新送出(原案作廢退卡、重新配位;<b>已確認繳費單則擋下</b>)。</p>
+    <p style="margin-top:8px;font-size:13px"><b>待建(Phase 6+):</b>①MV 投票選歌落庫+開票結算(P6)②缺席懲罰黑名單(P7)③通知+prod 遷移(P8)④lint 技術債(P9)。</p>
+  </div>
+
+  <div class="review" style="background:#F3F6FA;border-color:#DDE4EC">
+    <h2 style="color:#1A2A3A">需求覆蓋矩陣(原 mtk-feature-tracker.md,已併入本板)</h2>
+    <p style="color:#33455a;font-size:13px">✅=實作完成+對抗測試綠 · ✳=引擎完成、UI 入口於 5R 補齊 · ⬜=排程中。H/A/R=happy/對抗/回歸測試。</p>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid #DDE4EC">
+      <tr style="background:#EEF3F8;text-align:left"><th style="padding:6px 8px">需求</th><th>決策#</th><th>Phase</th><th>狀態</th></tr>
+      <tr><td style="padding:5px 8px">堂卡:每月首週時段 / n倍數 / 效期年度同步+級聯</td><td>19·20·21</td><td>P4</td><td>✅ H/A/R</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">常態:僅整期可設定(單堂開課後預設 5R.7)</td><td>6·27</td><td>P5</td><td>✅</td></tr>
+      <tr><td style="padding:5px 8px">常態:MV 投票選歌 / 開票結算(top-k+平票裁決)</td><td>14·15·16</td><td>P6</td><td>⬜</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">常態:班長意願(精靈勾選;名冊徽章 5R.6)</td><td>17</td><td>P5+5R</td><td>✅ H/A</td></tr>
+      <tr><td style="padding:5px 8px">專攻:單堂/整期兩價 · 自訂 NTD · 不可取消 · 轉讓</td><td>7·8·26</td><td>P5</td><td>✅ H/A/R</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">風格:僅單堂 · 社員免費即成立 · 非社員自訂價</td><td>9·10·26·27</td><td>P5</td><td>✅ H/A</td></tr>
+      <tr><td style="padding:5px 8px">風格:缺席懲罰黑名單(2次停權+解鎖)</td><td>18</td><td>P7</td><td>⬜</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">通用:金流審核統一訂單 / 身分計價 / 原子容量 / fcfs</td><td>3·26·13·28</td><td>P1–P3</td><td>✅ H/A/R</td></tr>
+      <tr><td style="padding:5px 8px">通用:報名時間軸(整期=檔期時窗、單堂=課程時窗)</td><td>2·27</td><td>P5</td><td>✅ A</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">通用:報名修改=作廢重報(引擎 5.4;UI 5R.3)</td><td>30</td><td>P5+5R</td><td>✅ H/A</td></tr>
+      <tr><td style="padding:5px 8px">通用:app 內狀態通知(個人中心 5R.5 前移)</td><td>31</td><td>5R</td><td>✅ H/A</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">通用:報名開放對象(全部/僅社員,每課設定)</td><td>32</td><td>5R</td><td>✅ H/A</td></tr>
+      <tr><td style="padding:5px 8px">通用:雙角色完整走查測試(學員+幹部旅程)</td><td>33</td><td>5R</td><td>✅ H/A</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">既有 bug 8 項(候補接線/退卡張數/時窗缺檢查/超賣/isMember 不一致/死碼/型別過期/rejected 型別)</td><td>—</td><td>P1–P5</td><td>✅ 全修</td></tr>
+      <tr><td style="padding:5px 8px">🔒 RLS 寫入封鎖(profiles 自升/enrollments 直寫/orders 竄改) + RPC REVOKE</td><td>—</td><td>S0</td><td>✅ DEV(PROD 待套)</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">需求再對齊:設計規格 v2 + 決策日誌 v6 + 實作計畫</td><td>35-40</td><td>5S</td><td>✅ 完成</td></tr>
+      <tr><td style="padding:5px 8px">候補排隊引擎(waitlist engine):額滿→候補→取消→自動遞補</td><td>35</td><td>5T</td><td>⬜</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">入社費合併報名(membership combined):carrier order + grantMembership</td><td>36</td><td>5T</td><td>⬜</td></tr>
+      <tr><td style="padding:5px 8px">身分分段時窗(staggered windows):社員優先 N 天</td><td>37</td><td>5T</td><td>⬜</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">幹部提前報名(admin early-bird):跳過「尚未開始」</td><td>38</td><td>5T</td><td>⬜</td></tr>
+      <tr><td style="padding:5px 8px">繳費期限 + 逾期自動取消(payment deadline)</td><td>34</td><td>5U</td><td>⬜</td></tr>
+      <tr style="background:#FAFBFC"><td style="padding:5px 8px">設定頁分頁重整(購卡/繳費/系統 tabs)</td><td>39</td><td>5V</td><td>⬜</td></tr>
+      <tr><td style="padding:5px 8px">全面驗證掃瞄(test gap backfill + security regression + journey)</td><td>—</td><td>5W</td><td>⬜</td></tr>
+    </table></div>
+  </div>
+
+  <div class="phase">
+    <div class="phead"><span class="pnum">P0</span><span class="ptitle">安全網 · E2E 基準<small>先鎖定「既有功能不被改壞」再動地基</small></span><span class="pill done"><span class="d"></span>完成</span></div>
+    <ul class="plist">
+      <li class="task"><span class="tid">0.1–0.4</span><span class="tbody"><div class="tname">Playwright 框架 · dev 種子 · 8 項回歸基準(對抗式強化) · 修復 ESLint flat-config</div><div class="tmeta"><span class="sha">7d8882c</span> <span class="sha">f198cbf</span> <span class="sha">ce1478d</span> <span class="sha">3314a1a</span></div></span><span class="pill done"><span class="d"></span>done</span></li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phead"><span class="pnum">P1</span><span class="ptitle">統一地基<small>orders 表、pricing_mode/報名開關、投票/懲罰表、同步型別、計價解析器、單一 isMemberActive</small></span><span class="pill done"><span class="d"></span>完成</span></div>
+    <ul class="plist">
+      <li class="task"><span class="tid">1.1–1.5</span><span class="tbody"><div class="tname">card_orders→orders · 計價/投票/懲罰 schema · 型別同步 · 計價解析器(TDD 16/16) · 收斂 isMember + 刪死碼</div><div class="tmeta">全部經<b>獨立審查</b>(補審 4 項) · 回歸零行為變更</div></span><span class="pill done"><span class="d"></span>done</span></li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phead"><span class="pnum">P2</span><span class="ptitle">統一訂單流程 + 審核中心<small>金流審核:購卡/課程費/社費共用一套狀態機</small></span><span class="pill done"><span class="d"></span>完成</span></div>
+    <ul class="plist">
+      <li class="task"><span class="tid">2.1</span><span class="tbody"><div class="tname">course_fee 訂單生命週期(確認/取消/駁回,狀態守衛)</div><div class="tmeta"><span class="sha">be1c6c1</span> <span class="sha">1e8b17e</span> · 審查揪出 3 項已修</div></span><span class="pill done"><span class="d"></span>done</span></li>
+      <li class="task"><span class="tid">2.2</span><span class="tbody"><div class="tname">退卡/重扣改為 cards_per_session(對抗式 e2e:2 卡課→+2)</div><div class="tmeta"><span class="sha">1d02173</span></div></span><span class="pill done"><span class="d"></span>done</span></li>
+      <li class="task"><span class="tid">2.3</span><span class="tbody"><div class="tname">審核中心「報名繳費」分頁 + 訂單動作授權(修復越權漏洞)</div><div class="tmeta"><span class="sha">f206dad</span> · 首個新畫面 · happy+adversarial 綠</div></span><span class="pill done"><span class="d"></span>done</span></li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phead plain"><span class="pnum">R</span><span class="ptitle">Phase 3 前置:補 makeup / transfer 回歸覆蓋(含 DB 斷言)<small>審查揪出並修正 past-session 假綠燈</small></span><span class="pill done"><span class="d"></span>完成</span></div>
+  </div>
+  <div class="phase">
+    <div class="phead plain"><span class="pnum">P3</span><span class="ptitle">容量/分配/原子報名<small>3.1 容量模組 ✓ · 3.2 分配 fcfs ✓ · 3.3 原子報名 RPC(防超賣,並發測試通過)✓ · 3.4 候補取消 ✓ · gate 18/18 綠</small></span><span class="pill done"><span class="d"></span>完成</span></div>
+  </div>
+  <div class="phase">
+    <div class="phead plain"><span class="pnum">P4</span><span class="ptitle">堂卡購買規則<small>4.1 每月首週時段 ✓ · 4.2 n 倍數 ✓ · 4.3 效期同步+級聯 ✓ · gate 23/23 綠</small></span><span class="pill done"><span class="d"></span>完成</span></div>
+  </div>
+  <div class="phase">
+    <div class="phead plain"><span class="pnum">P5</span><span class="ptitle">整期報名精靈 + 單堂加報 + 作廢重報 + 報名守衛<small>5.1 報名守衛(三入口:模式/窗口/收費)✓ · 5.2 課程表單收費模式+價格+開關 ✓ · 5.3 整期精靈+submitGroupEnrollment(金流補測揪出正式環境 bug)✓ · 5.4 作廢重報 RPC(原子/冪等/拒確認單)✓ · 5.5 單堂計價路由+禁自取消 ✓ · gate 47/47 綠</small></span><span class="pill done"><span class="d"></span>完成</span></div>
+  </div>
+  <div class="phase">
+    <div class="phead plain"><span class="pnum">5R</span><span class="ptitle">UX 補完與對齊修正<small>5R.1-8 完成 + D1/D2/D3 金流 hotfix(mutation 3/3 RED) + 工作流強制層(hooks) · gate 82/82 綠</small></span><span class="pill done"><span class="d"></span>完成</span></div>
+  </div>
+  <div class="phase">
+    <div class="phead"><span class="pnum" style="background:var(--attn)">S0</span><span class="ptitle">🔒 安全熱修:RLS 寫入封鎖 + RPC REVOKE<small>關閉 3 個既有安全漏洞:profiles 自升 admin、enrollments 繞過守衛直寫、orders 金額竄改</small></span><span class="pill done"><span class="d"></span>DEV 完成</span></div>
+    <ul class="plist">
+      <li class="task"><span class="tid">S0.1</span><span class="tbody"><div class="tname">遷移 5 個 user-client 寫入路徑至 adminClient(enrollInCourse / cancelEnrollment / updateMemberProfile / createCardOrder)</div><div class="tmeta">刪除死碼:updateUserRole + DevRoleToggle</div></span><span class="pill done"><span class="d"></span>done</span></li>
+      <li class="task"><span class="tid">S0.2</span><span class="tbody"><div class="tname">Migration 016:DROP 寫入 RLS policies(profiles/enrollments/orders) + REVOKE enroll_atomic / void_group_submission</div><div class="tmeta">DEV 已套用 · PROD 待確認</div></span><span class="pill done"><span class="d"></span>done</span></li>
+      <li class="task"><span class="tid">S0.3</span><span class="tbody"><div class="tname">獨立審查 + 全套 e2e 回歸 + mutation check</div><div class="tmeta">PASS · 82/2skip/0fail · 1 MINOR(course_leaders out-of-scope)</div></span><span class="pill done"><span class="d"></span>done</span></li>
+      <li class="task"><span class="tid">S0.4</span><span class="tbody"><div class="tname">套用 migration 016 到 PROD(需使用者確認)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+    </ul>
+  </div>
+  <div class="phase">
+    <div class="phead"><span class="pnum">5S</span><span class="ptitle">需求再對齊 · 設計 v2<small>客戶 2026-07-08 需求更新:候補全面支援、入社合併、幹部 early-bird、非社員延遲窗、設定頁 tabs</small></span><span class="pill done"><span class="d"></span>完成</span></div>
+    <ul class="plist">
+      <li class="task"><span class="tid">5S.1</span><span class="tbody"><div class="tname">Gap analysis(5 sonnet 稽核 + 文件比對)</div></span><span class="pill done"><span class="d"></span>done</span></li>
+      <li class="task"><span class="tid">5S.2</span><span class="tbody"><div class="tname">Design v2 對抗式審查(3x opus max:併發/金流/一致性 → 4 critical cluster)</div></span><span class="pill done"><span class="d"></span>done</span></li>
+      <li class="task"><span class="tid">5S.3</span><span class="tbody"><div class="tname">撰寫規格文件 + 決策日誌 v6(#35-40)</div><div class="tmeta"><span class="sha">17b85b7</span></div></span><span class="pill done"><span class="d"></span>done</span></li>
+      <li class="task"><span class="tid">5S.4</span><span class="tbody"><div class="tname">實作計畫:4 phase × 23 tasks + 全面驗證矩陣(user story/UI/code/security)</div></span><span class="pill done"><span class="d"></span>done</span></li>
+    </ul>
+  </div>
+  <div class="phase">
+    <div class="phead"><span class="pnum">5T</span><span class="ptitle">引擎核心 · migration 017<small>waitlist engine + staggered windows + admin early-bird + membership combined</small></span><span class="pill pend"><span class="d"></span>待做</span></div>
+    <ul class="plist">
+      <li class="task"><span class="tid">5T.1</span><span class="tbody"><div class="tname">Migration 017:realign_schema(waitlist_enabled, nonmember_delay_days, promote_from_waitlist RPC, enroll_atomic v2)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5T.2</span><span class="tbody"><div class="tname">Waitlist engine server actions(enroll path + promote triggers)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5T.3</span><span class="tbody"><div class="tname">Staggered windows(guardGroupPhase1Window + guardCourseWindow 修改)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5T.4</span><span class="tbody"><div class="tname">Admin early-bird(admin 跳過「尚未開始」,保留所有其他守衛)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5T.5</span><span class="tbody"><div class="tname">Membership combined(carrier order + grantMembership + contingency invariant)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5T.6</span><span class="tbody"><div class="tname">Phase gate:tsc + unit + full e2e + lint</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+    </ul>
+  </div>
+  <div class="phase">
+    <div class="phead"><span class="pnum">5U</span><span class="ptitle">繳費期限 · migration 018<small>concert ticket model: deadline 計算 + expireEnrollment + lazy check + cron</small></span><span class="pill pend"><span class="d"></span>待做</span></div>
+    <ul class="plist">
+      <li class="task"><span class="tid">5U.1</span><span class="tbody"><div class="tname">Migration 018:payment_deadline(course_groups.payment_deadline_days + enrollments.payment_deadline_at)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5U.2</span><span class="tbody"><div class="tname">Deadline 計算 + expireEnrollment(idempotent cancel + order cascade + waitlist promote)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5U.3</span><span class="tbody"><div class="tname">Lazy check(page load) + Cron(hourly Edge Function)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5U.4</span><span class="tbody"><div class="tname">Payment deadline e2e(H-PD 1-3 + A-PD 1-3 + M-PD-1)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5U.5</span><span class="tbody"><div class="tname">Phase gate</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+    </ul>
+  </div>
+  <div class="phase">
+    <div class="phead"><span class="pnum">5V</span><span class="ptitle">UI 層:設定頁 + 候補/延遲/期限/入社 UI<small>前端外觀→Gemini pro · 邏輯→Opus 4.6</small></span><span class="pill pend"><span class="d"></span>待做</span></div>
+    <ul class="plist">
+      <li class="task"><span class="tid">5V.1</span><span class="tbody"><div class="tname">Migration 019:settings seed(card_purchase_unit=3)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5V.2</span><span class="tbody"><div class="tname">Settings tabs UI(購卡/繳費/系統)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5V.3</span><span class="tbody"><div class="tname">Waitlist UI(學員:加入候補/候補順位;幹部:toggle+名冊)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5V.4</span><span class="tbody"><div class="tname">Staggered window UI(非社員延遲訊息;幹部:delay 欄位)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5V.5</span><span class="tbody"><div class="tname">Payment deadline UI(學員:期限顯示;幹部:設定+對帳欄位)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5V.6</span><span class="tbody"><div class="tname">Membership combined UI(精靈「同時加入社員」checkbox)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5V.7</span><span class="tbody"><div class="tname">Phase gate + visual review</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+    </ul>
+  </div>
+  <div class="phase">
+    <div class="phead"><span class="pnum">5W</span><span class="ptitle">全面驗證掃瞄<small>test gap backfill + security regression + journey + unit extensions → 預估 ~242 total tests</small></span><span class="pill pend"><span class="d"></span>待做</span></div>
+    <ul class="plist">
+      <li class="task"><span class="tid">5W.1</span><span class="tbody"><div class="tname">既有功能 gap backfill(register adversarial / modify adversarial / enroll-guard mutation)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5W.2</span><span class="tbody"><div class="tname">Security regression tests(6 RLS/RPC assertions)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5W.3</span><span class="tbody"><div class="tname">Journey extensions(waitlist lifecycle / membership lifecycle / early-bird / deadline)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5W.4</span><span class="tbody"><div class="tname">Unit test extensions(pricing edge + capacity waitlist)</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+      <li class="task"><span class="tid">5W.5</span><span class="tbody"><div class="tname">Final gate:tsc + unit + full e2e + lint + build + security + journey + dashboard</div></span><span class="pill pend"><span class="d"></span>pending</span></li>
+    </ul>
+  </div>
+  <div class="phase">
+    <div class="phead plain"><span class="pnum">P6</span><span class="ptitle">MV 投票選歌 + 開票結算(top-k / 平票裁決 / 自動配位)</span><span class="pill pend"><span class="d"></span>待做</span></div>
+  </div>
+  <div class="phase">
+    <div class="phead plain"><span class="pnum">P7</span><span class="ptitle">缺席懲罰黑名單(2 次停權免費課 + 幹部解鎖)</span><span class="pill pend"><span class="d"></span>待做</span></div>
+  </div>
+  <div class="phase">
+    <div class="phead plain"><span class="pnum">P8</span><span class="ptitle">App 內狀態通知 + 全套 gate + prod 遷移</span><span class="pill pend"><span class="d"></span>待做</span></div>
+  </div>
+  <div class="phase">
+    <div class="phead plain"><span class="pnum">P9</span><span class="ptitle">全 repo lint 技術債清理(430 問題,排程於最後)</span><span class="pill pend"><span class="d"></span>已排程</span></div>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--done)"></i>完成</span>
+    <span><i style="background:var(--run)"></i>進行中</span>
+    <span><i style="background:var(--pend)"></i>待做 / 已排程</span>
+    <span><i style="background:var(--attn)"></i>審查揪出的問題(已修)</span>
+  </div>
+
+  <footer>
+    流程:opus-4-6 實作 → opus-4-6 獨立對抗式審查 → 修正 → 通過才標完成(無自我審查)。審查已在 0.2 / 0.3 / 1.1 / 1.4 / 1.5 / 2.1 / 2.3 / 4.2 / 4.3 / 5.3 / 5R.5 / D1D2D3 / S0 揪出真實問題(含越權漏洞、正式環境潛在 bug、金流生命週期漏洞、RLS 寫入漏洞)。5R 引入任務分級+hook 強制層。5S 需求再對齊(v2 spec + 23-task 實作計畫 + 全面驗證矩陣)。計畫檔:<code>docs/superpowers/plans/2026-07-10-mtk-realign.md</code>。決策紀錄:<code>docs/mtk-decision-log.md</code>。
+  </footer>
+</div>
