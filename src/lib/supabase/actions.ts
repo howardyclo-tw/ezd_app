@@ -3068,6 +3068,40 @@ export async function confirmCardOrder(orderId: string): Promise<{ success: bool
     return confirmOrder(orderId);
 }
 
+/** Grant membership to a user: assign to latest member_group, set valid_until, upgrade role if guest.
+ *  Idempotent: skips if already member/admin with a group assigned. */
+async function grantMembership(userId: string, adminClient: ReturnType<typeof createAdminClient>): Promise<void> {
+    const { data: profile } = await adminClient
+        .from('profiles')
+        .select('role, member_group_id')
+        .eq('id', userId)
+        .single();
+
+    if (!profile) return;
+
+    // Already member/admin with group? Skip
+    if (profile.role !== 'guest' && profile.member_group_id) return;
+
+    // Get latest member group
+    const { data: latestGroup } = await adminClient
+        .from('member_groups')
+        .select('id, valid_until')
+        .order('valid_until', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    const updateData: Record<string, any> = {};
+    if (profile.role === 'guest') updateData.role = 'member';
+    if (latestGroup) {
+        updateData.member_group_id = latestGroup.id;
+        updateData.member_valid_until = latestGroup.valid_until;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+        await adminClient.from('profiles').update(updateData).eq('id', userId);
+    }
+}
+
 /** Admin: confirm an order (any order_type).
  *  card_purchase => issue cards + recompute balance (existing behavior).
  *  course_fee => set linked enrollments to enrolled.
@@ -3141,38 +3175,18 @@ export async function confirmOrder(orderId: string): Promise<{ success: boolean;
 
     if (orderError) throw new Error(`確認訂單失敗: ${orderError.message}`);
 
+    // Grant membership for any order type with include_membership
+    if (order.include_membership) {
+        await grantMembership(order.user_id, adminClient);
+    }
+
     // Branch on order_type for side-effects
     if (order.order_type === 'card_purchase') {
         // --- card_purchase: issue cards + recompute balance (existing behavior) ---
         const { syncCardBalance } = await import('./card-utils');
         const newBalance = await syncCardBalance(order.user_id);
 
-        // If membership included, upgrade user to member and assign to latest group
-        if (order.include_membership) {
-            const { data: upProfile } = await adminClient
-                .from('profiles')
-                .select('role')
-                .eq('id', order.user_id)
-                .single();
-
-            // Get latest member group
-            const { data: latestGroup } = await adminClient
-                .from('member_groups')
-                .select('id')
-                .order('valid_until', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-            const updateData: any = { member_group_id: latestGroup?.id || null };
-            if (upProfile?.role === 'guest') {
-                updateData.role = 'member';
-            }
-
-            await adminClient
-                .from('profiles')
-                .update(updateData)
-                .eq('id', order.user_id);
-        }
+        // Membership grant (if include_membership) is handled above for all order types.
 
         // Record transaction
         await adminClient.from('card_transactions').insert({
@@ -3355,6 +3369,7 @@ async function createCourseFeeOrder(args: {
     courseGroupId: string;
     amount: number;
     enrollmentIds: string[];
+    includeMembership?: boolean;
 }): Promise<{ orderId: string }> {
     const { userId, courseGroupId, amount, enrollmentIds } = args;
     if (!enrollmentIds.length) throw new Error('必須提供至少一筆報名紀錄');
@@ -3374,6 +3389,7 @@ async function createCourseFeeOrder(args: {
             amount,               // actual NTD amount for course_fee
             status: 'pending',
             course_group_id: courseGroupId,
+            include_membership: args.includeMembership ?? false,
         })
         .select('id')
         .single();
@@ -3597,6 +3613,10 @@ export async function submitGroupEnrollment(
         taipeiToday
     );
 
+    // If user is already a member, force includeMembership to false (prevents double-charging)
+    const includeMembership = (payload.includeMembership ?? false) && !memberActive;
+    const effectiveIsMember = memberActive || includeMembership;
+
     // ── 4. Fetch all selected courses with sessions count ──
     const courseIds = payload.selections.map(s => s.courseId);
     const { data: courses } = await adminClient
@@ -3733,7 +3753,7 @@ export async function submitGroupEnrollment(
 
         let price: import('@/lib/supabase/pricing').PriceResult;
         try {
-            price = resolvePrice(pricingInputs, memberActive, 'full');
+            price = resolvePrice(pricingInputs, effectiveIsMember, 'full');
         } catch (e: unknown) {
             perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: e instanceof Error ? e.message : '定價錯誤' });
             continue;
@@ -3908,12 +3928,15 @@ export async function submitGroupEnrollment(
     let cardOrderId: string | undefined;
 
     // NTD: create a single course_fee order for all ntd enrollments
+    // Single carrier rule: if there's also a card order, it carries the membership; NTD doesn't.
     if (ntdEnrollmentIds.length > 0 && ntdTotalAmount > 0) {
+        const ntdCarriesMembership = includeMembership && !payload.buyCards;
         const result = await createCourseFeeOrder({
             userId: user.id,
             courseGroupId: payload.groupId,
-            amount: ntdTotalAmount,
+            amount: ntdTotalAmount + (ntdCarriesMembership ? 1800 : 0),
             enrollmentIds: ntdEnrollmentIds,
+            includeMembership: ntdCarriesMembership,
         });
         orderId = result.orderId;
     }
@@ -3925,8 +3948,7 @@ export async function submitGroupEnrollment(
     if (cardPendingEnrollmentIds.length > 0 && payload.buyCards) {
         const { quantity, remittance } = payload.buyCards;
         const config = await getSystemConfig();
-        const includeMembership = payload.includeMembership ?? false;
-        const unitPrice = (memberActive || includeMembership)
+        const unitPrice = effectiveIsMember
             ? parseInt(config['card_price_member'] ?? '270', 10)
             : parseInt(config['card_price_non_member'] ?? '370', 10);
         const membershipPrice = includeMembership ? 1800 : 0;
