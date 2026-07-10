@@ -33,3 +33,4 @@
 {"task":"5T.1","type":"金流/RPC","model":"opus","effort":"high","tokens_in":35000,"tokens_out":27000,"wall_time_s":385,"test_pass":true,"reviewer_findings":0,"user_rejected":false,"retry_count":0}
 {"task":"5U.1","type":"migration","model":"orchestrator","effort":"high","tokens_in":0,"tokens_out":0,"wall_time_s":300,"test_pass":true,"reviewer_findings":0,"user_rejected":false,"retry_count":0}
 {"task":"5V.2","type":"ui","model":"opus","effort":"high","tokens_in":51497,"tokens_out":0,"wall_time_s":378,"test_pass":true,"reviewer_findings":0,"user_rejected":false,"retry_count":0}
+{"task":"5T.2-4","type":"impl","model":"opus","effort":"high","tokens_in":87754,"tokens_out":0,"wall_time_s":756,"test_pass":true,"reviewer_findings":0,"user_rejected":false,"retry_count":0}

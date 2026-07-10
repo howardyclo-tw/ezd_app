@@ -75,11 +75,16 @@ function guardEnrollSingleIdentity(course: { enroll_single_identity?: string }, 
  * Check course-group phase1 window for full enrollment.
  * Fetches the course_groups row via group_id on the course.
  * Returns a rejection message string or null if within window.
+ *
+ * opts.isAdmin — admin skips the "not yet started" check (but NOT the "已截止" check).
+ * opts.nonmemberDelayDays — non-members see an effective start delayed by N days.
+ * opts.isMember — whether the caller is an active member (no delay).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function guardGroupPhase1Window(
     supabase: any,
-    courseGroupId: string | null
+    courseGroupId: string | null,
+    opts?: { nonmemberDelayDays?: number | null; isMember?: boolean; isAdmin?: boolean }
 ): Promise<string | null> {
     if (!courseGroupId) return null; // no group => no group window to check
     const { data: group } = await supabase.from('course_groups')
@@ -88,23 +93,62 @@ async function guardGroupPhase1Window(
         .maybeSingle();
     if (!group) return null; // group not found => skip check (shouldn't happen)
     const now = new Date();
-    if (group.registration_phase1_start && new Date(group.registration_phase1_start) > now) {
-        return '整期報名尚未開始';
+
+    // "Not yet started" check — admin bypasses entirely
+    if (!opts?.isAdmin && group.registration_phase1_start) {
+        const baseStart = new Date(group.registration_phase1_start);
+        const delayDays = (!opts?.isMember && opts?.nonmemberDelayDays) ? opts.nonmemberDelayDays : 0;
+        const effectiveStart = delayDays > 0
+            ? new Date(baseStart.getTime() + delayDays * 86400000)
+            : baseStart;
+
+        if (effectiveStart > now) {
+            if (delayDays > 0) {
+                const formatted = new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Taipei' }).format(effectiveStart);
+                return `社員優先報名中，${formatted} 開放`;
+            }
+            return '整期報名尚未開始';
+        }
     }
+
+    // "已截止" check — same deadline for everyone (including admin)
     if (group.registration_phase1_end && new Date(group.registration_phase1_end) < now) {
         return '整期報名已截止';
     }
     return null;
 }
 
-/** Check course-level enrollment window for single enrollment. */
+/**
+ * Check course-level enrollment window for single enrollment.
+ *
+ * opts.isAdmin — admin skips the "not yet started" check (but NOT the "已截止" check).
+ * opts.nonmemberDelayDays — non-members see an effective start delayed by N days.
+ * opts.isMember — whether the caller is an active member (no delay).
+ */
 function guardCourseWindow(
-    course: { enrollment_start_at?: string | null; enrollment_end_at?: string | null }
+    course: { enrollment_start_at?: string | null; enrollment_end_at?: string | null },
+    opts?: { nonmemberDelayDays?: number | null; isMember?: boolean; isAdmin?: boolean }
 ): string | null {
     const now = new Date();
-    if (course.enrollment_start_at && new Date(course.enrollment_start_at) > now) {
-        return '單堂報名尚未開始';
+
+    // "Not yet started" check — admin bypasses entirely
+    if (!opts?.isAdmin && course.enrollment_start_at) {
+        const baseStart = new Date(course.enrollment_start_at);
+        const delayDays = (!opts?.isMember && opts?.nonmemberDelayDays) ? opts.nonmemberDelayDays : 0;
+        const effectiveStart = delayDays > 0
+            ? new Date(baseStart.getTime() + delayDays * 86400000)
+            : baseStart;
+
+        if (effectiveStart > now) {
+            if (delayDays > 0) {
+                const formatted = new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Taipei' }).format(effectiveStart);
+                return `社員優先報名中，${formatted} 開放`;
+            }
+            return '單堂報名尚未開始';
+        }
     }
+
+    // "已截止" check — same deadline for everyone (including admin)
     if (course.enrollment_end_at && new Date(course.enrollment_end_at) < now) {
         return '單堂報名已截止';
     }
@@ -180,7 +224,11 @@ export async function enrollInCourse(
         const fullIdentMsg = guardEnrollFullIdentity(course, legacyMemberActive);
         if (fullIdentMsg) return { success: false, status: 'enrolled', message: fullIdentMsg };
 
-        const windowMsg = await guardGroupPhase1Window(supabase, course.group_id);
+        const windowMsg = await guardGroupPhase1Window(supabase, course.group_id, {
+            nonmemberDelayDays: course.nonmember_delay_days,
+            isMember: legacyMemberActive,
+            isAdmin: profile.role === 'admin',
+        });
         if (windowMsg) return { success: false, status: 'enrolled', message: windowMsg };
     } else {
         const modeMsg = guardEnrollSingle(course);
@@ -189,7 +237,11 @@ export async function enrollInCourse(
         const singleIdentMsg = guardEnrollSingleIdentity(course, legacyMemberActive);
         if (singleIdentMsg) return { success: false, status: 'enrolled', message: singleIdentMsg };
 
-        const windowMsg = guardCourseWindow(course);
+        const windowMsg = guardCourseWindow(course, {
+            nonmemberDelayDays: course.nonmember_delay_days,
+            isMember: legacyMemberActive,
+            isAdmin: profile.role === 'admin',
+        });
         if (windowMsg) return { success: false, status: 'enrolled', message: windowMsg };
     }
 
@@ -248,71 +300,41 @@ export async function enrollInCourse(
         };
     }
 
-    // 4. Check current enrollment count (for waitlist)
-    // Waitlist is generally only for full-term or if capacity reached
-    const { count: enrolledCount } = await supabase
-        .from('enrollments')
-        .select('*', { count: 'exact', head: true })
-        .eq('course_id', courseId)
-        .eq('status', 'enrolled');
-    const isFull = (enrolledCount ?? 0) >= course.capacity;
+    // 4. Enroll via atomic RPC (capacity check + insert + card deduction in single txn)
+    const { data: rpcData, error: rpcError } = await adminClient.rpc('enroll_atomic', {
+        p_user: user.id,
+        p_course: courseId,
+        p_type: type,
+        p_session: sessionId ?? null,
+        p_status: 'enrolled',
+        p_cards_to_deduct: cardsToDeduct,
+        p_order_id: null,
+        p_allow_waitlist: course.waitlist_enabled ?? false,
+    });
 
-    if (isFull) {
-        // Add to waitlist
-        const { count: waitlistCount } = await supabase
-            .from('enrollments')
-            .select('*', { count: 'exact', head: true })
-            .eq('course_id', courseId)
-            .eq('status', 'waitlist');
+    if (rpcError) throw new Error(`報名失敗: ${rpcError.message}`);
 
-        const waitlist_position = (waitlistCount ?? 0) + 1;
+    const rpcResult = rpcData as { ok: boolean; enrollment_id?: string; status?: string; waitlist_position?: number; reason?: string };
+    if (!rpcResult.ok) {
+        if (rpcResult.reason === 'already_enrolled') {
+            return { success: false, status: 'enrolled', message: '您已報名此課程' };
+        }
+        if (rpcResult.reason === 'full') {
+            return { success: false, status: 'enrolled', message: '課程已額滿' };
+        }
+        if (rpcResult.reason === 'insufficient_cards') {
+            return { success: false, status: 'enrolled', message: '堂卡餘額不足' };
+        }
+        throw new Error(`報名失敗: ${rpcResult.reason}`);
+    }
 
-        const { error } = await adminClient.from('enrollments').upsert({
-            id: existing?.id ?? undefined,
-            course_id: courseId,
-            user_id: user.id,
-            status: 'waitlist',
-            type,
-            session_id: sessionId ?? null,
-            waitlist_position,
-            source: 'self',
-            enrolled_at: new Date().toISOString(),
-            cancelled_at: null,
-        }, { onConflict: 'course_id,user_id,session_id' });
+    revalidatePath('/', 'layout');
 
-        if (error) throw new Error(`加入候補失敗: ${error.message}`);
-
-        revalidatePath('/', 'layout');
+    if (rpcResult.status === 'waitlist') {
         return { success: true, status: 'waitlist', message: '已加入候補名單 (候補期間不扣卡)' };
     }
 
-    // 5. Enroll directly and deduct cards (FIFO)
-    const { data: enrollment, error: enrollError } = await adminClient.from('enrollments').upsert({
-        id: existing?.id ?? undefined,
-        course_id: courseId,
-        user_id: user.id,
-        status: 'enrolled',
-        type,
-        session_id: sessionId ?? null,
-        source: 'self',
-        enrolled_at: new Date().toISOString(),
-        cancelled_at: null,
-    }, { onConflict: 'course_id,user_id,session_id' }).select('id').single();
-
-    if (enrollError) throw new Error(`報名失敗: ${enrollError.message}`);
-
-    // FIFO deduct cards
-    const { deductCardsFIFO } = await import('./card-utils');
-    const { newBalance } = await deductCardsFIFO(
-        user.id,
-        cardsToDeduct,
-        courseEndDate,
-        `${type === 'full' ? '整期' : '單堂'}報名課程: ${course.name}`,
-        enrollment.id
-    );
-
-    revalidatePath(`/`, `layout`);
-    return { success: true, status: 'enrolled', message: `報名成功！扣除 ${cardsToDeduct} 堂卡，剩餘 ${newBalance} 堂。` };
+    return { success: true, status: 'enrolled', message: `報名成功！扣除 ${cardsToDeduct} 堂卡。` };
 }
 
 /**
@@ -362,20 +384,35 @@ export async function batchEnrollInCourses(
 
     // ── Guard: group phase1 window ──
     // Collect unique group_ids and check their windows
-    const groupIds = [...new Set(guardedCourses.map(c => c.group_id).filter(Boolean))];
+    // Each course may have a different nonmember_delay_days, so check per-course
+    const guardOpts = {
+        isMember: memberActive,
+        isAdmin: profile.role === 'admin',
+    };
     const closedGroupIds = new Set<string>();
     const notStartedGroupIds = new Set<string>();
+    const notStartedMessages = new Map<string, string>();
+    // Dedupe per group_id but use per-course delay (pick max delay across courses sharing a group)
+    const groupIds = [...new Set(guardedCourses.map(c => c.group_id).filter(Boolean))];
     for (const gid of groupIds) {
-        const windowMsg = await guardGroupPhase1Window(supabase, gid);
+        // Use the max nonmember_delay_days from courses in this group for the window check
+        const coursesInGroup = guardedCourses.filter(c => c.group_id === gid);
+        const maxDelay = Math.max(0, ...coursesInGroup.map(c => c.nonmember_delay_days ?? 0));
+        const windowMsg = await guardGroupPhase1Window(supabase, gid, {
+            ...guardOpts,
+            nonmemberDelayDays: maxDelay,
+        });
         if (windowMsg === '整期報名已截止') closedGroupIds.add(gid);
-        if (windowMsg === '整期報名尚未開始') notStartedGroupIds.add(gid);
+        else if (windowMsg) { notStartedGroupIds.add(gid); notStartedMessages.set(gid, windowMsg); }
     }
     const windowPassCourses = guardedCourses.filter(c =>
         !closedGroupIds.has(c.group_id) && !notStartedGroupIds.has(c.group_id)
     );
     if (windowPassCourses.length === 0) {
         if (closedGroupIds.size > 0) return { success: false, message: '整期報名已截止' };
-        return { success: false, message: '整期報名尚未開始' };
+        // Return the first not-started message (may include staggered delay message)
+        const firstMsg = notStartedMessages.values().next().value;
+        return { success: false, message: firstMsg ?? '整期報名尚未開始' };
     }
 
     // 2. Check each course status and already enrolled
@@ -445,11 +482,12 @@ export async function batchEnrollInCourses(
             p_status: 'enrolled',
             p_cards_to_deduct: cost,
             p_order_id: null,
+            p_allow_waitlist: course.waitlist_enabled ?? false,
         });
 
         if (error) throw new Error(`報名失敗: ${error.message}`);
 
-        const result = data as { ok: boolean; enrollment_id?: string; reason?: string };
+        const result = data as { ok: boolean; enrollment_id?: string; status?: string; reason?: string };
         if (!result.ok) {
             if (result.reason === 'already_enrolled') continue;
             if (result.reason === 'full') {
@@ -504,10 +542,7 @@ export async function batchEnrollInSessions(
     const modeMsg = guardEnrollSingle(course);
     if (modeMsg) return { success: false, message: modeMsg };
 
-    const windowMsg = guardCourseWindow(course);
-    if (windowMsg) return { success: false, message: windowMsg };
-
-    // Identity guard: check member-only single enrollment
+    // Identity guard: check member-only single enrollment (computed early for guardCourseWindow opts)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const singleGroupValidUntil = (profile.member_groups as any)?.valid_until ?? null;
     const singleTaipeiToday = getTaipeiToday();
@@ -517,6 +552,13 @@ export async function batchEnrollInSessions(
     );
     const identMsg = guardEnrollSingleIdentity(course, singleMemberActive);
     if (identMsg) return { success: false, message: identMsg };
+
+    const windowMsg = guardCourseWindow(course, {
+        nonmemberDelayDays: course.nonmember_delay_days,
+        isMember: singleMemberActive,
+        isAdmin: profile.role === 'admin',
+    });
+    if (windowMsg) return { success: false, message: windowMsg };
 
     // ── Route by pricing_mode ──
     const pricingMode = (course.pricing_mode ?? 'card') as string;
@@ -601,6 +643,7 @@ export async function batchEnrollInSessions(
                 p_status: 'enrolled',
                 p_cards_to_deduct: course.cards_per_session,
                 p_order_id: null,
+                p_allow_waitlist: course.waitlist_enabled ?? false,
             });
 
             if (error) throw new Error(`報名失敗: ${error.message}`);
@@ -704,6 +747,7 @@ export async function batchEnrollInSessions(
             p_status: enrollStatus,
             p_cards_to_deduct: 0,
             p_order_id: null,
+            p_allow_waitlist: course.waitlist_enabled ?? false,
         });
 
         if (error) throw new Error(`報名失敗: ${error.message}`);
@@ -812,21 +856,10 @@ export async function cancelEnrollment(courseId: string): Promise<{ success: boo
     // Promote first waitlisted person if an occupying seat was freed
     // (pending_payment occupies a seat; waitlist does not; enrolled is now blocked above)
     if (enrollment.status === 'pending_payment') {
-        const { data: firstWaitlist } = await supabase
-            .from('enrollments')
-            .select('id')
-            .eq('course_id', courseId)
-            .eq('status', 'waitlist')
-            .order('waitlist_position')
-            .limit(1)
-            .maybeSingle();
-
-        if (firstWaitlist) {
-            await adminClient
-                .from('enrollments')
-                .update({ status: 'enrolled', waitlist_position: null })
-                .eq('id', firstWaitlist.id);
-        }
+        await adminClient.rpc('promote_from_waitlist', {
+            p_course_id: courseId,
+            p_session_id: null,
+        });
     }
 
     revalidatePath(`/`, `layout`);
@@ -3013,6 +3046,18 @@ export async function cancelOrder(orderId: string, reason?: string): Promise<{ s
         if (enrollError) {
             return { success: false, message: `訂單已取消，但更新報名狀態失敗: ${enrollError.message}` };
         }
+
+        // Trigger waitlist promotion for each affected course
+        const { data: cancelledEnrollments } = await adminClient
+            .from('enrollments')
+            .select('course_id')
+            .eq('order_id', orderId)
+            .eq('status', 'cancelled');
+
+        const courseIds = [...new Set((cancelledEnrollments ?? []).map(e => e.course_id))];
+        for (const cid of courseIds) {
+            await adminClient.rpc('promote_from_waitlist', { p_course_id: cid });
+        }
     }
 
     return { success: true, message: '訂單已取消' };
@@ -3277,6 +3322,18 @@ export async function rejectOrder(orderId: string, reason?: string): Promise<{ s
         if (enrollError) {
             return { success: false, message: `訂單已駁回，但更新報名狀態失敗: ${enrollError.message}` };
         }
+
+        // Trigger waitlist promotion for each affected course
+        const { data: cancelledEnrollments } = await adminClient
+            .from('enrollments')
+            .select('course_id')
+            .eq('order_id', orderId)
+            .eq('status', 'cancelled');
+
+        const courseIds = [...new Set((cancelledEnrollments ?? []).map(e => e.course_id))];
+        for (const cid of courseIds) {
+            await adminClient.rpc('promote_from_waitlist', { p_course_id: cid });
+        }
     }
     // membership_fee or future types: no extra side-effects
 
@@ -3494,7 +3551,7 @@ export interface GroupEnrollmentPayload {
     includeMembership?: boolean;
 }
 
-export type PerCourseStatus = 'enrolled' | 'pending_payment' | 'pending_vote' | 'full' | 'rejected';
+export type PerCourseStatus = 'enrolled' | 'pending_payment' | 'pending_vote' | 'waitlist' | 'full' | 'rejected';
 
 export interface PerCourseResult {
     courseId: string;
@@ -3559,7 +3616,13 @@ export async function submitGroupEnrollment(
     const mvCourseIds = new Set((openPolls ?? []).map(p => p.course_id));
 
     // ── 6. Check group phase1 window (single check since all courses share groupId) ──
-    const phase1Msg = await guardGroupPhase1Window(adminClient, payload.groupId);
+    // Use max nonmember_delay_days across all selected courses
+    const maxDelayDays = Math.max(0, ...(courses ?? []).map(c => c.nonmember_delay_days ?? 0));
+    const phase1Msg = await guardGroupPhase1Window(adminClient, payload.groupId, {
+        nonmemberDelayDays: maxDelayDays,
+        isMember: memberActive,
+        isAdmin: profile.role === 'admin',
+    });
 
     // ── 6b. Validate buyCards quantity upfront (fail-fast before any enrollment) ──
     if (payload.buyCards) {
@@ -3616,6 +3679,7 @@ export async function submitGroupEnrollment(
                 p_status: 'pending_vote',
                 p_cards_to_deduct: 0,
                 p_order_id: null,
+                p_allow_waitlist: course.waitlist_enabled ?? false,
             });
 
             if (rpcError) {
@@ -3623,7 +3687,7 @@ export async function submitGroupEnrollment(
                 continue;
             }
 
-            const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+            const result = rpcResult as { ok: boolean; enrollment_id?: string; status?: string; reason?: string };
             if (!result.ok) {
                 if (result.reason === 'full') {
                     perCourse.push({ courseId: sel.courseId, status: 'full' });
@@ -3645,7 +3709,11 @@ export async function submitGroupEnrollment(
             // TODO [Task 6.2]: persist votes from sel.votes here
             // Vote-writing and vote-integrity guards are deferred to Task 6.2.
 
-            perCourse.push({ courseId: sel.courseId, status: 'pending_vote' });
+            if (result.status === 'waitlist') {
+                perCourse.push({ courseId: sel.courseId, status: 'waitlist' });
+            } else {
+                perCourse.push({ courseId: sel.courseId, status: 'pending_vote' });
+            }
             continue;
         }
 
@@ -3681,6 +3749,7 @@ export async function submitGroupEnrollment(
                 p_status: 'enrolled',
                 p_cards_to_deduct: 0,
                 p_order_id: null,
+                p_allow_waitlist: course.waitlist_enabled ?? false,
             });
 
             if (rpcError) {
@@ -3688,7 +3757,7 @@ export async function submitGroupEnrollment(
                 continue;
             }
 
-            const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+            const result = rpcResult as { ok: boolean; enrollment_id?: string; status?: string; reason?: string };
             if (!result.ok) {
                 if (result.reason === 'full') { perCourse.push({ courseId: sel.courseId, status: 'full' }); }
                 else if (result.reason === 'already_enrolled') { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '已報名此課程' }); }
@@ -3699,7 +3768,7 @@ export async function submitGroupEnrollment(
             if (result.enrollment_id) {
                 await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
             }
-            perCourse.push({ courseId: sel.courseId, status: 'enrolled' });
+            perCourse.push({ courseId: sel.courseId, status: result.status === 'waitlist' ? 'waitlist' : 'enrolled' });
 
         } else if (price.kind === 'card') {
             // Card course: check balance
@@ -3724,6 +3793,7 @@ export async function submitGroupEnrollment(
                     p_status: 'enrolled',
                     p_cards_to_deduct: cardsNeeded,
                     p_order_id: null,
+                    p_allow_waitlist: course.waitlist_enabled ?? false,
                 });
 
                 if (rpcError) {
@@ -3731,7 +3801,7 @@ export async function submitGroupEnrollment(
                     continue;
                 }
 
-                const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+                const result = rpcResult as { ok: boolean; enrollment_id?: string; status?: string; reason?: string };
                 if (!result.ok) {
                     if (result.reason === 'full') { perCourse.push({ courseId: sel.courseId, status: 'full' }); }
                     else if (result.reason === 'already_enrolled') { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '已報名此課程' }); }
@@ -3743,7 +3813,7 @@ export async function submitGroupEnrollment(
                 if (result.enrollment_id) {
                     await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
                 }
-                perCourse.push({ courseId: sel.courseId, status: 'enrolled' });
+                perCourse.push({ courseId: sel.courseId, status: result.status === 'waitlist' ? 'waitlist' : 'enrolled' });
 
             } else if (payload.buyCards) {
                 // Shortfall + buyCards: pending_payment enrollment + card order
@@ -3755,6 +3825,7 @@ export async function submitGroupEnrollment(
                     p_status: 'pending_payment',
                     p_cards_to_deduct: 0,
                     p_order_id: null,
+                    p_allow_waitlist: course.waitlist_enabled ?? false,
                 });
 
                 if (rpcError) {
@@ -3762,7 +3833,7 @@ export async function submitGroupEnrollment(
                     continue;
                 }
 
-                const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+                const result = rpcResult as { ok: boolean; enrollment_id?: string; status?: string; reason?: string };
                 if (!result.ok) {
                     if (result.reason === 'full') { perCourse.push({ courseId: sel.courseId, status: 'full' }); }
                     else if (result.reason === 'already_enrolled') { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '已報名此課程' }); }
@@ -3770,11 +3841,19 @@ export async function submitGroupEnrollment(
                     continue;
                 }
 
-                if (result.enrollment_id) {
-                    await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
-                    cardPendingEnrollmentIds.push(result.enrollment_id);
+                if (result.status === 'waitlist') {
+                    // Waitlisted — don't create a pending_payment order for this course
+                    if (result.enrollment_id) {
+                        await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
+                    }
+                    perCourse.push({ courseId: sel.courseId, status: 'waitlist' });
+                } else {
+                    if (result.enrollment_id) {
+                        await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
+                        cardPendingEnrollmentIds.push(result.enrollment_id);
+                    }
+                    perCourse.push({ courseId: sel.courseId, status: 'pending_payment' });
                 }
-                perCourse.push({ courseId: sel.courseId, status: 'pending_payment' });
 
             } else {
                 // Shortfall and no buyCards: rejected
@@ -3791,6 +3870,7 @@ export async function submitGroupEnrollment(
                 p_status: 'pending_payment',
                 p_cards_to_deduct: 0,
                 p_order_id: null,
+                p_allow_waitlist: course.waitlist_enabled ?? false,
             });
 
             if (rpcError) {
@@ -3798,7 +3878,7 @@ export async function submitGroupEnrollment(
                 continue;
             }
 
-            const result = rpcResult as { ok: boolean; enrollment_id?: string; reason?: string };
+            const result = rpcResult as { ok: boolean; enrollment_id?: string; status?: string; reason?: string };
             if (!result.ok) {
                 if (result.reason === 'full') { perCourse.push({ courseId: sel.courseId, status: 'full' }); }
                 else if (result.reason === 'already_enrolled') { perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '已報名此課程' }); }
@@ -3806,12 +3886,20 @@ export async function submitGroupEnrollment(
                 continue;
             }
 
-            if (result.enrollment_id) {
-                await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
-                ntdEnrollmentIds.push(result.enrollment_id);
+            if (result.status === 'waitlist') {
+                // Waitlisted — don't include in NTD order
+                if (result.enrollment_id) {
+                    await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
+                }
+                perCourse.push({ courseId: sel.courseId, status: 'waitlist' });
+            } else {
+                if (result.enrollment_id) {
+                    await adminClient.from('enrollments').update({ wants_leader: sel.wantsLeader }).eq('id', result.enrollment_id);
+                    ntdEnrollmentIds.push(result.enrollment_id);
+                }
+                ntdTotalAmount += price.amount;
+                perCourse.push({ courseId: sel.courseId, status: 'pending_payment' });
             }
-            ntdTotalAmount += price.amount;
-            perCourse.push({ courseId: sel.courseId, status: 'pending_payment' });
         }
     }
 
