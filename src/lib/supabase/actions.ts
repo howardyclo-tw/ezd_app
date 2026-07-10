@@ -126,6 +126,7 @@ export async function enrollInCourse(
     sessionId?: string
 ): Promise<{ success: boolean; status: 'enrolled' | 'waitlist'; message: string }> {
     const { supabase, user } = await getCurrentUser();
+    const adminClient = createAdminClient();
 
     // 1. Check if already enrolled
     // For single-session, we check if already enrolled in THAT specific session
@@ -266,7 +267,7 @@ export async function enrollInCourse(
 
         const waitlist_position = (waitlistCount ?? 0) + 1;
 
-        const { error } = await supabase.from('enrollments').upsert({
+        const { error } = await adminClient.from('enrollments').upsert({
             id: existing?.id ?? undefined,
             course_id: courseId,
             user_id: user.id,
@@ -286,7 +287,7 @@ export async function enrollInCourse(
     }
 
     // 5. Enroll directly and deduct cards (FIFO)
-    const { data: enrollment, error: enrollError } = await supabase.from('enrollments').upsert({
+    const { data: enrollment, error: enrollError } = await adminClient.from('enrollments').upsert({
         id: existing?.id ?? undefined,
         course_id: courseId,
         user_id: user.id,
@@ -756,6 +757,7 @@ export async function batchEnrollInSessions(
  */
 export async function cancelEnrollment(courseId: string): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
+    const adminClient = createAdminClient();
 
     const { data: enrollments } = await supabase
         .from('enrollments')
@@ -785,7 +787,6 @@ export async function cancelEnrollment(courseId: string): Promise<{ success: boo
         }
 
         // Block partial cancel: if order has other active enrollments, redirect to cancel order
-        const adminClient = createAdminClient();
         const { data: siblings } = await adminClient
             .from('enrollments')
             .select('id')
@@ -801,7 +802,7 @@ export async function cancelEnrollment(courseId: string): Promise<{ success: boo
     // Self-cancel allowed: waitlist or pending_payment with non-confirmed order (single enrollment on order)
 
     // Cancel
-    const { error } = await supabase
+    const { error } = await adminClient
         .from('enrollments')
         .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
         .eq('id', enrollment.id);
@@ -821,7 +822,7 @@ export async function cancelEnrollment(courseId: string): Promise<{ success: boo
             .maybeSingle();
 
         if (firstWaitlist) {
-            await supabase
+            await adminClient
                 .from('enrollments')
                 .update({ status: 'enrolled', waitlist_position: null })
                 .eq('id', firstWaitlist.id);
@@ -2607,6 +2608,7 @@ export async function updateMemberProfile(
     data: { role?: string; member_group_id?: string | null; makeup_quota?: number }
 ): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
+    const adminClient = createAdminClient();
 
     // Admin check
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
@@ -2624,7 +2626,7 @@ export async function updateMemberProfile(
         return { success: false, message: '沒有要更新的欄位' };
     }
 
-    const { error } = await supabase
+    const { error } = await adminClient
         .from('profiles')
         .update(updateData)
         .eq('id', userId);
@@ -2814,6 +2816,7 @@ export async function updateSystemConfig(
 
 export async function createCardOrder(quantity: number, includeMembership: boolean = false): Promise<{ success: boolean; message: string; orderId?: string }> {
     const { supabase, user } = await getCurrentUser();
+    const adminClient = createAdminClient();
 
     // Check purchase window is open
     const config = await getSystemConfig();
@@ -2880,7 +2883,7 @@ export async function createCardOrder(quantity: number, includeMembership: boole
     const membershipPrice = includeMembership ? 1800 : 0;
     const totalAmount = (quantity * unitPrice) + membershipPrice;
 
-    const { data, error } = await supabase
+    const { data, error } = await adminClient
         .from('orders')
         .insert({
             user_id: user.id,

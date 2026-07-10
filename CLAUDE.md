@@ -7,11 +7,19 @@ Guidance for Claude Code in this repository. **Sections 1–3 are binding agent 
 - Communicate with the user primarily in 繁體中文.
 - **MTK build = subagent-driven development** (user's standing authorization). Full templates: `docs/superpowers/mtk-execution-playbook.md`. Critical steps inlined below (§1.1) to survive context compaction.
 - **Model dispatch architecture** (orchestrator coordinates, never implements beyond trivial < 5-line single-file fixes):
-  - **Implementation:** Backend/logic/DB → **Opus 4.6** subagent (fallback 4.8) · Frontend 外觀 → **Gemini `pro` via `/agy`** for quality visual work (only `flash` for trivial CSS fixes like dark: variants or text-size; run: `bash /Users/Howard/.claude/plugins/cache/antigravity-cc/agy/0.4.1/scripts/agy-run.sh ask --model <alias> "<prompt>"`; fallback: Claude subagent) · Frontend 流程/UX → **Opus 4.6** subagent
-  - **Review:** Frontend 外觀 → **Gemini `pro`** via `/agy` · All other (including money/enrollment/pricing) → **Fable 5** (`claude-fable-5`) as default · Fable unavailable → fallback **Opus 4.6**
-  - **Effort:** `max`=money/RPC/authz/concurrency · `high`=normal impl + all reviews · `low/medium`=types/docs/seed/labels
+  - **Guiding principle (community consensus 2026 — "cheap fan-out, expensive judgment"):** the waste is not using expensive models, it is using them where no judgment is needed. Pin each dispatch to the task; never let a subagent inherit a heavier tier than its work requires.
+  - **Model — set explicitly every dispatch (project floor = Sonnet; no Haiku unless a task is truly trivial high-volume fan-out):**
+    - `sonnet` (5, or 4.6 via Workflow) → ground-truth 探勘/audit, mechanical impl (types/seed/copy/labels), test scaffolding, routine review.
+    - `opus` (4.6, fallback 4.8) = **default working tier** → correctness/money/RPC/authz/concurrency impl, multi-file refactor, complex debug, all substantive reviews (incl. money/enrollment/pricing), Frontend 流程/UX.
+    - `gemini pro` via `/agy` → Frontend 外觀 impl + review (`bash /Users/Howard/.claude/plugins/cache/antigravity-cc/agy/0.4.1/scripts/agy-run.sh ask --model pro "<prompt>"`; `flash` only for trivial CSS like dark: variants; fallback: Claude subagent).
+    - `fable` (5) → ONLY genuinely hard architecture/planning/adversarial-synthesis where a wrong call is expensive to unwind. **EXPENSIVE: one heavy use ≈ 30–40% of the session token budget; cap resets after hours.** Sparingly, and only when the user authorizes or the task clearly meets that bar.
+  - **Effort — floor = `high`** (medium/low treated as useless for real work; user directive 2026-07-10): `high` = ALL impl, reviews, exploration · `max` = money/RPC/authz/concurrency/adversarial verification only. Session must never sit below `high`.
+  - **Realizing effort:** the Agent tool has **NO** effort param (inherits session); only Workflow `agent(prompt,{model,effort})` sets it per call. Keep session at `high` for normal phases; for a single dispatch that needs `max`, set session to max around it or route that one via Workflow `{model,effort:'max'}`.
+  - **Design review:** default **2 lenses** (①correctness+money+concurrency ②consistency+UX), `opus` each; a 3rd only for money-critical engine rewrites; Frontend 外觀 → `gemini pro`. Briefs embed audited ground truth (file:line) + "verify only what you dispute".
+  - **Docs** (spec／決策日誌／計畫／ledger) = orchestrator-local, zero dispatch.
+  - **Declare before every dispatch:** print `task → tier → {model, effort, tool}` so the choice is explicit and auditable.
   - **Dispatch log:** append to `.superpowers/sdd/dispatch-log.jsonl` per dispatch: `{task, type, model, effort, tokens_in, tokens_out, wall_time_s, test_pass, reviewer_findings, user_rejected, retry_count}`.
-  - **Reflection:** at each phase end, read dispatch-log → analyze model perf → update memory.
+  - **Feedback loop (self-correcting; THIS table is the single source — no memory copy):** on a trigger, IMMEDIATELY edit this table + note in ledger — (1) a Sonnet-tier task needed escalation → raise its tier; (2) an `opus`/`max` or `fable` dispatch produced nothing a lower tier wouldn't (review 0 new, reviewer fully overlapped, Fable where opus-max sufficed) → lower it; (3) user overrides a `{model,effort,tool}` choice → that becomes the rule; (4) effort inherited when it should have been set → tighten "Realizing effort". Phase-end reflection scans the log and patches this table.
 
 ### 1.1 Task Execution Checklist (INLINE — survives context compaction)
 
@@ -25,7 +33,7 @@ Every MTK task follows this exact sequence. **Skipping any step = workflow viola
 | | 4 | orchestrator | Write IMPL brief with: scope, file:line targets, edge cases, adversarial test spec, anti-false-green clause |
 | **B. Impl** | 5 | subagent | Dispatch to correct model per tier (see dispatch table above) |
 | | 6 | orchestrator | Verify: `npx tsc --noEmit` + scoped spec only (NOT full suite) |
-| **C. Review** | 7 | subagent | Dispatch **independent** reviewer (default Fable 5; fallback Opus 4.6 if Fable unavailable; frontend visual → Gemini pro) |
+| **C. Review** | 7 | subagent | Dispatch **independent** reviewer (default Opus 4.6; Fable 5 only when user explicitly authorizes; frontend visual → Gemini pro) |
 | | 8 | reviewer | Runs full e2e (implementer does NOT run full suite) |
 | **D. Post** | 9 | orchestrator | **Immediately** append dispatch-log.jsonl (before moving to next task) |
 | | 10 | orchestrator | **Immediately** append progress.md ledger |
@@ -47,7 +55,7 @@ After context auto-compaction, CLAUDE.md is reloaded but external files (playboo
 
 - Do NOT add `Co-Authored-By` lines in commits.
 - Do NOT push unless the user explicitly asks. A PreToolUse hook blocks `git push`; when the user explicitly requests a push, `touch .claude/allow-push`, push, then remove it. Do not fight the hook otherwise.
-- Migrations: sequential numbering in `supabase/migrations/` (no gaps; next = 015). Apply to DEV first via `mcp__supabase__apply_migration`, save the same SQL as a repo file. Prod only at Phase 8 cutover.
+- Migrations: sequential numbering in `supabase/migrations/` (no gaps; next = 017). Apply to DEV first via `mcp__supabase__apply_migration`, save the same SQL as a repo file. Prod only at Phase 8 cutover.
 - When merging dev → main: header must stay "EZDANCE" (white), group-enrollment/register entry stays hidden (Phase 1 not launched).
 
 ## 3. Critical Coding Rules

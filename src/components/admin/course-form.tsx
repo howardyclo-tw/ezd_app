@@ -962,7 +962,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                     </FormControl>
                                                     <SelectContent>
                                                         <SelectItem value="card">堂卡</SelectItem>
-                                                        <SelectItem value="ntd">現金 (NTD)</SelectItem>
+                                                        <SelectItem value="ntd">現金</SelectItem>
                                                         <SelectItem value="free">免費</SelectItem>
                                                     </SelectContent>
                                                 </Select>
@@ -1131,7 +1131,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                 {/* NTD Price fields — visible only in ntd mode */}
                                 {pricingMode === 'ntd' && (
                                     <div className="space-y-3">
-                                        <p className="text-xs font-medium text-muted-foreground">NTD 價格設定 (0 = 免費)</p>
+                                        <p className="text-xs font-medium text-muted-foreground">現金價格設定 (0 = 免費)</p>
                                         {enrollSingle && (
                                             <div className="grid grid-cols-2 gap-4">
                                                 <FormField

@@ -140,7 +140,7 @@ export function SystemConfigClient({ initialConfig }: SystemConfigClientProps) {
                                         <Switch
                                             checked={entry.value === 'true'}
                                             onCheckedChange={(checked) => updateEntry(entry.key, String(checked))}
-                                            className="scale-[0.85] data-[state=checked]:bg-green-600"
+                                            className="scale-[0.85]"
                                         />
                                     )}
                                 </div>
