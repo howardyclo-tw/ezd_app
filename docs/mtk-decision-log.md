@@ -1,9 +1,20 @@
 # MTK App 設計決策 Log(As-is → To-be)
 
 > 用途:與客戶溝通的決策紀錄。每項列出現況、決議、狀態。
-> 最後更新:2026-07-07
+> 最後更新:2026-07-10
 
 ## 版本變更紀錄
+
+**v6(2026-07-10)** — 客戶 2026-07-08 需求更新 + 對抗式審查修正
+- 🔄 #11 候補遞補:**反轉**原「不做候補」→ 全面支援(整期+單堂),額滿加入候補 → 有人取消自動遞補;courses.waitlist_enabled 控制
+- 🔄 #28 分配策略:候補遞補加入 promote_from_waitlist RPC
+- 🔄 #34 繳費期限:migration 編號修正 016→018(016 已被 S0 安全熱修佔用)
+- 🆕 #35 候補引擎:enroll_atomic v2(p_allow_waitlist) + promote_from_waitlist RPC,觸發點=取消/駁回/逾期
+- 🆕 #36 入社費合併報名:非社員報名可同時繳入社費,single carrier rule + contingency invariant(享社員價但未付款=non-terminal);grantMembership() 統一 helper
+- 🆕 #37 身分分段時窗:courses.nonmember_delay_days,非社員報名延後 N 天開放(社員優先期)
+- 🆕 #38 幹部提前報名:admin 跳過「尚未開始」時窗檢查,其他守衛(容量/價格/身分)不跳過
+- 🆕 #39 設定頁分頁:購卡設定 / 繳費設定 / 系統設定 三個 Tab
+- 🆕 #40 設定預設值:card_purchase_unit 預設改為 3(客戶確認)
 
 **v5(2026-07-07)** — 5R 補充 + 繳費期限新功能
 - 🆕 #34 繳費期限:演唱會門票模型,幹部按檔期設定天數,逾期自動取消報名+釋位;規格 `2026-07-07-payment-deadline-design.md`
@@ -43,7 +54,7 @@
 | 8 | 專攻課取消/轉讓 | UI 無取消入口(偶然符合);單堂轉讓已完整 | 「報名後不可取消」落為伺服器端規則;轉讓維持現有(對象限社員、開課前) | ✅ 已確認 |
 | 9 | 風格體驗·社員 | 免費課全員免費(含非社員,與需求相反) | 社員免費、按報名**立即成立**,無需審核;以缺席懲罰約束亂占名額 | ✅ 已確認 |
 | 10 | 風格體驗·非社員 | 無收費機制 | 每課自訂 NTD 金額;報名佔位+匯款+審核成立;風格課**僅限單堂** | ✅ 已確認 |
-| 11 | 取消後名額 | 無此概念 | 審核取消釋放的名額**留給加報階段先搶先贏**,不做候補遞補鏈 | ✅ 已確認 |
+| 11 | 🔄 取消後名額+候補 | 無此概念 | ~~不做候補遞補鏈~~ → **v6 反轉**:courses.waitlist_enabled 控制是否啟用候補;額滿+啟用→加入候補排隊;取消/駁回/逾期釋位→自動遞補第一順位(promote_from_waitlist RPC);整期+單堂均支援;未啟用者維持原行為(額滿拒絕) | ✅ 已確認(v6) |
 | 12 | 匯款填寫時點 | — | 報名當下建單,可當場填或稍後補;報名截止仍未填=未繳費 → 進取消名單 | ✅ 已確認 |
 | 13 | 容量與併發 | 容量檢查非原子,高併發有超賣風險 | 改為 DB 端原子操作(RPC),確保先到先得在開放瞬間可靠 | ✅ 已確認 |
 | 30 | 🆕 報名送出後修改 | 無此概念(現行報名即成立) | 第一階段截止前可自行修改,語意=**作廢重報**:單一原子交易內釋放舊佔位/退還已扣卡/作廢未確認訂單,再以**新時間戳**重新寫入(丟早鳥順位);UI 送出前強制提示風險 | ✅ 已確認 |
@@ -81,12 +92,23 @@
 | 25 | 🔄 E2E 驗證與進度追蹤 | 正式 @playwright/test suite(local dev + dev Supabase + 種子帳號);進度與需求覆蓋矩陣統一於**進度儀表板**(mtk-feature-tracker.md 已退役) | ✅ 已確認 |
 | 26 | 🆕 **統一收費模式**(取代課種寫死計費) | courses 加 `pricing_mode`:**堂卡(card)/ NTD(ntd)/ 免費(free)**。ntd 模式配身分別價格欄(社員/非社員 × 單堂/整期;0 = 該身分免費、即時成立)。課種只決定建課表單的**預設值**(常態→card、專攻→ntd、風格→ntd+社員0元),幹部可調。報名引擎走單一路徑:解析價格 → 0 元即時成立 / 堂卡扣卡 / NTD 建訂單,不再依課種分岔 | ✅ 已確認 |
 | 27 | 🆕 **統一報名方式開關** | courses 加 `enroll_full` / `enroll_single` 開關;整期時窗=檔期 phase1 起訖(既有欄位啟用),單堂時窗=各課 enrollment_start/end(既有欄位,補上伺服器端檢查)。課種預設:常態(整期✓/單堂✓開課後)、專攻(兩者✓同步開放)、風格(僅單堂)。「常態僅整期」「風格僅單堂」變成設定而非寫死 | ✅ 已確認 |
-| 28 | 🆕 **名額分配策略(優先級彈性)** | course_groups/courses 加 `allocation_policy`,**預設 fcfs(報名時間先到先得)**。名額判定封裝為單一 allocation 模組(報名 RPC 與 MV 結算都呼叫它);未來若需「社員優先」等策略,只新增一種結算實作,報名流程與 UI 不動 | ✅ 已確認 |
+| 28 | 🔄 **名額分配策略(優先級彈性)** | course_groups/courses 加 `allocation_policy`,**預設 fcfs(報名時間先到先得)**。名額判定封裝為單一 allocation 模組(報名 RPC 與 MV 結算都呼叫它);未來若需「社員優先」等策略,只新增一種結算實作,報名流程與 UI 不動。**v6**:候補遞補加入 promote_from_waitlist RPC 作為釋位後的 allocation 執行路徑 | ✅ 已確認(v6) |
 | 29 | 🆕 時區規範 | 全系統時間判斷一律 **Asia/Taipei**(報名時窗、購卡時段、效期、黑名單年度、審核時間軸),沿用專案既有 `Intl.DateTimeFormat('sv-SE')` 慣例,禁止裸 `new Date()` 比日期 | ✅ 已確認 |
 | 31 | 🆕 通知機制 | 無通知系統 | 本期僅 **app 內狀態顯示**:「我的課程/我的訂單」呈現狀態變化(待開票/待繳費/已成立/已取消+原因),dashboard 加待辦提示;email 推播留待下期 | ✅ 已確認 |
 | 32 | 🆕 報名開放對象(每課設定) | 整期一律擋非社員(寫死) | courses 加 `enroll_full_identity` / `enroll_single_identity`(**全部 / 僅社員**,預設全部);身分判定與計價共用同一標準(有效社員資格);報名頁對不符者顯示鎖定與原因。比單一開關更彈性,#5 藉此落地 | ✅ 已確認 |
 | 33 | 🆕 UX 準則入開發流程 | 功能先行、入口/狀態顯示後補 | 每階段實作前需定義幹部/學員雙視角 UX(入口、狀態可見、關閉狀態、風格一致);驗收含雙角色完整走查測試;「沒有入口=未完成」 | ✅ 已確認 |
-| 34 | 🆕 繳費期限與逾期自動取消 | 報名佔位無期限,學員可無限期不繳費佔住名額 | **演唱會門票模型**:幹部按檔期設定繳費天數(`course_groups.payment_deadline_days`),學員報名時系統計算截止時間(`enrollments.payment_deadline_at`),逾期自動取消報名並釋放名額(cancel_reason='繳費逾期自動取消')。已匯款(remitted)者不受期限影響。NULL=不設期限(向下相容)。執行=lazy check + cron(每小時 Edge Function)。規格:`2026-07-07-payment-deadline-design.md` | ✅ 已確認 |
+| 34 | 🔄 繳費期限與逾期自動取消 | 報名佔位無期限,學員可無限期不繳費佔住名額 | **演唱會門票模型**:幹部按檔期設定繳費天數(`course_groups.payment_deadline_days`),學員報名時系統計算截止時間(`enrollments.payment_deadline_at`),逾期自動取消報名並釋放名額(cancel_reason='繳費逾期自動取消')。已匯款(remitted)者不受期限影響。NULL=不設期限(向下相容)。執行=lazy check + cron(每小時 Edge Function)。逾期取消觸發 waitlist 遞補(#35)。規格:`2026-07-07-payment-deadline-design.md`。**v6:migration 016→018**(016 已被 S0 佔用) | ✅ 已確認(v6) |
+
+## 2026-07-08 需求再對齊(v6 新增)
+
+| # | 主題 | As-is(現況) | To-be(決議) | 狀態 |
+|---|------|------------|------------|------|
+| 35 | 🆕 候補引擎 | 額滿直接拒絕 | courses.waitlist_enabled 控制;enroll_atomic v2 新增 p_allow_waitlist;promote_from_waitlist RPC 自動遞補(card=嘗試扣卡、ntd=建單、free=直接 enrolled);觸發=取消/駁回/逾期;MV 開票取消不觸發(P6 另設計) | ✅ 已確認 |
+| 36 | 🆕 入社費合併報名 | 入社費只能在購卡時附加 | 非社員報名可同時繳入社費;**single carrier rule**(一筆 order 攜帶 include_membership + 1800);**contingency invariant**(享社員價但 carrier 未確認=non-terminal);confirmOrder 統一呼叫 grantMembership() | ✅ 已確認 |
+| 37 | 🆕 身分分段時窗 | 所有人同一時間開放報名 | courses.nonmember_delay_days:非社員報名延後 N 天(effective_start = start + delay);NULL=不延後;admin 不受影響 | ✅ 已確認 |
+| 38 | 🆕 幹部提前報名 | 幹部與學員相同時窗 | admin 跳過「尚未開始」時窗檢查;其他守衛(容量/價格/身分限制/已截止)不跳過 | ✅ 已確認 |
+| 39 | 🆕 設定頁分頁 | 平面網格(9 key 無分類) | 三 Tab:購卡設定(8 key) / 繳費設定(bank_info) / 系統設定(預留) | ✅ 已確認 |
+| 40 | 🆕 設定預設值 | card_purchase_unit=5 | card_purchase_unit 預設改為 **3**(客戶確認);migration 019 seed 所有 KNOWN_KEYS 預設值 | ✅ 已確認 |
 
 ## 實作中浮現、需客戶知悉的行為
 
@@ -94,4 +116,4 @@
 
 ## 待客戶定案(系統以設定值支援,不擋開發)
 
-- n 值(購買單位)具體數字 → 設定值,幹部可調
+- ~~n 值(購買單位)具體數字~~ → **v6 定案:n=3**(#40)
