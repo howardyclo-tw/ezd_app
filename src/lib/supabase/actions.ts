@@ -310,6 +310,7 @@ export async function enrollInCourse(
         p_cards_to_deduct: cardsToDeduct,
         p_order_id: null,
         p_allow_waitlist: course.waitlist_enabled ?? false,
+        p_payment_deadline_at: null,
     });
 
     if (rpcError) throw new Error(`報名失敗: ${rpcError.message}`);
@@ -483,6 +484,7 @@ export async function batchEnrollInCourses(
             p_cards_to_deduct: cost,
             p_order_id: null,
             p_allow_waitlist: course.waitlist_enabled ?? false,
+            p_payment_deadline_at: null,
         });
 
         if (error) throw new Error(`報名失敗: ${error.message}`);
@@ -644,6 +646,7 @@ export async function batchEnrollInSessions(
                 p_cards_to_deduct: course.cards_per_session,
                 p_order_id: null,
                 p_allow_waitlist: course.waitlist_enabled ?? false,
+                p_payment_deadline_at: null,
             });
 
             if (error) throw new Error(`報名失敗: ${error.message}`);
@@ -674,8 +677,19 @@ export async function batchEnrollInSessions(
     // NTD / FREE PATH — pricing-aware single enrollment
     // ════════════════════════════════════════════════════════════════
 
-    // Resolve member identity for pricing
+    // Fetch group's payment_deadline_days for deadline computation
     const adminClient = createAdminClient();
+    const { data: sessionGroup } = await adminClient
+        .from('course_groups')
+        .select('payment_deadline_days')
+        .eq('id', course.group_id)
+        .single();
+    const sessionDeadlineDays = sessionGroup?.payment_deadline_days ?? null;
+    const sessionDeadlineAt = sessionDeadlineDays != null
+        ? new Date(Date.now() + sessionDeadlineDays * 86400_000).toISOString()
+        : null;
+
+    // Resolve member identity for pricing
     let groupValidUntil: string | null = null;
     if (profile.member_group_id) {
         const { data: memberGroup } = await adminClient.from('member_groups')
@@ -748,6 +762,7 @@ export async function batchEnrollInSessions(
             p_cards_to_deduct: 0,
             p_order_id: null,
             p_allow_waitlist: course.waitlist_enabled ?? false,
+            p_payment_deadline_at: enrollStatus === 'pending_payment' ? sessionDeadlineAt : null,
         });
 
         if (error) throw new Error(`報名失敗: ${error.message}`);
@@ -866,6 +881,69 @@ export async function cancelEnrollment(courseId: string): Promise<{ success: boo
     return { success: true, message: '已取消報名' };
 }
 
+/**
+ * Expire a pending_payment enrollment whose payment deadline has passed.
+ *
+ * Idempotent: already-cancelled or non-pending_payment enrollments are no-ops.
+ * Protects students who have already remitted (order.status='remitted').
+ * After cancellation, triggers waitlist promotion for the freed seat.
+ */
+export async function expireEnrollment(enrollmentId: string): Promise<void> {
+    const adminClient = createAdminClient();
+
+    // 1. Fetch enrollment + linked order
+    const { data: enrollment } = await adminClient
+        .from('enrollments')
+        .select('id, status, order_id, course_id, user_id, payment_deadline_at')
+        .eq('id', enrollmentId)
+        .single();
+
+    if (!enrollment || enrollment.status !== 'pending_payment') return; // idempotent
+    if (!enrollment.payment_deadline_at) return; // no deadline set
+    if (new Date(enrollment.payment_deadline_at) > new Date()) return; // not yet expired
+
+    // 2. Check linked order — remitted = don't expire (already paid, awaiting admin review)
+    if (enrollment.order_id) {
+        const { data: order } = await adminClient
+            .from('orders')
+            .select('status')
+            .eq('id', enrollment.order_id)
+            .single();
+        if (order?.status === 'remitted') return; // student already paid, protect them
+    }
+
+    // 3. Cancel enrollment
+    await adminClient.from('enrollments').update({
+        status: 'cancelled',
+        cancel_reason: '繳費逾期自動取消',
+        cancelled_at: new Date().toISOString(),
+    }).eq('id', enrollmentId);
+
+    // 4. Cancel linked order if all sibling enrollments are now cancelled
+    if (enrollment.order_id) {
+        const { data: siblings } = await adminClient
+            .from('enrollments')
+            .select('id, status')
+            .eq('order_id', enrollment.order_id)
+            .neq('status', 'cancelled');
+
+        if (!siblings || siblings.length === 0) {
+            await adminClient.from('orders').update({
+                status: 'cancelled',
+            }).eq('id', enrollment.order_id)
+              .eq('status', 'pending'); // only cancel pending orders
+        }
+    }
+
+    // 5. Trigger waitlist promotion
+    await adminClient.rpc('promote_from_waitlist', {
+        p_course_id: enrollment.course_id,
+        p_session_id: null,
+    });
+
+    revalidatePath('/', 'layout');
+}
+
 // ------------------------------------------------------------------
 // Leader Assignment
 // ------------------------------------------------------------------
@@ -932,20 +1010,25 @@ export async function removeCourseLeader(courseId: string, targetUserId: string)
 // Course Admin Actions (Groups & Courses)
 // ------------------------------------------------------------------
 
-export async function createCourseGroup(title: string, registration_start?: Date | null, registration_end?: Date | null): Promise<{ success: boolean; message: string; id?: string }> {
+export async function createCourseGroup(title: string, registration_start?: Date | null, registration_end?: Date | null, payment_deadline_days?: number | null): Promise<{ success: boolean; message: string; id?: string }> {
     const { supabase, user } = await getCurrentUser();
 
     // Verify current user is admin
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (profile?.role !== 'admin') throw new Error('只有幹部可以建立課程檔期');
 
+    if (payment_deadline_days !== undefined && payment_deadline_days !== null && payment_deadline_days <= 0) {
+        return { success: false, message: '繳費期限天數必須大於 0' };
+    }
+
     const { data, error } = await supabase
         .from('course_groups')
-        .insert({ 
-            title, 
+        .insert({
+            title,
             created_by: user.id,
             registration_phase1_start: registration_start ? registration_start.toISOString() : null,
-            registration_phase1_end: registration_end ? registration_end.toISOString() : null
+            registration_phase1_end: registration_end ? registration_end.toISOString() : null,
+            ...(payment_deadline_days !== undefined && { payment_deadline_days }),
         })
         .select()
         .single();
@@ -956,19 +1039,24 @@ export async function createCourseGroup(title: string, registration_start?: Date
     return { success: true, message: '成功建立課程檔期', id: data.id };
 }
 
-export async function updateCourseGroup(id: string, title: string, registration_start?: Date | null, registration_end?: Date | null): Promise<{ success: boolean; message: string }> {
+export async function updateCourseGroup(id: string, title: string, registration_start?: Date | null, registration_end?: Date | null, payment_deadline_days?: number | null): Promise<{ success: boolean; message: string }> {
     const { supabase, user } = await getCurrentUser();
 
     // Verify current user is admin
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (profile?.role !== 'admin') throw new Error('只有幹部可以修改課程檔期');
 
+    if (payment_deadline_days !== undefined && payment_deadline_days !== null && payment_deadline_days <= 0) {
+        return { success: false, message: '繳費期限天數必須大於 0' };
+    }
+
     const { error } = await supabase
         .from('course_groups')
-        .update({ 
+        .update({
             title,
             registration_phase1_start: registration_start ? registration_start.toISOString() : null,
-            registration_phase1_end: registration_end ? registration_end.toISOString() : null
+            registration_phase1_end: registration_end ? registration_end.toISOString() : null,
+            ...(payment_deadline_days !== undefined && { payment_deadline_days }),
         })
         .eq('id', id);
 
@@ -3626,6 +3714,17 @@ export async function submitGroupEnrollment(
 
     const courseMap = new Map((courses ?? []).map(c => [c.id, c]));
 
+    // ── 4b. Fetch group's payment_deadline_days for deadline computation ──
+    const { data: enrollGroup } = await adminClient
+        .from('course_groups')
+        .select('payment_deadline_days')
+        .eq('id', payload.groupId)
+        .single();
+    const deadlineDays = enrollGroup?.payment_deadline_days ?? null;
+    const deadlineAt = deadlineDays != null
+        ? new Date(Date.now() + deadlineDays * 86400_000).toISOString()
+        : null;
+
     // ── 5. Check which courses have open polls (MV detection) ──
     const { data: openPolls } = await adminClient
         .from('course_polls')
@@ -3700,6 +3799,7 @@ export async function submitGroupEnrollment(
                 p_cards_to_deduct: 0,
                 p_order_id: null,
                 p_allow_waitlist: course.waitlist_enabled ?? false,
+                p_payment_deadline_at: null,
             });
 
             if (rpcError) {
@@ -3770,6 +3870,7 @@ export async function submitGroupEnrollment(
                 p_cards_to_deduct: 0,
                 p_order_id: null,
                 p_allow_waitlist: course.waitlist_enabled ?? false,
+                p_payment_deadline_at: null,
             });
 
             if (rpcError) {
@@ -3814,6 +3915,7 @@ export async function submitGroupEnrollment(
                     p_cards_to_deduct: cardsNeeded,
                     p_order_id: null,
                     p_allow_waitlist: course.waitlist_enabled ?? false,
+                    p_payment_deadline_at: null,
                 });
 
                 if (rpcError) {
@@ -3846,6 +3948,7 @@ export async function submitGroupEnrollment(
                     p_cards_to_deduct: 0,
                     p_order_id: null,
                     p_allow_waitlist: course.waitlist_enabled ?? false,
+                    p_payment_deadline_at: deadlineAt,
                 });
 
                 if (rpcError) {
@@ -3891,6 +3994,7 @@ export async function submitGroupEnrollment(
                 p_cards_to_deduct: 0,
                 p_order_id: null,
                 p_allow_waitlist: course.waitlist_enabled ?? false,
+                p_payment_deadline_at: deadlineAt,
             });
 
             if (rpcError) {
