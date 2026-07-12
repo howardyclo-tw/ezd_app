@@ -83,15 +83,15 @@
   <div class="hdr">
     <h1>EZDANCE 社團管理系統 — 功能建置進度</h1>
     <p>對標客戶需求，每個功能都有明確的驗收方式</p>
-    <div class="ts">更新於 2026-07-11</div>
+    <div class="ts">更新於 2026-07-12</div>
   </div>
 
   <div class="stats">
-    <div class="st"><div class="n green">18</div><div class="l">功能已完成</div></div>
+    <div class="st"><div class="n green">20</div><div class="l">功能已完成</div></div>
     <div class="st"><div class="n" style="color:var(--run)">0</div><div class="l">進行中</div></div>
-    <div class="st"><div class="n">3</div><div class="l">後續功能排程中</div></div>
+    <div class="st"><div class="n">1</div><div class="l">後續功能排程中</div></div>
   </div>
-  <div class="bar"><i style="width:86%"></i></div>
+  <div class="bar"><i style="width:95%"></i></div>
 
   <!-- ========== 已完成可驗收 ========== -->
   <div class="section">
@@ -391,28 +391,67 @@
         </ul>
       </div>
     </div>
+
+    <div class="feat done">
+      <div class="fhead">
+        <div class="row"><span class="fname">MV 投票選歌 + 開票結算</span><span class="fpill g">已完成</span></div>
+        <div class="fdesc">常態課程學員投票選歌（每首歌附 YouTube 連結），幹部開票選出當選歌曲，系統自動結算：投中者按容量分配名額、扣卡/建繳費單、未投中/超額者自動取消</div>
+      </div>
+      <div class="fcheck">
+        <b>驗收方式</b>
+        <ul>
+          <li>幹部 → 課程表單（常態課程）→ 「MV 投票題」區塊 → 新增投票題目 + 選項（含 YouTube 連結）</li>
+          <li>學員 → 整期報名精靈 → 選到常態課程時出現投票步驟 → 勾選歌曲（單選/複選依設定）</li>
+          <li>幹部 → 課程詳情頁 → 「投票統計」→ 看到每首歌的票數比例條</li>
+          <li>幹部 → 選擇當選歌曲 → 點「開票結算」→ 系統自動分配名額</li>
+          <li>投中學員：堂卡課自動扣卡（卡不足建購卡訂單）/ 現金課建繳費單 / 免費直接成立</li>
+          <li>未投中學員：自動取消 + 原因「未投中」</li>
+          <li>投中但超額學員：按報名先後 FCFS 分配，超額者取消 + 原因「超額」</li>
+          <li>已開票的投票不能再開第二次（原子鎖）</li>
+        </ul>
+      </div>
+      <div class="steps">
+        <div class="step"><span class="ic ok">✓</span>投票 CRUD（建題/選項/刪除/發佈保護）</div>
+        <div class="step"><span class="ic ok">✓</span>報名精靈投票步驟 + 伺服器驗證（cardinality + ownership）</div>
+        <div class="step"><span class="ic ok">✓</span>開票結算引擎（mark winners → allocate FCFS → route by pricing）</div>
+        <div class="step"><span class="ic ok">✓</span>UI：投票題設定 + 精靈投票 + 票數統計 + 開票對話框</div>
+        <div class="step"><span class="ic ok">✓</span>獨立審查 + 5 個安全/金流修復（孤兒報名、競態鎖、堂卡短缺訂單）</div>
+      </div>
+    </div>
+  </div>
+
+    <div class="feat done">
+      <div class="fhead">
+        <div class="row"><span class="fname">缺席懲罰黑名單</span><span class="fpill g">已完成</span></div>
+        <div class="fdesc">免費課累計缺席 ≥2 次 → 暫停免費課報名資格（整期+單堂+MV 結算三個入口皆攔截）；幹部可查看違規者 + 手動解除停權</div>
+      </div>
+      <div class="fcheck">
+        <b>驗收方式</b>
+        <ul>
+          <li>累計免費課缺席 ≥2 次的學員 → 嘗試報名免費課 → 顯示「免費課停權中」+ 缺席次數</li>
+          <li>堂卡/現金課不受影響 → 可正常報名</li>
+          <li>幹部 → 「繳費對帳」→「黑名單」tab → 看到所有違規者 + 缺席次數 + 明細</li>
+          <li>幹部 → 點「解鎖」→ 學員恢復報名資格（該期內不再觸發停權）</li>
+          <li>MV 開票結算時 → 停權學員自動被取消（不佔名額）</li>
+        </ul>
+      </div>
+      <div class="steps">
+        <div class="step"><span class="ic ok">✓</span>penalty.ts 純計算模組 + 26 個單元測試</div>
+        <div class="step"><span class="ic ok">✓</span>三個報名入口守衛（單堂/整期/MV 結算）</div>
+        <div class="step"><span class="ic ok">✓</span>幹部黑名單管理介面 + 解鎖功能</div>
+        <div class="step"><span class="ic ok">✓</span>獨立審查（0 重大 / 0 高風險 / M1 期間範圍修復）</div>
+      </div>
+    </div>
   </div>
 
   <!-- ========== 後續功能 ========== -->
   <div class="section">
-    <h2><span class="badge w">📋 後續</span> 新功能完成後才開始</h2>
+    <h2><span class="badge w">📋 後續</span> 驗收通過後部署</h2>
 
     <div class="feat wait">
       <div class="fhead">
-        <div class="row"><span class="fname">MV 投票選歌 + 開票結算</span><span class="fpill w">排程中</span></div>
-        <div class="fdesc">常態課程學員投票選歌，幹部開票結算 top-k 首 + 平票裁決</div>
-      </div>
-    </div>
-    <div class="feat wait">
-      <div class="fhead">
-        <div class="row"><span class="fname">缺席懲罰黑名單</span><span class="fpill w">排程中</span></div>
-        <div class="fdesc">免費課連續缺席 2 次 → 停權該課程；幹部可解除停權</div>
-      </div>
-    </div>
-    <div class="feat wait">
-      <div class="fhead">
-        <div class="row"><span class="fname">正式上線部署</span><span class="fpill w">排程中</span></div>
-        <div class="fdesc">全部功能驗收通過後，部署到正式環境 + 安全修補上線</div>
+        <div class="row"><span class="fname">正式上線部署</span><span class="fpill w">等待驗收</span></div>
+        <div class="fdesc">全部功能人工驗收通過後，部署到正式環境 + 安全修補上線</div>
       </div>
     </div>
   </div>
@@ -429,7 +468,7 @@
   </div>
 
   <div class="note">
-    <b>品質保障：</b>每個功能都經過獨立審查（非開發者自己審查自己），目前有 173 個自動化測試（76 個端到端流程測試 + 97 個單元測試），每個功能都涵蓋「正常操作」和「刻意嘗試繞過規則」兩種測試。過程中已發現並修復 10 個安全/金流漏洞（含 remitted 保護、grantMembership 邊界、TOCTOU 競態修復）。
+    <b>品質保障：</b>每個功能都經過獨立審查（非開發者自己審查自己），目前有 198 個自動化測試（75 個端到端流程測試 + 97 個單元測試 + 26 個懲罰計算測試），每個功能都涵蓋「正常操作」和「刻意嘗試繞過規則」兩種測試。過程中已發現並修復 15 個安全/金流漏洞（含孤兒報名修復、開票競態鎖、堂卡短缺訂單修正、remitted 保護、grantMembership 邊界、TOCTOU 競態修復）。
   </div>
 
   <footer>

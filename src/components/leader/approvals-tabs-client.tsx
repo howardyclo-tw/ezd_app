@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
-import { Check, Calendar, Loader2, Star, ClipboardList, X, CreditCard, User, Clock, Info, Ban } from "lucide-react";
-import { confirmCardOrder as _confirmCardOrder, rejectCardOrder as _rejectCardOrder, confirmOrder as _confirmOrder, cancelOrder as _cancelOrder, reviewLeaveRequest as _reviewLeaveRequest, reviewMakeupRequest as _reviewMakeupRequest, reviewTransferRequest as _reviewTransferRequest, reviewSingleEnrollment as _reviewSingleEnrollment } from '@/lib/supabase/actions';
+import { Check, Calendar, Loader2, Star, ClipboardList, X, CreditCard, User, Clock, Info, Ban, ShieldCheck, Unlock } from "lucide-react";
+import { confirmCardOrder as _confirmCardOrder, rejectCardOrder as _rejectCardOrder, confirmOrder as _confirmOrder, cancelOrder as _cancelOrder, reviewLeaveRequest as _reviewLeaveRequest, reviewMakeupRequest as _reviewMakeupRequest, reviewTransferRequest as _reviewTransferRequest, reviewSingleEnrollment as _reviewSingleEnrollment, addPenaltyOverride as _addPenaltyOverride } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 const confirmCardOrder = safe(_confirmCardOrder);
 const rejectCardOrder = safe(_rejectCardOrder);
@@ -18,9 +18,19 @@ const reviewLeaveRequest = safe(_reviewLeaveRequest);
 const reviewMakeupRequest = safe(_reviewMakeupRequest);
 const reviewTransferRequest = safe(_reviewTransferRequest);
 const reviewSingleEnrollment = safe(_reviewSingleEnrollment);
+const addPenaltyOverride = safe(_addPenaltyOverride);
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, ORDER_TYPE_COLORS } from '@/lib/constants';
+
+export interface BlacklistViolator {
+    userId: string;
+    userName: string;
+    absenceCount: number;
+    violations: { courseName: string; sessionDate: string }[];
+    isBlocked: boolean;
+    hasOverride: boolean;
+}
 
 interface ApprovalsTabsClientProps {
     paymentOrders: any[];
@@ -29,9 +39,11 @@ interface ApprovalsTabsClientProps {
     transfers: any[];
     singleEnrollments: any[];
     currentUserId: string;
+    blacklistViolators: BlacklistViolator[];
+    periodEnd: string;
 }
 
-export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers, singleEnrollments, currentUserId }: ApprovalsTabsClientProps) {
+export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers, singleEnrollments, currentUserId, blacklistViolators, periodEnd }: ApprovalsTabsClientProps) {
     const router = useRouter();
     const [tab, setTab] = useState('payment_orders');
     const [isPending, startTransition] = useTransition();
@@ -45,7 +57,9 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
                 ? makeups
                 : tab === 'transfers'
                     ? transfers
-                    : singleEnrollments;
+                    : tab === 'blacklist'
+                        ? blacklistViolators
+                        : singleEnrollments;
 
     const handleConfirmCardOrder = async (id: string) => {
         startTransition(async () => {
@@ -169,6 +183,23 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
         });
     };
 
+    const handleUnlockBlacklist = async (userId: string) => {
+        if (!confirm('確定要解鎖此用戶的免費課停權嗎？解鎖後該用戶可重新報名免費課。')) return;
+
+        startTransition(async () => {
+            try {
+                const res = await addPenaltyOverride(userId, periodEnd, '幹部手動解鎖');
+                if (res.success) {
+                    router.refresh();
+                } else {
+                    alert(res.message);
+                }
+            } catch (err) {
+                alert(err instanceof Error ? err.message : '解鎖失敗');
+            }
+        });
+    };
+
     const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
 
     const tabHints: Record<string, { title: string; hint: string }> = {
@@ -192,6 +223,10 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
             title: '單堂報名說明',
             hint: '學員使用堂卡單堂報名，系統自動扣卡\n駁回：刪除報名紀錄，歸還 1 張堂卡\n• 已過期、已點名、已請假的堂次無法駁回',
         },
+        blacklist: {
+            title: '黑名單說明',
+            hint: '免費課無故缺席達 2 次即停權，停權學員無法報名免費課\n幹部可手動解鎖，解鎖後該用戶恢復報名資格\n• 停權判定依據當期出缺席紀錄自動計算',
+        },
     };
 
     const emptyMessages: Record<string, { title: string; desc: string }> = {
@@ -200,6 +235,7 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
         makeups: { title: '尚無近期補課紀錄', desc: '最近 30 天內沒有補課紀錄。' },
         transfers: { title: '尚無近期轉讓紀錄', desc: '最近 30 天內沒有轉讓紀錄。' },
         single_enrollments: { title: '尚無近期單堂報名紀錄', desc: '最近 30 天內沒有單堂報名紀錄。' },
+        blacklist: { title: '本期無免費課缺席紀錄', desc: '太棒了！目前沒有學員因免費課缺席而被停權。' },
     };
 
     const renderPaymentCard = (req: any) => {
@@ -363,7 +399,7 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
             {/* Filter Tabs */}
             <div className="flex justify-center mb-10 px-4 sm:px-0">
                 <Tabs defaultValue="payment_orders" className="w-full sm:w-auto" onValueChange={setTab}>
-                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-5 sm:flex sm:grid-cols-none sm:w-auto">
+                    <TabsList className="bg-muted/50 p-1 h-10 border border-muted-foreground/10 w-full grid grid-cols-6 sm:flex sm:grid-cols-none sm:w-auto">
                         <TabsTrigger value="payment_orders" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                             繳費對帳
                         </TabsTrigger>
@@ -378,6 +414,9 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
                         </TabsTrigger>
                         <TabsTrigger value="transfers" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
                             轉讓紀錄
+                        </TabsTrigger>
+                        <TabsTrigger value="blacklist" className="text-[11px] sm:text-sm font-bold px-3 sm:px-4 data-[state=active]:shadow-sm">
+                            黑名單
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>
@@ -423,6 +462,8 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
                         <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
                             {tab === 'payment_orders' ? (
                                 <CreditCard className="h-8 w-8 text-muted-foreground/40" />
+                            ) : tab === 'blacklist' ? (
+                                <ShieldCheck className="h-8 w-8 text-muted-foreground/40" />
                             ) : (
                                 <ClipboardList className="h-8 w-8 text-muted-foreground/40" />
                             )}
@@ -433,6 +474,77 @@ export function ApprovalsTabsClient({ paymentOrders, leaves, makeups, transfers,
                         </p>
                     </CardContent>
                 </Card>
+            ) : tab === 'blacklist' ? (
+                <div className="space-y-4 mt-6">
+                    {(currentList as BlacklistViolator[]).map((v) => (
+                        <Card key={v.userId} className={cn(
+                            "relative overflow-hidden border-muted/50 bg-card/40 shadow-sm transition-all hover:border-primary/30 hover:shadow-md",
+                            v.hasOverride && "opacity-60"
+                        )}>
+                            <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-4">
+                                <div className="flex-1 space-y-3">
+                                    {/* Row 1: Status badges */}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <Badge variant="secondary" className={cn(
+                                            "text-[10px] font-bold uppercase tracking-wider border-none",
+                                            v.isBlocked
+                                                ? "bg-red-500/10 text-red-600"
+                                                : v.hasOverride
+                                                    ? "bg-muted text-muted-foreground"
+                                                    : "bg-green-500/10 text-green-600"
+                                        )}>
+                                            {v.isBlocked ? '停權中' : v.hasOverride ? '已解鎖' : '正常'}
+                                        </Badge>
+                                        <Badge variant="outline" className={cn(
+                                            "text-[10px] font-bold border-none",
+                                            v.absenceCount >= 2
+                                                ? "bg-red-500/10 text-red-600"
+                                                : "bg-amber-500/10 text-amber-600"
+                                        )}>
+                                            缺席 {v.absenceCount} 次
+                                        </Badge>
+                                    </div>
+
+                                    {/* Row 2: User name */}
+                                    <h3 className="text-[15px] font-bold flex items-center gap-2 text-foreground/90 leading-none">
+                                        <User className="h-4 w-4 opacity-40 shrink-0" />
+                                        {v.userName}
+                                    </h3>
+
+                                    {/* Row 3: Violation details */}
+                                    <div className="space-y-1 pl-6">
+                                        {v.violations.map((viol, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 text-[13px] text-foreground/70">
+                                                <Calendar className="h-3.5 w-3.5 opacity-40 shrink-0" />
+                                                <span className="font-medium">{viol.courseName}</span>
+                                                <span className="text-muted-foreground/60">({viol.sessionDate})</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Right Side: Action */}
+                                <div className="shrink-0 flex items-center justify-end ml-4">
+                                    {v.isBlocked && !v.hasOverride && (
+                                        <button
+                                            disabled={isPending}
+                                            onClick={() => handleUnlockBlacklist(v.userId)}
+                                            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all bg-white text-emerald-600 shadow-sm border border-transparent hover:bg-emerald-50 hover:border-emerald-200 hover:shadow-md active:scale-[0.98] disabled:opacity-50 min-w-[76px]"
+                                        >
+                                            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlock className="h-4 w-4" />}
+                                            解鎖
+                                        </button>
+                                    )}
+                                    {v.hasOverride && (
+                                        <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs font-bold">
+                                            已解鎖
+                                        </Badge>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
             ) : tab === 'payment_orders' ? (
                 <div className="space-y-4 mt-6">
                     {currentList.map((req) => renderPaymentCard(req))}

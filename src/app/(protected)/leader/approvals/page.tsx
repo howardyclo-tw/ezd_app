@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ShieldCheck } from "lucide-react";
 import Link from 'next/link';
 import { ApprovalsTabsClient } from '@/components/leader/approvals-tabs-client';
+import { computeCurrentPeriod, isBlacklisted } from '@/lib/supabase/penalty';
+import { isMemberActive, resolvePrice } from '@/lib/supabase/pricing';
+import type { BlacklistViolator } from '@/components/leader/approvals-tabs-client';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -123,6 +126,131 @@ export default async function LeaderApprovalsPage() {
     ].map(o => ({ ...o, courseDetails: courseDetailsByOrder[o.id] ?? [] }))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+    // ------------------------------------------------------------------
+    // Blacklist data (Phase 7)
+    // ------------------------------------------------------------------
+    const taipeiToday = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+
+    // Fetch all member groups for period computation
+    const { data: memberGroups } = await adminDb
+        .from('member_groups')
+        .select('valid_until');
+
+    const { periodStart, periodEnd } = computeCurrentPeriod(memberGroups ?? [], taipeiToday);
+
+    // Fetch ALL absence records in a single query with course pricing + user profile info
+    const { data: allAbsenceRecords } = await adminDb
+        .from('attendance_records')
+        .select(`
+            user_id,
+            course_sessions!inner (
+                session_date,
+                courses!inner (
+                    name,
+                    pricing_mode,
+                    cards_per_session,
+                    price_member_single,
+                    price_guest_single,
+                    price_member_full,
+                    price_guest_full,
+                    course_sessions ( id )
+                )
+            ),
+            profiles!attendance_records_user_id_fkey (
+                name,
+                role,
+                member_valid_until,
+                member_group_id,
+                member_groups ( valid_until )
+            )
+        `)
+        .eq('status', 'absent');
+
+    // Fetch existing overrides for this period
+    const { data: overrides } = await adminDb
+        .from('penalty_overrides')
+        .select('user_id')
+        .eq('period_end', periodEnd);
+    const overrideUserIds = new Set((overrides ?? []).map(o => o.user_id));
+
+    // Group by user + compute violations
+    const userAbsences = new Map<string, {
+        userName: string;
+        absences: { isFree: boolean; sessionDate: string; courseName: string }[];
+        isMemberActive: boolean;
+    }>();
+
+    for (const rec of allAbsenceRecords ?? []) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const session = rec.course_sessions as any;
+        const course = session.courses;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const profile = rec.profiles as any;
+        const sessionDate = session.session_date as string;
+
+        // Filter to records within the penalty period
+        if (sessionDate <= periodStart || sessionDate > periodEnd) continue;
+
+        const groupValidUntil = profile?.member_groups?.valid_until ?? null;
+        const memberActive = isMemberActive(
+            { role: profile?.role ?? 'guest', member_valid_until: profile?.member_valid_until ?? null, groupValidUntil },
+            taipeiToday
+        );
+
+        const sessionCount = (course.course_sessions as any[])?.length ?? 1;
+        const price = resolvePrice({
+            pricing_mode: course.pricing_mode,
+            cards_per_session: course.cards_per_session,
+            price_member_single: course.price_member_single,
+            price_guest_single: course.price_guest_single,
+            price_member_full: course.price_member_full,
+            price_guest_full: course.price_guest_full,
+            sessionCount,
+        }, memberActive, 'single');
+
+        const isFree = price.kind === 'free';
+        if (!isFree) continue; // only care about free-course absences
+
+        const userId = rec.user_id;
+        if (!userAbsences.has(userId)) {
+            userAbsences.set(userId, {
+                userName: profile?.name ?? '未知使用者',
+                absences: [],
+                isMemberActive: memberActive,
+            });
+        }
+        userAbsences.get(userId)!.absences.push({
+            isFree: true,
+            sessionDate,
+            courseName: course.name,
+        });
+    }
+
+    // Build violators array (only users with >=1 free-course absence)
+    const blacklistViolators: BlacklistViolator[] = [];
+    for (const [userId, data] of userAbsences) {
+        const absenceCount = data.absences.length; // all are already filtered to free + in-period
+        const hasOverride = overrideUserIds.has(userId);
+        const blocked = isBlacklisted(absenceCount, hasOverride);
+        blacklistViolators.push({
+            userId,
+            userName: data.userName,
+            absenceCount,
+            violations: data.absences.map(a => ({
+                courseName: a.courseName,
+                sessionDate: a.sessionDate,
+            })),
+            isBlocked: blocked,
+            hasOverride,
+        });
+    }
+
+    // Sort: blocked first, then by absence count descending
+    blacklistViolators.sort((a, b) => {
+        if (a.isBlocked !== b.isBlocked) return a.isBlocked ? -1 : 1;
+        return b.absenceCount - a.absenceCount;
+    });
+
     return (
         <div className="container max-w-5xl py-6 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -151,6 +279,8 @@ export default async function LeaderApprovalsPage() {
                 transfers={transfers || []}
                 singleEnrollments={singleEnrollments || []}
                 currentUserId={user.id}
+                blacklistViolators={blacklistViolators}
+                periodEnd={periodEnd}
             />
         </div>
     );

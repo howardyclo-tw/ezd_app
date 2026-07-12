@@ -28,6 +28,104 @@ async function getCurrentUser() {
 }
 
 // ------------------------------------------------------------------
+// Blacklist guard (Phase 7): blocks free-course enrollment for chronic no-shows
+// ------------------------------------------------------------------
+
+async function checkBlacklist(
+    userId: string,
+    adminClient: ReturnType<typeof createAdminClient>,
+    taipeiToday: string,
+): Promise<{ blocked: boolean; message?: string }> {
+    const { computeCurrentPeriod, countFreeAbsences, isBlacklisted, THRESHOLD } = await import('./penalty');
+
+    // 1. Fetch user's member group for period computation
+    const { data: userProfile } = await adminClient
+        .from('profiles')
+        .select('role, member_valid_until, member_group_id, member_groups ( valid_until )')
+        .eq('id', userId)
+        .single();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const groupValidUntil = (userProfile?.member_groups as any)?.valid_until ?? null;
+    const memberActive = isMemberActive(
+        { role: userProfile?.role ?? 'guest', member_valid_until: userProfile?.member_valid_until ?? null, groupValidUntil },
+        taipeiToday
+    );
+
+    // Fetch ALL member groups for period computation (global "current year" per spec decision #18)
+    const { data: allMemberGroups } = await adminClient
+        .from('member_groups')
+        .select('valid_until');
+
+    const { periodStart, periodEnd } = computeCurrentPeriod(allMemberGroups ?? [], taipeiToday);
+
+    // 2. Fetch all absence records for this user, joined with session date + course pricing
+    const { data: absenceRecords } = await adminClient
+        .from('attendance_records')
+        .select(`
+            id,
+            course_sessions!inner (
+                session_date,
+                course_id,
+                courses!inner (
+                    pricing_mode,
+                    cards_per_session,
+                    price_member_single,
+                    price_guest_single,
+                    price_member_full,
+                    price_guest_full,
+                    course_sessions ( id )
+                )
+            )
+        `)
+        .eq('user_id', userId)
+        .eq('status', 'absent');
+
+    // 3. Determine which absences are on free courses (per this user's identity)
+    const absences = (absenceRecords ?? []).map(r => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const session = r.course_sessions as any;
+        const course = session.courses;
+        const sessionCount = (course.course_sessions as any[])?.length ?? 1;
+        const pricingInputs = {
+            pricing_mode: course.pricing_mode,
+            cards_per_session: course.cards_per_session,
+            price_member_single: course.price_member_single,
+            price_guest_single: course.price_guest_single,
+            price_member_full: course.price_member_full,
+            price_guest_full: course.price_guest_full,
+            sessionCount,
+        };
+        const price = resolvePrice(pricingInputs, memberActive, 'single');
+        return {
+            isFree: price.kind === 'free',
+            sessionDate: session.session_date as string,
+        };
+    });
+
+    const absenceCount = countFreeAbsences(absences, periodStart, periodEnd);
+
+    // 4. Check for admin override
+    const { data: overrides } = await adminClient
+        .from('penalty_overrides')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('period_end', periodEnd)
+        .limit(1);
+
+    const hasOverride = (overrides?.length ?? 0) > 0;
+
+    if (isBlacklisted(absenceCount, hasOverride)) {
+        return {
+            blocked: true,
+            message: `免費課停權中：本期免費課無故缺席 ${absenceCount} 次（上限 ${THRESHOLD - 1} 次），暫停免費課報名資格。如有疑問請洽幹部。`,
+        };
+    }
+
+    return { blocked: false };
+}
+
+// ------------------------------------------------------------------
 // Enrollment guard helpers (pricing mode, enroll mode, time windows)
 // ------------------------------------------------------------------
 
@@ -742,9 +840,13 @@ export async function batchEnrollInSessions(
         return { success: false, message: e instanceof Error ? e.message : '定價錯誤' };
     }
 
-    // TODO (Phase 7): absence-penalty / blacklist guard for free courses.
-    // If pricing_mode=free, check whether the user is blacklisted for chronic
-    // no-shows and reject enrollment if so. Not implemented yet.
+    // Phase 7: absence-penalty / blacklist guard for free courses
+    if (priceResult.kind === 'free') {
+        const blacklistCheck = await checkBlacklist(user.id, adminClient, taipeiToday);
+        if (blacklistCheck.blocked) {
+            return { success: false, message: blacklistCheck.message! };
+        }
+    }
 
     const isFree = priceResult.kind === 'free';
     const enrollStatus = isFree ? 'enrolled' : 'pending_payment';
@@ -1624,8 +1726,17 @@ export async function publishPollResults(
         const price = resolvePrice(pricingInputs, memberActive, 'full');
 
         if (price.kind === 'free') {
-            await adminClient.from('enrollments').update({ status: 'enrolled' }).eq('id', enrollmentId);
-            enrolled++;
+            // Phase 7: blacklisted users get cancelled instead of enrolled
+            const blacklistCheck = await checkBlacklist(enrollment.user_id, adminClient, taipeiToday);
+            if (blacklistCheck.blocked) {
+                await adminClient.from('enrollments')
+                    .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancel_reason: '免費課停權' })
+                    .eq('id', enrollmentId);
+                cancelled++;
+            } else {
+                await adminClient.from('enrollments').update({ status: 'enrolled' }).eq('id', enrollmentId);
+                enrolled++;
+            }
         } else if (price.kind === 'card') {
             const { deductCardsFIFO } = await import('./card-utils');
             try {
@@ -4118,6 +4229,9 @@ export async function submitGroupEnrollment(
         }
     }
 
+    // ── 6c. Phase 7: pre-check blacklist once (shared across all courses) ──
+    const blacklistResult = await checkBlacklist(user.id, adminClient, taipeiToday);
+
     // ── 7. Process each selection independently ──
     const perCourse: PerCourseResult[] = [];
     const ntdEnrollmentIds: string[] = [];
@@ -4277,6 +4391,12 @@ export async function submitGroupEnrollment(
         }
 
         if (price.kind === 'free') {
+            // Phase 7: block blacklisted users from free courses
+            if (blacklistResult.blocked) {
+                perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: blacklistResult.message! });
+                continue;
+            }
+
             // Free course: enroll immediately
             const { data: rpcResult, error: rpcError } = await adminClient.rpc('enroll_atomic', {
                 p_user: user.id,
@@ -4571,4 +4691,56 @@ export async function resubmitGroupEnrollment(
     // enroll_atomic sets enrolled_at = NOW(), guaranteeing a later timestamp
     // than the originals (which were created in an earlier transaction).
     return await submitGroupEnrollment(payload);
+}
+
+// ------------------------------------------------------------------
+// Penalty override (Phase 7): admin unlocks a blacklisted user
+// ------------------------------------------------------------------
+
+export async function addPenaltyOverride(
+    userId: string,
+    periodEnd: string,
+    reason: string,
+): Promise<{ success: boolean; message: string }> {
+    const { user } = await getCurrentUser();
+    const adminClient = createAdminClient();
+
+    // Admin check
+    const { data: adminProfile } = await adminClient
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+    if (adminProfile?.role !== 'admin') {
+        return { success: false, message: '只有管理員可以執行此操作' };
+    }
+
+    // Check if override already exists for this user+period
+    const { data: existing } = await adminClient
+        .from('penalty_overrides')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('period_end', periodEnd)
+        .limit(1);
+
+    if ((existing?.length ?? 0) > 0) {
+        return { success: false, message: '此用戶在本期已有解鎖紀錄' };
+    }
+
+    const { error } = await adminClient
+        .from('penalty_overrides')
+        .insert({
+            user_id: userId,
+            period_end: periodEnd,
+            reason,
+            created_by: user.id,
+        });
+
+    if (error) {
+        throw new Error(`解鎖失敗: ${error.message}`);
+    }
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: '已成功解鎖此用戶的免費課停權' };
 }

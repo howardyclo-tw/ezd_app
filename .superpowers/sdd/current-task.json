@@ -1,12 +1,13 @@
 {
-  "task": "6V: Independent review + e2e gate",
-  "tier": "review",
+  "task": "Phase 7: Absence-penalty blacklist",
+  "tier": "金流/守衛 + 純UI",
   "steps": {
-    "6V.1_review": "DONE — 2 CRITICAL, 2 HIGH, 2 MEDIUM findings",
-    "6V.2_full_e2e": "DONE — 75 passed, 1 skipped",
-    "6V.3_fixes": "IN_PROGRESS — C1+C2+H1+M1+M2 dispatched to opus subagent",
-    "6V.4_commit": "PENDING — commit fixes + ledger"
+    "7T.1_penalty_computation": "DONE — penalty.ts + 26 unit tests",
+    "7T.2_guard_wiring": "DONE — checkBlacklist in 3 enrollment paths + addPenaltyOverride",
+    "7U.1_admin_tab": "DONE — review center 黑名單 tab",
+    "7V_review": "DONE — 0C/0H/2M/4L; M1 fixed (period scope)",
+    "7W_commit": "DONE"
   },
-  "next_action": "await fix implementation subagent",
+  "next_action": "Phase 8 BLOCKED — awaiting user manual verification",
   "updated": "2026-07-12T+08:00"
 }
