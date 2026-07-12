@@ -29,13 +29,16 @@ import {
     FileText,
     Calendar as CalendarIcon,
     Search,
+    Music,
+    Trophy,
+    BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import Link from 'next/link';
 import { SessionEnrollmentDialog } from "@/components/courses/session-enrollment-dialog";
-import { saveAttendance as _saveAttendance, assignCourseLeader as _assignCourseLeader, removeCourseLeader as _removeCourseLeader, submitLeaveRequest as _submitLeaveRequest, submitTransferRequest as _submitTransferRequest, getTransferCandidates, cancelEnrollment as _cancelEnrollment } from '@/lib/supabase/actions';
+import { saveAttendance as _saveAttendance, assignCourseLeader as _assignCourseLeader, removeCourseLeader as _removeCourseLeader, submitLeaveRequest as _submitLeaveRequest, submitTransferRequest as _submitTransferRequest, getTransferCandidates, cancelEnrollment as _cancelEnrollment, publishPollResults as _publishPollResults } from '@/lib/supabase/actions';
 import { safe } from '@/lib/supabase/safe-action';
 import { ATTENDANCE_COLORS, ATTENDANCE_LABELS, ENROLLMENT_STATUS_COLORS } from '@/lib/constants';
 
@@ -45,6 +48,7 @@ const removeCourseLeader = safe(_removeCourseLeader);
 const submitLeaveRequest = safe(_submitLeaveRequest);
 const submitTransferRequest = safe(_submitTransferRequest);
 const cancelEnrollment = safe(_cancelEnrollment);
+const publishPollResultsAction = safe(_publishPollResults);
 import {
     Dialog,
     DialogContent,
@@ -64,6 +68,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { COURSE_TYPE_LABELS, type CourseType } from '@/types/database';
 
 // Props types
@@ -120,6 +125,20 @@ interface WaitlistStudent {
     position: number;
 }
 
+interface PollInfo {
+    id: string;
+    title: string;
+    voteType: 'single' | 'multi';
+    status: 'open' | 'published';
+    options: Array<{
+        id: string;
+        label: string;
+        youtubeUrl: string | null;
+        isWinner: boolean;
+        voteCount: number;
+    }>;
+}
+
 interface CourseDetailClientProps {
     course: CourseInfo;
     sessions: SessionInfo[];
@@ -146,6 +165,7 @@ interface CourseDetailClientProps {
     makeupSessionMap?: Record<string, string[]>;
     sessionOccupancy?: Record<string, number>;
     userOccupiedSessionIds?: string[];
+    poll?: PollInfo | null;
 }
 
 // Status display map — derived from shared constants with icon overrides for attendance grid
@@ -176,6 +196,7 @@ export function CourseDetailClient({
     makeupSessionMap = {},
     sessionOccupancy = {},
     userOccupiedSessionIds = [],
+    poll = null,
 }: CourseDetailClientProps) {
     const router = useRouter();
     const isAdminOrLeader = currentUserRole === 'admin' || currentUserRole === 'leader';
@@ -215,6 +236,52 @@ export function CourseDetailClient({
     const [selectedStudent, setSelectedStudent] = useState<StudentInfo | null>(null);
 
     const isAdmin = currentUserRole === 'admin';
+
+    // --- Poll publish dialog state ---
+    const [isPollDialogOpen, setIsPollDialogOpen] = useState(false);
+    const [selectedWinnerIds, setSelectedWinnerIds] = useState<string[]>([]);
+    const [isPollPublishing, setIsPollPublishing] = useState(false);
+
+    // Initialize winner selections when dialog opens
+    const openPollDialog = () => {
+        if (!poll) return;
+        const maxVotes = Math.max(...poll.options.map(o => o.voteCount), 0);
+        const preselected = maxVotes > 0
+            ? poll.options.filter(o => o.voteCount === maxVotes).map(o => o.id)
+            : [];
+        setSelectedWinnerIds(preselected);
+        setIsPollDialogOpen(true);
+    };
+
+    const toggleWinnerOption = (optionId: string) => {
+        setSelectedWinnerIds(prev =>
+            prev.includes(optionId)
+                ? prev.filter(id => id !== optionId)
+                : [...prev, optionId]
+        );
+    };
+
+    const handlePublishPoll = async () => {
+        if (!poll || selectedWinnerIds.length === 0) return;
+        setIsPollPublishing(true);
+        try {
+            const res = await publishPollResultsAction(poll.id, selectedWinnerIds);
+            if (res && !res.success) {
+                alert(res.message || '開票失敗');
+                return;
+            }
+            const results = (res as any)?.results;
+            if (results) {
+                alert(`開票完成：${results.enrolled} 人報名成功、${results.pendingPayment} 人待繳費、${results.cancelled} 人取消`);
+            }
+            setIsPollDialogOpen(false);
+            router.refresh();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : '開票失敗');
+        } finally {
+            setIsPollPublishing(false);
+        }
+    };
 
     const toggleLeaderAction = async () => {
         if (!selectedStudent) return;
@@ -857,6 +924,125 @@ export function CourseDetailClient({
                 </div>
             )}
 
+
+            {/* Poll Tally Section (admin only) */}
+            {isAdmin && poll && (
+                <div className="p-5 bg-muted/20 border border-muted/50 rounded-2xl space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold flex items-center gap-2 text-foreground/90">
+                            <BarChart3 className="h-4 w-4 text-primary" />
+                            MV 投票結果
+                        </h3>
+                        {poll.status === 'published' ? (
+                            <Badge variant="outline" className="text-xs font-bold bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                已開票
+                            </Badge>
+                        ) : (
+                            <Badge variant="outline" className="text-xs font-bold bg-amber-500/10 text-amber-600 border-amber-500/20">
+                                投票中
+                            </Badge>
+                        )}
+                    </div>
+
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                            <Music className="h-4 w-4 text-muted-foreground/70" />
+                            <span className="text-sm font-bold">{poll.title}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-6">
+                            {poll.voteType === 'single' ? '單選' : '複選'} &middot; 共 {poll.options.reduce((sum, o) => sum + o.voteCount, 0)} 票
+                        </p>
+                    </div>
+
+                    {/* Vote bars */}
+                    <div className="space-y-3">
+                        {(() => {
+                            const maxVotes = Math.max(...poll.options.map(o => o.voteCount), 1);
+                            return poll.options.map(option => (
+                                <div key={option.id} className="space-y-1">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className={cn("font-medium", option.isWinner && "font-bold")}>
+                                            {option.label}
+                                        </span>
+                                        <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
+                                            {option.voteCount} 票
+                                            {option.isWinner && (
+                                                <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                                            )}
+                                        </span>
+                                    </div>
+                                    <div className="h-2.5 w-full bg-muted/40 rounded-full overflow-hidden">
+                                        <div
+                                            className={cn(
+                                                "h-full rounded-full transition-all",
+                                                option.isWinner
+                                                    ? "bg-amber-500"
+                                                    : "bg-primary/60"
+                                            )}
+                                            style={{ width: `${(option.voteCount / maxVotes) * 100}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+
+                    {/* Publish button (only when still open) */}
+                    {poll.status === 'open' && (
+                        <div className="pt-2">
+                            <Button
+                                onClick={openPollDialog}
+                                className="w-full sm:w-auto font-bold"
+                                size="sm"
+                            >
+                                <Trophy className="h-4 w-4 mr-2" />
+                                開票結算
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* Publish dialog */}
+                    <AlertDialog open={isPollDialogOpen} onOpenChange={setIsPollDialogOpen}>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>開票結算</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    請選擇當選歌曲（可多選），選定後將進行名額分配與結算。此操作不可撤銷。
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <div className="space-y-3 py-2">
+                                {poll.options.map(option => (
+                                    <label
+                                        key={option.id}
+                                        className={cn(
+                                            "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                                            selectedWinnerIds.includes(option.id)
+                                                ? "border-primary bg-primary/5"
+                                                : "border-muted hover:bg-muted/30"
+                                        )}
+                                    >
+                                        <Checkbox
+                                            checked={selectedWinnerIds.includes(option.id)}
+                                            onCheckedChange={() => toggleWinnerOption(option.id)}
+                                        />
+                                        <span className="flex-1 text-sm font-medium">{option.label}</span>
+                                        <span className="text-xs text-muted-foreground font-medium">{option.voteCount} 票</span>
+                                    </label>
+                                ))}
+                            </div>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isPollPublishing}>取消</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={handlePublishPoll}
+                                    disabled={isPollPublishing || selectedWinnerIds.length === 0}
+                                >
+                                    {isPollPublishing ? '結算中...' : '確認開票'}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            )}
 
             {/* Block 3: Attendance Roster View */}
             <div className="space-y-4">

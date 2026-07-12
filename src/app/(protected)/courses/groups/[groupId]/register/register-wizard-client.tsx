@@ -113,6 +113,7 @@ export function RegisterWizardClient({
     const [remittanceBank, setRemittanceBank] = useState('');
     const [remittanceLast5, setRemittanceLast5] = useState('');
     const [remittanceDate, setRemittanceDate] = useState('');
+    const [votes, setVotes] = useState<Record<string, string[]>>({});
     const [isPending, startTransition] = useTransition();
     const [results, setResults] = useState<PerCourseResult[]>([]);
 
@@ -134,9 +135,36 @@ export function RegisterWizardClient({
 
     const toggleCourse = (id: string) => {
         const next = new Set(selectedIds);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
+        if (next.has(id)) {
+            next.delete(id);
+            // Clear votes for deselected MV course
+            const course = courses.find(c => c.id === id);
+            if (course?.poll) {
+                setVotes(prev => {
+                    const updated = { ...prev };
+                    delete updated[course.poll!.id];
+                    return updated;
+                });
+            }
+        } else {
+            next.add(id);
+        }
         setSelectedIds(next);
+    };
+
+    const handleVoteChange = (pollId: string, optionId: string, voteType: string) => {
+        setVotes(prev => {
+            if (voteType === 'single') {
+                return { ...prev, [pollId]: [optionId] };
+            } else {
+                const current = prev[pollId] ?? [];
+                if (current.includes(optionId)) {
+                    return { ...prev, [pollId]: current.filter(id => id !== optionId) };
+                } else {
+                    return { ...prev, [pollId]: [...current, optionId] };
+                }
+            }
+        });
     };
 
     const getSteps = (): Step[] => {
@@ -151,6 +179,14 @@ export function RegisterWizardClient({
     const goNext = () => {
         const steps = getSteps();
         const idx = steps.indexOf(step);
+        // Validate MV votes before leaving the MV step
+        if (step === 'mv') {
+            const missingVote = mvCourses.some(c => c.poll && !(votes[c.poll.id]?.length > 0));
+            if (missingVote) {
+                toast.error('請為每個 MV 課程投票');
+                return;
+            }
+        }
         if (idx < steps.length - 1) setStep(steps[idx + 1]);
     };
 
@@ -169,6 +205,9 @@ export function RegisterWizardClient({
                     courseId: c.id,
                     mode: 'full' as const,
                     wantsLeader: wantsLeader[c.id] ?? false,
+                    ...(c.isMv && c.poll ? {
+                        votes: [{ pollId: c.poll.id, optionIds: votes[c.poll.id] ?? [] }],
+                    } : {}),
                 }));
 
                 const buyCards = hasShortfall && buyCardsQty > 0
@@ -415,14 +454,14 @@ export function RegisterWizardClient({
                 </div>
             )}
 
-            {/* Step: MV Song Selection (read-only for now) */}
+            {/* Step: MV Song Voting */}
             {step === 'mv' && (
                 <div className="space-y-4" data-testid="step-mv">
                     <h2 className="text-lg font-bold flex items-center gap-2">
                         <Music className="h-5 w-5" /> MV 選歌
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                        以下 MV 課程有開放投票（投票功能即將開放）
+                        請為以下 MV 課程投票
                     </p>
 
                     {mvCourses.map(course => (
@@ -431,16 +470,49 @@ export function RegisterWizardClient({
                             {course.poll && (
                                 <div className="space-y-2">
                                     <p className="text-xs text-muted-foreground font-medium">{course.poll.title}</p>
-                                    {course.poll.options.map(opt => (
-                                        <div key={opt.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/10">
-                                            <span className="text-sm">{opt.label}</span>
-                                            {opt.youtubeUrl && (
-                                                <Badge variant="outline" className="text-xs">
-                                                    YT
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    ))}
+                                    <div className="space-y-1.5">
+                                        {course.poll.options.map(opt => {
+                                            const pollId = course.poll!.id;
+                                            const isSelected = (votes[pollId] ?? []).includes(opt.id);
+                                            return (
+                                                <label
+                                                    key={opt.id}
+                                                    className={cn(
+                                                        'flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors',
+                                                        isSelected ? 'bg-primary/10' : 'bg-muted/10 hover:bg-muted/20'
+                                                    )}
+                                                >
+                                                    {course.poll!.voteType === 'single' ? (
+                                                        <input
+                                                            type="radio"
+                                                            name={`poll-${pollId}`}
+                                                            checked={isSelected}
+                                                            onChange={() => handleVoteChange(pollId, opt.id, 'single')}
+                                                            className="h-4 w-4 shrink-0 accent-primary"
+                                                        />
+                                                    ) : (
+                                                        <Checkbox
+                                                            checked={isSelected}
+                                                            onCheckedChange={() => handleVoteChange(pollId, opt.id, 'multi')}
+                                                            className="h-4 w-4 shrink-0"
+                                                        />
+                                                    )}
+                                                    <span className="text-sm flex-1">{opt.label}</span>
+                                                    {opt.youtubeUrl && (
+                                                        <a
+                                                            href={opt.youtubeUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={e => e.stopPropagation()}
+                                                            className="text-xs text-primary hover:underline shrink-0"
+                                                        >
+                                                            ▶ YT
+                                                        </a>
+                                                    )}
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             )}
                         </div>

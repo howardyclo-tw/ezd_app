@@ -25,7 +25,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Upload, Save, X, Clock, Plus, Trash2, Pencil, AlertTriangle, PlusCircle, PencilLine, ChevronLeft, Search, Check, ChevronsUpDown } from 'lucide-react';
+import { CalendarIcon, Upload, Save, X, Clock, Plus, Trash2, Pencil, AlertTriangle, PlusCircle, PencilLine, ChevronLeft, Search, Check, ChevronsUpDown, Music, ArrowUp, ArrowDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
@@ -46,7 +46,9 @@ import {
     updateCourse,
     createCourseGroup,
     updateCourseGroup,
-    deleteCourseGroup
+    deleteCourseGroup,
+    upsertCoursePoll,
+    deleteCoursePoll
 } from '@/lib/supabase/actions';
 import { getCourseGroups, getProfiles } from '@/lib/supabase/queries';
 import { toast } from 'sonner';
@@ -212,9 +214,16 @@ function TimePicker({ value, onChange }: { value: string; onChange: (v: string) 
 export interface CourseFormProps {
     initialData?: Partial<CourseFormValues> & { id?: string };
     mode?: 'create' | 'edit';
+    initialPolls?: Array<{
+        id: string;
+        title: string;
+        voteType: 'single' | 'multi';
+        status: string;
+        options: Array<{ id: string; label: string; youtubeUrl: string | null; sortOrder: number }>;
+    }>;
 }
 
-export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {}) {
+export function CourseForm({ initialData, mode = 'create', initialPolls }: CourseFormProps = {}) {
     const router = useRouter();
     const isEdit = mode === 'edit';
     const isInitialLoad = useRef(true);
@@ -240,6 +249,20 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
     // Leader Search State
     const [isLeaderSearchOpen, setIsLeaderSearchOpen] = useState(false);
     const [leaderSearchQuery, setLeaderSearchQuery] = useState("");
+
+    // Poll State (managed outside react-hook-form; saved via separate server action)
+    const initPoll = initialPolls?.[0];
+    const [pollId, setPollId] = useState<string | null>(initPoll?.id ?? null);
+    const [pollTitle, setPollTitle] = useState(initPoll?.title ?? '');
+    const [pollVoteType, setPollVoteType] = useState<'single' | 'multi'>(initPoll?.voteType ?? 'multi');
+    const [pollOptions, setPollOptions] = useState<Array<{ id?: string; label: string; youtubeUrl: string | null; sortOrder: number }>>(
+        initPoll?.options?.map(o => ({ id: o.id, label: o.label, youtubeUrl: o.youtubeUrl, sortOrder: o.sortOrder })) ?? []
+    );
+    const [pollStatus, setPollStatus] = useState(initPoll?.status ?? '');
+    const [isPollSaving, setIsPollSaving] = useState(false);
+    const [isPollDeleting, setIsPollDeleting] = useState(false);
+    const [showPollSection, setShowPollSection] = useState(!!initPoll);
+    const isPollPublished = pollStatus === 'published';
 
     useEffect(() => {
         async function loadData() {
@@ -474,10 +497,70 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
         }
     }, [firstDate, courseType, enrollSingle, isEdit, setValue, form]);
 
+    const hasPendingPoll = showPollSection && pollTitle.trim() && pollOptions.length >= 2;
+
+    const handleSavePoll = async (courseId: string) => {
+        if (!pollTitle.trim()) {
+            toast.error('請輸入投票標題');
+            return;
+        }
+        if (pollOptions.length < 2) {
+            toast.error('投票至少需要 2 個選項');
+            return;
+        }
+        if (pollOptions.some(o => !o.label.trim())) {
+            toast.error('所有選項名稱為必填');
+            return;
+        }
+        setIsPollSaving(true);
+        try {
+            const res = await upsertCoursePoll(courseId, {
+                id: pollId ?? undefined,
+                title: pollTitle.trim(),
+                voteType: pollVoteType,
+                options: pollOptions.map((o, i) => ({
+                    id: o.id,
+                    label: o.label.trim(),
+                    youtubeUrl: o.youtubeUrl || null,
+                    sortOrder: i + 1,
+                })),
+            });
+            if (res.success) {
+                toast.success(res.message);
+                if (res.id) setPollId(res.id);
+            }
+        } catch (error: any) {
+            toast.error(error.message || '儲存投票失敗');
+        } finally {
+            setIsPollSaving(false);
+        }
+    };
+
+    const handleDeletePoll = async () => {
+        if (!pollId) return;
+        setIsPollDeleting(true);
+        try {
+            const res = await deleteCoursePoll(pollId);
+            if (res.success) {
+                toast.success(res.message);
+                setPollId(null);
+                setPollTitle('');
+                setPollVoteType('multi');
+                setPollOptions([]);
+                setPollStatus('');
+                setShowPollSection(false);
+            }
+        } catch (error: any) {
+            toast.error(error.message || '刪除投票失敗');
+        } finally {
+            setIsPollDeleting(false);
+        }
+    };
+
     const onSubmit: SubmitHandler<CourseFormValues> = async (data) => {
         setIsSubmitting(true);
         try {
-            let res;
+            let res: { success: boolean; message: string; id?: string };
             if (isEdit && initialData?.id) {
                 res = await updateCourse(initialData.id as string, data);
             } else {
@@ -485,6 +568,22 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
             }
 
             if (res.success) {
+                // Save pending poll for newly created course
+                if (!isEdit && res.id && hasPendingPoll) {
+                    try {
+                        await upsertCoursePoll(res.id, {
+                            title: pollTitle.trim(),
+                            voteType: pollVoteType,
+                            options: pollOptions.map((o, i) => ({
+                                label: o.label.trim(),
+                                youtubeUrl: o.youtubeUrl || null,
+                                sortOrder: i + 1,
+                            })),
+                        });
+                    } catch (pollError: any) {
+                        toast.error(`課程已建立，但投票儲存失敗：${pollError.message}`);
+                    }
+                }
                 toast.success(res.message);
                 if (isEdit) {
                     router.back();
@@ -1412,6 +1511,212 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                 </div>
                                             );
                                         })}
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* MV 投票題 Section */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Music className="h-5 w-5 text-primary" />
+                                    <CardTitle className="text-lg">MV 投票題</CardTitle>
+                                </div>
+                                {isPollPublished && (
+                                    <Badge variant="secondary" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950 dark:text-amber-400">
+                                        已開票 — 不可修改
+                                    </Badge>
+                                )}
+                            </div>
+                            <CardDescription>為此課程建立 MV 投票，學員可在課程頁面投票選歌</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {!showPollSection ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full h-11 border-dashed"
+                                    onClick={() => {
+                                        setShowPollSection(true);
+                                        if (pollOptions.length === 0) {
+                                            setPollOptions([
+                                                { label: '', youtubeUrl: null, sortOrder: 1 },
+                                                { label: '', youtubeUrl: null, sortOrder: 2 },
+                                            ]);
+                                        }
+                                    }}
+                                >
+                                    <PlusCircle className="h-4 w-4 mr-2" />
+                                    新增投票題
+                                </Button>
+                            ) : (
+                                <div className="space-y-4">
+                                    {/* Poll Title */}
+                                    <div className="space-y-2">
+                                        <FormLabel>投票標題</FormLabel>
+                                        <Input
+                                            className="h-11"
+                                            placeholder="例：本期 MV 投票"
+                                            value={pollTitle}
+                                            onChange={(e) => setPollTitle(e.target.value)}
+                                            disabled={isPollPublished}
+                                            data-testid="poll-title-input"
+                                        />
+                                    </div>
+
+                                    {/* Vote Type */}
+                                    <div className="space-y-2">
+                                        <FormLabel>投票方式</FormLabel>
+                                        <Select
+                                            value={pollVoteType}
+                                            onValueChange={(v) => setPollVoteType(v as 'single' | 'multi')}
+                                            disabled={isPollPublished}
+                                        >
+                                            <SelectTrigger className="h-11" data-testid="poll-vote-type-select">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="single">單選</SelectItem>
+                                                <SelectItem value="multi">複選</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Options List */}
+                                    <div className="space-y-2">
+                                        <FormLabel>投票選項</FormLabel>
+                                        <div className="space-y-2">
+                                            {pollOptions.map((option, index) => (
+                                                <div key={index} className="flex items-start gap-2 p-3 rounded-lg border bg-muted/30">
+                                                    <div className="flex-none flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold bg-primary/10 text-primary mt-1">
+                                                        {index + 1}
+                                                    </div>
+                                                    <div className="flex-1 space-y-2">
+                                                        <Input
+                                                            className="h-9"
+                                                            placeholder="選項名稱（必填）"
+                                                            value={option.label}
+                                                            onChange={(e) => {
+                                                                const updated = [...pollOptions];
+                                                                updated[index] = { ...updated[index], label: e.target.value };
+                                                                setPollOptions(updated);
+                                                            }}
+                                                            disabled={isPollPublished}
+                                                            data-testid={`poll-option-label-${index}`}
+                                                        />
+                                                        <Input
+                                                            className="h-9"
+                                                            placeholder="YouTube 連結（選填）"
+                                                            value={option.youtubeUrl ?? ''}
+                                                            onChange={(e) => {
+                                                                const updated = [...pollOptions];
+                                                                updated[index] = { ...updated[index], youtubeUrl: e.target.value || null };
+                                                                setPollOptions(updated);
+                                                            }}
+                                                            disabled={isPollPublished}
+                                                            data-testid={`poll-option-url-${index}`}
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-1">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground"
+                                                            disabled={isPollPublished || index === 0}
+                                                            onClick={() => {
+                                                                const updated = [...pollOptions];
+                                                                [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
+                                                                setPollOptions(updated);
+                                                            }}
+                                                        >
+                                                            <ArrowUp className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground"
+                                                            disabled={isPollPublished || index === pollOptions.length - 1}
+                                                            onClick={() => {
+                                                                const updated = [...pollOptions];
+                                                                [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+                                                                setPollOptions(updated);
+                                                            }}
+                                                        >
+                                                            <ArrowDown className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                            disabled={isPollPublished || pollOptions.length <= 2}
+                                                            onClick={() => {
+                                                                setPollOptions(pollOptions.filter((_, i) => i !== index));
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {!isPollPublished && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full mt-2 border-dashed"
+                                                onClick={() => {
+                                                    setPollOptions([...pollOptions, { label: '', youtubeUrl: null, sortOrder: pollOptions.length + 1 }]);
+                                                }}
+                                            >
+                                                <PlusCircle className="h-4 w-4 mr-2" />
+                                                新增選項
+                                            </Button>
+                                        )}
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-2 pt-2">
+                                        {isEdit && initialData?.id && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                className="h-9 text-sm font-bold"
+                                                disabled={isPollSaving || isPollPublished}
+                                                onClick={() => handleSavePoll(initialData.id!)}
+                                                data-testid="poll-save-btn"
+                                            >
+                                                {isPollSaving && <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+                                                <Save className="h-4 w-4 mr-2" />
+                                                儲存投票題
+                                            </Button>
+                                        )}
+                                        {isEdit && pollId && (
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                size="sm"
+                                                className="h-9 text-sm font-bold"
+                                                disabled={isPollDeleting || isPollPublished}
+                                                onClick={handleDeletePoll}
+                                                data-testid="poll-delete-btn"
+                                            >
+                                                {isPollDeleting && <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                刪除投票題
+                                            </Button>
+                                        )}
+                                        {!isEdit && (
+                                            <p className="text-xs text-muted-foreground">
+                                                投票題將在課程建立後一併儲存
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             )}

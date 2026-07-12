@@ -49,6 +49,13 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
         notFound();
     }
 
+    // Fetch poll data for this course
+    const { data: polls } = await supabase
+        .from('course_polls')
+        .select('id, title, vote_type, status, poll_options ( id, label, youtube_url, sort_order )')
+        .eq('course_id', course.id)
+        .eq('status', 'open');
+
     // Sort and format sessions
     const sessions = (course.course_sessions as any[])
         .sort((a: any, b: any) => a.session_number - b.session_number)
@@ -105,7 +112,24 @@ export default async function EditCoursePage({ params }: { params: Promise<{ gro
 
     return (
         <div className="mx-auto max-w-5xl px-4 py-8">
-            <CourseForm initialData={initialData} mode="edit" />
+            <CourseForm
+                initialData={initialData}
+                mode="edit"
+                initialPolls={polls?.map(p => ({
+                    id: p.id,
+                    title: p.title,
+                    voteType: p.vote_type as 'single' | 'multi',
+                    status: p.status,
+                    options: ((p.poll_options as any[]) ?? [])
+                        .sort((a: any, b: any) => a.sort_order - b.sort_order)
+                        .map((o: any) => ({
+                            id: o.id,
+                            label: o.label,
+                            youtubeUrl: o.youtube_url,
+                            sortOrder: o.sort_order,
+                        })),
+                })) ?? []}
+            />
         </div>
     );
 }

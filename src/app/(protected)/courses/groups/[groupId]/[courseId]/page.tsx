@@ -356,6 +356,26 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         });
     });
 
+    // --- Fetch polls with options and vote counts ---
+    const { data: coursePolls } = await adminDb
+        .from('course_polls')
+        .select('id, title, vote_type, status, poll_options ( id, label, youtube_url, sort_order, is_winner )')
+        .eq('course_id', course.id);
+
+    const pollOptionIds = (coursePolls ?? []).flatMap(p =>
+        ((p.poll_options as any[]) ?? []).map((o: any) => o.id)
+    );
+    let voteCounts: Record<string, number> = {};
+    if (pollOptionIds.length > 0) {
+        const { data: votes } = await adminDb
+            .from('poll_votes')
+            .select('option_id')
+            .in('option_id', pollOptionIds);
+        (votes ?? []).forEach(v => {
+            voteCounts[v.option_id] = (voteCounts[v.option_id] ?? 0) + 1;
+        });
+    }
+
     // --- Calculate specific quota for THIS course ---
     const isFullEnrolled = (enrollment as any[] || []).some(e => e.status === 'enrolled' && e.type === 'full');
     let courseQuota = { total: 0, used: 0, remaining: 0 };
@@ -414,6 +434,21 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
             currentUserRole={profile?.role ?? 'guest'}
             sessionOccupancy={sessionOccupancy}
             userOccupiedSessionIds={userOccupiedSessionIds}
+            poll={coursePolls?.[0] ? {
+                id: coursePolls[0].id,
+                title: coursePolls[0].title,
+                voteType: coursePolls[0].vote_type as 'single' | 'multi',
+                status: coursePolls[0].status as 'open' | 'published',
+                options: ((coursePolls[0].poll_options as any[]) ?? [])
+                    .sort((a: any, b: any) => a.sort_order - b.sort_order)
+                    .map((o: any) => ({
+                        id: o.id,
+                        label: o.label,
+                        youtubeUrl: o.youtube_url,
+                        isWinner: o.is_winner,
+                        voteCount: voteCounts[o.id] ?? 0,
+                    })),
+            } : null}
         />
     );
 }
