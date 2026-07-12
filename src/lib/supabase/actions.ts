@@ -1357,6 +1357,332 @@ export async function updateCourse(id: string, data: any): Promise<{ success: bo
 }
 
 // ------------------------------------------------------------------
+// Poll Actions
+// ------------------------------------------------------------------
+
+export async function upsertCoursePoll(courseId: string, data: {
+    id?: string;
+    title: string;
+    voteType: 'single' | 'multi';
+    options: { id?: string; label: string; youtubeUrl?: string | null; sortOrder: number }[];
+}): Promise<{ success: boolean; message: string; id?: string }> {
+    const { supabase, user } = await getCurrentUser();
+    const adminClient = createAdminClient();
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以管理投票');
+
+    if (data.options.length < 2) throw new Error('投票至少需要 2 個選項');
+
+    let pollId = data.id;
+
+    if (pollId) {
+        const { data: existing } = await adminClient
+            .from('course_polls')
+            .select('id, course_id, status')
+            .eq('id', pollId)
+            .single();
+
+        if (!existing) throw new Error('找不到投票');
+        if (existing.course_id !== courseId) throw new Error('投票不屬於此課程');
+        if (existing.status !== 'open') throw new Error('已發布的投票無法編輯');
+
+        const { error: updateError } = await adminClient
+            .from('course_polls')
+            .update({ title: data.title, vote_type: data.voteType })
+            .eq('id', pollId);
+
+        if (updateError) throw new Error(`更新投票失敗: ${updateError.message}`);
+    } else {
+        const { data: newPoll, error: insertError } = await adminClient
+            .from('course_polls')
+            .insert({ course_id: courseId, title: data.title, vote_type: data.voteType })
+            .select('id')
+            .single();
+
+        if (insertError) throw new Error(`建立投票失敗: ${insertError.message}`);
+        pollId = newPoll.id;
+    }
+
+    const incomingIds = data.options.filter(o => o.id).map(o => o.id!);
+
+    if (data.id && incomingIds.length > 0) {
+        const { error: deleteError } = await adminClient
+            .from('poll_options')
+            .delete()
+            .eq('poll_id', pollId!)
+            .not('id', 'in', `(${incomingIds.join(',')})`);
+
+        if (deleteError) throw new Error(`刪除選項失敗: ${deleteError.message}`);
+    } else if (data.id) {
+        const { error: deleteError } = await adminClient
+            .from('poll_options')
+            .delete()
+            .eq('poll_id', pollId!);
+
+        if (deleteError) throw new Error(`刪除選項失敗: ${deleteError.message}`);
+    }
+
+    for (const option of data.options) {
+        if (option.id) {
+            const { error } = await adminClient
+                .from('poll_options')
+                .update({
+                    label: option.label,
+                    youtube_url: option.youtubeUrl ?? null,
+                    sort_order: option.sortOrder,
+                })
+                .eq('id', option.id);
+
+            if (error) throw new Error(`更新選項失敗: ${error.message}`);
+        } else {
+            const { error } = await adminClient
+                .from('poll_options')
+                .insert({
+                    poll_id: pollId!,
+                    label: option.label,
+                    youtube_url: option.youtubeUrl ?? null,
+                    sort_order: option.sortOrder,
+                });
+
+            if (error) throw new Error(`新增選項失敗: ${error.message}`);
+        }
+    }
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: pollId === data.id ? '成功更新投票' : '成功建立投票', id: pollId };
+}
+
+export async function deleteCoursePoll(pollId: string): Promise<{ success: boolean; message: string }> {
+    const { supabase, user } = await getCurrentUser();
+    const adminClient = createAdminClient();
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以刪除投票');
+
+    const { data: poll } = await adminClient
+        .from('course_polls')
+        .select('id, status')
+        .eq('id', pollId)
+        .single();
+
+    if (!poll) throw new Error('找不到投票');
+    if (poll.status !== 'open') throw new Error('已發布的投票無法刪除');
+
+    const { error } = await adminClient
+        .from('course_polls')
+        .delete()
+        .eq('id', pollId);
+
+    if (error) throw new Error(`刪除投票失敗: ${error.message}`);
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: '成功刪除投票' };
+}
+
+export async function publishPollResults(
+    pollId: string,
+    winnerOptionIds: string[]
+): Promise<{ success: boolean; message: string; results?: { enrolled: number; pendingPayment: number; cancelled: number } }> {
+    const { supabase, user } = await getCurrentUser();
+    const adminClient = createAdminClient();
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') throw new Error('只有幹部可以開票');
+
+    const { data: poll } = await adminClient
+        .from('course_polls')
+        .select('id, course_id, status')
+        .eq('id', pollId)
+        .single();
+
+    if (!poll) throw new Error('找不到投票');
+    if (poll.status !== 'open') throw new Error('此投票已開票');
+
+    const { data: course } = await adminClient
+        .from('courses')
+        .select('id, group_id, capacity, pricing_mode, cards_per_session, price_member_full, price_guest_full, price_member_single, price_guest_single, course_sessions(id, session_date)')
+        .eq('id', poll.course_id)
+        .single();
+
+    if (!course) throw new Error('找不到課程');
+
+    if (winnerOptionIds.length === 0) throw new Error('至少需選擇一個當選選項');
+
+    const { data: pollOptions } = await adminClient
+        .from('poll_options')
+        .select('id')
+        .eq('poll_id', pollId);
+
+    const validOptionIds = new Set((pollOptions ?? []).map(o => o.id));
+    for (const oid of winnerOptionIds) {
+        if (!validOptionIds.has(oid)) throw new Error(`選項 ${oid} 不屬於此投票`);
+    }
+
+    await adminClient
+        .from('poll_options')
+        .update({ is_winner: true })
+        .in('id', winnerOptionIds);
+
+    await adminClient
+        .from('course_polls')
+        .update({ status: 'published', published_at: new Date().toISOString(), published_by: user.id })
+        .eq('id', pollId);
+
+    const { data: pendingVoteEnrollments } = await adminClient
+        .from('enrollments')
+        .select('id, user_id, enrolled_at')
+        .eq('course_id', poll.course_id)
+        .eq('status', 'pending_vote');
+
+    const { data: pollVotes } = await adminClient
+        .from('poll_votes')
+        .select('enrollment_id, option_id')
+        .eq('poll_id', pollId);
+
+    const winnerSet = new Set(winnerOptionIds);
+    const winningEnrollmentIds = new Set<string>();
+    for (const vote of pollVotes ?? []) {
+        if (winnerSet.has(vote.option_id)) {
+            winningEnrollmentIds.add(vote.enrollment_id);
+        }
+    }
+
+    const allPendingMap = new Map((pendingVoteEnrollments ?? []).map(e => [e.id, e]));
+
+    const winningVoters = (pendingVoteEnrollments ?? []).filter(e => winningEnrollmentIds.has(e.id));
+    const nonWinningVoters = (pendingVoteEnrollments ?? []).filter(e => !winningEnrollmentIds.has(e.id));
+
+    const { count: occupyingCount } = await adminClient
+        .from('enrollments')
+        .select('id', { count: 'exact', head: true })
+        .eq('course_id', poll.course_id)
+        .in('status', ['enrolled', 'pending_payment']);
+
+    const occupied = occupyingCount ?? 0;
+    const availableCapacity = (course.capacity ?? 0) - occupied;
+
+    const { allocate } = await import('@/lib/allocation');
+    const candidates = winningVoters.map(e => ({ enrollmentId: e.id, enrolledAt: e.enrolled_at }));
+    const { granted, denied } = allocate(candidates, availableCapacity, 'fcfs');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sessions = (course.course_sessions as any[]) ?? [];
+    const sessionCount = sessions.length;
+    const sortedSessions = [...sessions].sort((a, b) => (a.session_date as string).localeCompare(b.session_date as string));
+    const firstSessionDate = sortedSessions[0]?.session_date ?? null;
+    const lastSessionDate = sortedSessions[sortedSessions.length - 1]?.session_date ?? getTaipeiToday();
+
+    const taipeiToday = getTaipeiToday();
+    const pricingInputs = {
+        pricing_mode: course.pricing_mode as import('@/types/database').PricingMode,
+        cards_per_session: course.cards_per_session,
+        price_member_single: course.price_member_single,
+        price_guest_single: course.price_guest_single,
+        price_member_full: course.price_member_full,
+        price_guest_full: course.price_guest_full,
+        sessionCount,
+    };
+
+    let enrolled = 0;
+    let pendingPayment = 0;
+    let cancelled = 0;
+
+    for (const enrollmentId of granted) {
+        const enrollment = allPendingMap.get(enrollmentId)!;
+
+        const { data: userProfile } = await adminClient
+            .from('profiles')
+            .select('role, member_valid_until, member_group_id, member_groups ( valid_until )')
+            .eq('id', enrollment.user_id)
+            .single();
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const groupValidUntil = (userProfile?.member_groups as any)?.valid_until ?? null;
+        const memberActive = isMemberActive(
+            { role: userProfile?.role ?? 'guest', member_valid_until: userProfile?.member_valid_until ?? null, groupValidUntil },
+            taipeiToday
+        );
+
+        const price = resolvePrice(pricingInputs, memberActive, 'full');
+
+        if (price.kind === 'free') {
+            await adminClient.from('enrollments').update({ status: 'enrolled' }).eq('id', enrollmentId);
+            enrolled++;
+        } else if (price.kind === 'card') {
+            const { deductCardsFIFO } = await import('./card-utils');
+            try {
+                await deductCardsFIFO(
+                    enrollment.user_id,
+                    price.cards,
+                    lastSessionDate,
+                    '開票結算扣卡',
+                    enrollmentId,
+                    user.id,
+                );
+                await adminClient.from('enrollments').update({ status: 'enrolled' }).eq('id', enrollmentId);
+                enrolled++;
+            } catch {
+                const { data: order } = await adminClient.from('orders').insert({
+                    user_id: enrollment.user_id,
+                    order_type: 'course_fee',
+                    amount: 0,
+                    status: 'pending',
+                    group_id: course.group_id,
+                }).select('id').single();
+
+                await adminClient.from('enrollments').update({
+                    status: 'pending_payment',
+                    order_id: order?.id ?? null,
+                    payment_deadline_at: firstSessionDate,
+                }).eq('id', enrollmentId);
+                pendingPayment++;
+            }
+        } else {
+            if (price.amount > 0) {
+                const { data: order } = await adminClient.from('orders').insert({
+                    user_id: enrollment.user_id,
+                    order_type: 'course_fee',
+                    amount: price.amount,
+                    status: 'pending',
+                    group_id: course.group_id,
+                }).select('id').single();
+
+                await adminClient.from('enrollments').update({
+                    status: 'pending_payment',
+                    order_id: order?.id ?? null,
+                    payment_deadline_at: firstSessionDate,
+                }).eq('id', enrollmentId);
+                pendingPayment++;
+            } else {
+                await adminClient.from('enrollments').update({ status: 'enrolled' }).eq('id', enrollmentId);
+                enrolled++;
+            }
+        }
+    }
+
+    const now = new Date().toISOString();
+
+    if (denied.length > 0) {
+        await adminClient.from('enrollments')
+            .update({ status: 'cancelled', cancelled_at: now, cancel_reason: '開票結算：超額' })
+            .in('id', denied);
+        cancelled += denied.length;
+    }
+
+    const nonWinnerIds = nonWinningVoters.map(e => e.id);
+    if (nonWinnerIds.length > 0) {
+        await adminClient.from('enrollments')
+            .update({ status: 'cancelled', cancelled_at: now, cancel_reason: '開票結算：未投中' })
+            .in('id', nonWinnerIds);
+        cancelled += nonWinnerIds.length;
+    }
+
+    revalidatePath('/', 'layout');
+    return { success: true, message: '開票完成', results: { enrolled, pendingPayment, cancelled } };
+}
+
+// ------------------------------------------------------------------
 // Attendance Actions
 // ------------------------------------------------------------------
 
@@ -3733,11 +4059,22 @@ export async function submitGroupEnrollment(
     // ── 5. Check which courses have open polls (MV detection) ──
     const { data: openPolls } = await adminClient
         .from('course_polls')
-        .select('id, course_id')
+        .select('id, course_id, vote_type')
         .in('course_id', courseIds)
         .eq('status', 'open');
 
     const mvCourseIds = new Set((openPolls ?? []).map(p => p.course_id));
+    const pollMap = new Map((openPolls ?? []).map(p => [p.id, { courseId: p.course_id, voteType: p.vote_type as 'single' | 'multi' }]));
+
+    const pollIds = (openPolls ?? []).map(p => p.id);
+    const { data: allPollOptions } = pollIds.length > 0
+        ? await adminClient.from('poll_options').select('id, poll_id').in('poll_id', pollIds)
+        : { data: [] as { id: string; poll_id: string }[] };
+    const optionsByPoll = new Map<string, Set<string>>();
+    for (const opt of allPollOptions ?? []) {
+        if (!optionsByPoll.has(opt.poll_id)) optionsByPoll.set(opt.poll_id, new Set());
+        optionsByPoll.get(opt.poll_id)!.add(opt.id);
+    }
 
     // ── 6. Check group phase1 window (single check since all courses share groupId) ──
     // Use max nonmember_delay_days across all selected courses
@@ -3831,8 +4168,48 @@ export async function submitGroupEnrollment(
                     .eq('id', result.enrollment_id);
             }
 
-            // TODO [Task 6.2]: persist votes from sel.votes here
-            // Vote-writing and vote-integrity guards are deferred to Task 6.2.
+            if (result.enrollment_id && result.status !== 'waitlist') {
+                if (!sel.votes || sel.votes.length === 0) {
+                    perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: 'MV 課程必須投票' });
+                    continue;
+                }
+
+                let voteInvalid = false;
+                const voteRows: { poll_id: string; option_id: string; user_id: string; enrollment_id: string }[] = [];
+
+                for (const v of sel.votes) {
+                    const pollInfo = pollMap.get(v.pollId);
+                    if (!pollInfo || pollInfo.courseId !== sel.courseId) {
+                        voteInvalid = true;
+                        break;
+                    }
+                    if (pollInfo.voteType === 'single' && v.optionIds.length !== 1) {
+                        voteInvalid = true;
+                        break;
+                    }
+                    if (pollInfo.voteType === 'multi' && v.optionIds.length < 1) {
+                        voteInvalid = true;
+                        break;
+                    }
+                    const validOptions = optionsByPoll.get(v.pollId);
+                    if (!validOptions || !v.optionIds.every(oid => validOptions.has(oid))) {
+                        voteInvalid = true;
+                        break;
+                    }
+                    for (const oid of v.optionIds) {
+                        voteRows.push({ poll_id: v.pollId, option_id: oid, user_id: user.id, enrollment_id: result.enrollment_id });
+                    }
+                }
+
+                if (voteInvalid) {
+                    perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '投票資料無效' });
+                    continue;
+                }
+
+                if (voteRows.length > 0) {
+                    await adminClient.from('poll_votes').insert(voteRows);
+                }
+            }
 
             if (result.status === 'waitlist') {
                 perCourse.push({ courseId: sel.courseId, status: 'waitlist' });

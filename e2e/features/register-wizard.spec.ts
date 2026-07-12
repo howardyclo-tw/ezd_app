@@ -37,6 +37,9 @@ const REG_NTD_COURSE        = 'e2e00000-0000-0000-0000-0000000000b4';
 const REG_NO_FULL_COURSE    = 'e2e00000-0000-0000-0000-0000000000b5';
 const REG_FULL_COURSE       = 'e2e00000-0000-0000-0000-0000000000b6';
 const REG_FREE_COURSE       = 'e2e00000-0000-0000-0000-0000000000b7';
+const REG_MV_POLL           = 'e2e00000-0000-0000-0000-0000000000d1';
+const REG_MV_OPT1           = 'e2e00000-0000-0000-0000-0000000000d2';
+const REG_MV_OPT2           = 'e2e00000-0000-0000-0000-0000000000d3';
 
 function getSupabaseEnv() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -139,7 +142,7 @@ test.describe('Register Wizard — submitGroupEnrollment', () => {
                 groupId: REG_GROUP_ID,
                 selections: [
                     { courseId: REG_CARD_AFFORD, mode: 'full', wantsLeader: true },
-                    { courseId: REG_MV_COURSE, mode: 'full', wantsLeader: false },
+                    { courseId: REG_MV_COURSE, mode: 'full', wantsLeader: false, votes: [{ pollId: REG_MV_POLL, optionIds: [REG_MV_OPT1, REG_MV_OPT2] }] },
                     { courseId: REG_NTD_COURSE, mode: 'full', wantsLeader: false },
                 ],
             },
