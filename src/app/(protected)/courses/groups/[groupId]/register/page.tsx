@@ -102,11 +102,10 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
 
     const adminDb = createAdminClient();
 
-    // Fetch courses + sessions + polls + user enrollments + purchase unit in parallel
+    // Fetch courses + sessions + user enrollments + purchase unit in parallel
     const [
         { data: courses },
         { data: userEnrollments },
-        { data: openPolls },
         { data: purchaseUnitRow },
         { data: bankInfoRow },
     ] = await Promise.all([
@@ -131,10 +130,6 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             .eq('type', 'full')
             .in('status', ['enrolled', 'pending_payment', 'pending_vote']),
         adminDb
-            .from('course_polls')
-            .select('id, course_id, title, vote_type, poll_options ( id, label, youtube_url, sort_order )')
-            .eq('status', 'open'),
-        adminDb
             .from('system_config')
             .select('value')
             .eq('key', 'card_purchase_unit')
@@ -145,6 +140,16 @@ export default async function RegisterPage({ params }: { params: Promise<{ group
             .eq('key', 'bank_info')
             .maybeSingle(),
     ]);
+
+    // Fetch open polls scoped to this group's courses (not all groups)
+    const courseIds = (courses ?? []).map(c => c.id);
+    const { data: openPolls } = courseIds.length > 0
+        ? await adminDb
+            .from('course_polls')
+            .select('id, course_id, title, vote_type, poll_options ( id, label, youtube_url, sort_order )')
+            .eq('status', 'open')
+            .in('course_id', courseIds)
+        : { data: [] as any[] };
 
     // Compute per-session occupancy for capacity check
     const allCourseIds = (courses ?? []).map(c => c.id);

@@ -1,29 +1,12 @@
 {
-  "task": "mtk-realign implementation (overnight autonomous)",
-  "tier": "完成",
+  "task": "6V: Independent review + e2e gate",
+  "tier": "review",
   "steps": {
-    "5T.1_migration_017": "DONE — commit 71928a0",
-    "5T.2-4_guards_waitlist": "DONE — commit c33a386",
-    "5T.5_membership_combined": "DONE — commit b622fd0",
-    "5U.1_migration_018": "DONE — commit 44e74b7",
-    "5U.2_deadline_calc_expire": "DONE — commit 82d0913",
-    "5U.3_lazy_cron": "DONE — commit ece8cd4",
-    "5V.2_settings_tabs": "DONE — commit e6ed4ca",
-    "5V.3-5_feature_uis": "DONE — commit b54f79c",
-    "5W_verification": "DONE — commit b765619 (reviewer fixes)",
-    "dashboard_update": "DONE — artifact redeployed"
+    "6V.1_review": "DONE — 2 CRITICAL, 2 HIGH, 2 MEDIUM findings",
+    "6V.2_full_e2e": "DONE — 75 passed, 1 skipped",
+    "6V.3_fixes": "IN_PROGRESS — C1+C2+H1+M1+M2 dispatched to opus subagent",
+    "6V.4_commit": "PENDING — commit fixes + ledger"
   },
-  "commits": [
-    "71928a0 feat: migration 017 — waitlist schema + enroll_atomic v2 + promote_from_waitlist RPC",
-    "44e74b7 feat: migration 018 — payment deadline schema + enroll_atomic v3 + promote_from_waitlist v2",
-    "e6ed4ca feat: settings page 3-tab reorganization",
-    "c33a386 feat: waitlist triggers + staggered windows + admin early-bird guards",
-    "b622fd0 feat: membership combined — carrier order + grantMembership helper",
-    "82d0913 feat: payment deadline calculation + expireEnrollment action",
-    "ece8cd4 feat: lazy check deadline expiry + cron Edge Function",
-    "b54f79c feat: waitlist + staggered + deadline UI (5V.3-5)",
-    "b765619 fix: reviewer findings — remitted protection + grantMembership + TOCTOU"
-  ],
-  "next_action": "awaiting user verification (all 6 features complete, each independently revertable)",
-  "updated": "2026-07-11T+08:00"
+  "next_action": "await fix implementation subagent",
+  "updated": "2026-07-12T+08:00"
 }

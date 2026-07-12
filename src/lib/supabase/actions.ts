@@ -858,7 +858,14 @@ export async function cancelEnrollment(courseId: string): Promise<{ success: boo
         }
     }
 
-    // Self-cancel allowed: waitlist or pending_payment with non-confirmed order (single enrollment on order)
+    // Self-cancel allowed: waitlist, pending_vote, or pending_payment with non-confirmed order (single enrollment on order)
+
+    // Clean up poll_votes for pending_vote enrollments
+    if (enrollment.status === 'pending_vote') {
+        await adminClient.from('poll_votes')
+            .delete()
+            .eq('enrollment_id', enrollment.id);
+    }
 
     // Cancel
     const { error } = await adminClient
@@ -1490,6 +1497,7 @@ export async function publishPollResults(
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (profile?.role !== 'admin') throw new Error('只有幹部可以開票');
 
+    // Fetch poll data
     const { data: poll } = await adminClient
         .from('course_polls')
         .select('id, course_id, status')
@@ -1497,7 +1505,16 @@ export async function publishPollResults(
         .single();
 
     if (!poll) throw new Error('找不到投票');
-    if (poll.status !== 'open') throw new Error('此投票已開票');
+
+    // Atomic claim — prevents double-publish race
+    const { data: claimed } = await adminClient
+        .from('course_polls')
+        .update({ status: 'published', published_at: new Date().toISOString(), published_by: user.id })
+        .eq('id', pollId)
+        .eq('status', 'open')
+        .select('id');
+
+    if (!claimed || claimed.length === 0) throw new Error('此投票已開票');
 
     const { data: course } = await adminClient
         .from('courses')
@@ -1524,10 +1541,7 @@ export async function publishPollResults(
         .update({ is_winner: true })
         .in('id', winnerOptionIds);
 
-    await adminClient
-        .from('course_polls')
-        .update({ status: 'published', published_at: new Date().toISOString(), published_by: user.id })
-        .eq('id', pollId);
+    // Status already set to 'published' by the atomic claim above
 
     const { data: pendingVoteEnrollments } = await adminClient
         .from('enrollments')
@@ -1584,6 +1598,9 @@ export async function publishPollResults(
         sessionCount,
     };
 
+    // Pre-fetch card unit prices for card shortfall fallback
+    const config = await getSystemConfig();
+
     let enrolled = 0;
     let pendingPayment = 0;
     let cancelled = 0;
@@ -1623,12 +1640,18 @@ export async function publishPollResults(
                 await adminClient.from('enrollments').update({ status: 'enrolled' }).eq('id', enrollmentId);
                 enrolled++;
             } catch {
+                // Card shortfall: create card_purchase order (matches submitGroupEnrollment pattern)
+                const unitPrice = memberActive
+                    ? parseInt(config['card_price_member'] ?? '270', 10)
+                    : parseInt(config['card_price_non_member'] ?? '370', 10);
                 const { data: order } = await adminClient.from('orders').insert({
                     user_id: enrollment.user_id,
-                    order_type: 'course_fee',
-                    amount: 0,
+                    order_type: 'card_purchase' as const,
+                    quantity: price.cards,
+                    unit_price: unitPrice,
+                    total_amount: price.cards * unitPrice,
                     status: 'pending',
-                    group_id: course.group_id,
+                    course_group_id: course.group_id,
                 }).select('id').single();
 
                 await adminClient.from('enrollments').update({
@@ -4170,6 +4193,12 @@ export async function submitGroupEnrollment(
 
             if (result.enrollment_id && result.status !== 'waitlist') {
                 if (!sel.votes || sel.votes.length === 0) {
+                    // Roll back orphaned enrollment before rejecting
+                    if (result.enrollment_id) {
+                        await adminClient.from('enrollments')
+                            .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancel_reason: '投票資料無效' })
+                            .eq('id', result.enrollment_id);
+                    }
                     perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: 'MV 課程必須投票' });
                     continue;
                 }
@@ -4202,6 +4231,12 @@ export async function submitGroupEnrollment(
                 }
 
                 if (voteInvalid) {
+                    // Roll back orphaned enrollment before rejecting
+                    if (result.enrollment_id) {
+                        await adminClient.from('enrollments')
+                            .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancel_reason: '投票資料無效' })
+                            .eq('id', result.enrollment_id);
+                    }
                     perCourse.push({ courseId: sel.courseId, status: 'rejected', reason: '投票資料無效' });
                     continue;
                 }
