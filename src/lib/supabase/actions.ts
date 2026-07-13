@@ -2231,10 +2231,19 @@ export async function registerUserAction(data: {
     email: string;
     password: string;
     name: string;
-    employee_id?: string;
+    employee_id: string;
 }): Promise<{ success: boolean; message: string }> {
     if (!data.email.endsWith('@mediatek.com')) {
         return { success: false, message: '僅限 mediatek.com 電子郵件註冊' };
+    }
+
+    if (!data.employee_id?.trim()) {
+        return { success: false, message: '工號為必填欄位' };
+    }
+
+    const emailPrefix = data.email.split('@')[0].toLowerCase();
+    if (/^(mtk|ds)\d+$/.test(emailPrefix)) {
+        return { success: false, message: '請檢查公司信箱是否正確，而非工號開頭如 mtkxxxxx@...' };
     }
 
     const adminClient = createAdminClient();
