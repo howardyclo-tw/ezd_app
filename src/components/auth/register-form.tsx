@@ -27,6 +27,14 @@ export function RegisterForm() {
       return;
     }
 
+    const emailPrefix = email.split('@')[0].toLowerCase();
+    if (/^(mtk|ds)\d+$/i.test(emailPrefix)) {
+      toast.error('信箱格式錯誤', {
+        description: '請檢查公司信箱是否正確，而非工號開頭如 mtkxxxxx@...',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -34,7 +42,7 @@ export function RegisterForm() {
         email,
         password,
         name,
-        employee_id: employeeId || undefined,
+        employee_id: employeeId,
       });
 
       if (!result.success) {
@@ -84,9 +92,10 @@ export function RegisterForm() {
               placeholder="例：mtk12345"
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
+              required
               disabled={loading}
             />
-            <p className="text-xs text-muted-foreground">請輸入完整工號（含前綴），例：mtk12345、DS901402</p>
+            <p className="text-xs text-muted-foreground">必填，請輸入完整工號（含前綴），例：mtk12345、DS901402</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">電子郵件</Label>
