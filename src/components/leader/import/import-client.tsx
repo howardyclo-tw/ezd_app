@@ -42,7 +42,7 @@ const templates = {
         filename: 'ezd_members_template.csv',
         content: '電子郵件 (email),姓名 (name),工號 (employee_id),是否為社員 (is_member)\nexample_member@mediatek.com,王小明,mtk12345,1\nexample_guest@mediatek.com,李小華,mtk67890,0',
         headers: ['電子郵件 (email)', '姓名 (name)', '工號 (employee_id)', '是否為社員 (is_member)'],
-        hint: '必填：\n• 電子郵件\n• 姓名\n• 是否為社員（1=社員, 0=非社員）\n\n選填：\n• 工號（含前綴，如 mtk12345、ds901402）\n\n注意事項：\n• 社員自動加入最新年度群組，非社員不加入群組\n• 已存在的 email 會更新姓名與工號（不會重複建帳）\n• 新帳號預設密碼為 mediatek\n• Email 與工號會自動轉為小寫儲存'
+        hint: '必填：\n• 電子郵件\n• 姓名\n• 工號（含前綴，如 mtk12345、ds901402）\n• 是否為社員（1=社員, 0=非社員）\n\n注意事項：\n• 社員自動加入最新年度群組，非社員不加入群組\n• 已存在的 email 會更新姓名與工號（不會重複建帳）\n• 新帳號預設密碼為 mediatek\n• Email 與工號會自動轉為小寫儲存'
     },
     card_orders: {
         title: '堂卡紀錄',
