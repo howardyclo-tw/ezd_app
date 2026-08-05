@@ -2748,23 +2748,24 @@ export async function getTransferCandidates(
         }))
         .filter((w: any) => w.id && w.id !== user.id && w.role !== 'guest');
 
-    // 2. Exclude: self, full-term enrolled, and anyone already occupying this specific session
+    // 2. Exclude: self, full-term enrolled (except those with approved leave for this session), and anyone already occupying this specific session
     const excludeIds = new Set<string>();
     excludeIds.add(user.id);
 
-    // Full-term enrolled students
+    // Full-term enrolled students (with exception: those with approved leave for this session can receive a transfer)
     const { data: fullEnrolled } = await supabase
         .from('enrollments')
         .select('user_id')
         .eq('course_id', courseId)
         .eq('status', 'enrolled')
         .eq('type', 'full');
-    (fullEnrolled ?? []).forEach(e => excludeIds.add(e.user_id));
 
-    // If sessionId provided, also exclude users who already have that session
     if (sessionId) {
+        // Fetch approved leave holders for this session so we can exclude ONLY those without leave
         const adminForCandidates = createAdminClient();
-        const [{ data: singleEnrolled }, { data: makeupUsers }, { data: transferInUsers }] = await Promise.all([
+        const [{ data: leavedUsers }, { data: singleEnrolled }, { data: makeupUsers }, { data: transferInUsers }] = await Promise.all([
+            adminForCandidates.from('leave_requests').select('user_id')
+                .eq('session_id', sessionId).eq('status', 'approved'),
             adminForCandidates.from('enrollments').select('user_id')
                 .eq('course_id', courseId).eq('session_id', sessionId).eq('status', 'enrolled').eq('type', 'single'),
             adminForCandidates.from('makeup_requests').select('user_id')
@@ -2772,9 +2773,16 @@ export async function getTransferCandidates(
             adminForCandidates.from('transfer_requests').select('to_user_id')
                 .eq('session_id', sessionId).eq('status', 'approved').not('to_user_id', 'is', null),
         ]);
+        const leavedUserIds = new Set((leavedUsers ?? []).map((l: any) => l.user_id));
+        // Full-term enrolled students without leave are excluded; those WITH leave can receive transfer
+        (fullEnrolled ?? []).forEach(e => {
+            if (!leavedUserIds.has(e.user_id)) excludeIds.add(e.user_id);
+        });
         (singleEnrolled ?? []).forEach(e => excludeIds.add(e.user_id));
         (makeupUsers ?? []).forEach(m => excludeIds.add(m.user_id));
         (transferInUsers ?? []).forEach(t => excludeIds.add(t.to_user_id));
+    } else {
+        (fullEnrolled ?? []).forEach(e => excludeIds.add(e.user_id));
     }
 
     const { data: membersData } = await supabase
@@ -2861,6 +2869,8 @@ export async function submitTransferRequest(
         }
     }
 
+    let isFullTermWithLeave = false;
+
     if (toUserId) {
         // ALL course types: recipient must be a member
         const { data: toProfile } = await supabase.from('profiles').select('role').eq('id', toUserId).maybeSingle();
@@ -2879,7 +2889,21 @@ export async function submitTransferRequest(
         if (targetEnrollments && targetEnrollments.length > 0) {
             const hasFull = targetEnrollments.some(e => e.type === 'full');
             const hasSingleSelected = targetEnrollments.some(e => e.type === 'single' && e.session_id === sessionId);
-            if (hasFull) throw new Error('對方已是本班全期學員，無法轉讓');
+            if (hasFull) {
+                // Exception: allow transfer to full-term student IF they are on leave for this session.
+                // Check leave_requests first; fall back to attendance_records.status='leave'
+                // (leave_request may be absent if cleaned up by a subsequent makeup application)
+                const adminForLeaveCheck = createAdminClient();
+                const [{ data: targetLeave }, { data: targetAttendance }] = await Promise.all([
+                    adminForLeaveCheck.from('leave_requests').select('id')
+                        .eq('session_id', sessionId).eq('user_id', toUserId).eq('status', 'approved').maybeSingle(),
+                    adminForLeaveCheck.from('attendance_records').select('status')
+                        .eq('session_id', sessionId).eq('user_id', toUserId).maybeSingle(),
+                ]);
+                const isOnLeave = !!targetLeave || targetAttendance?.status === 'leave';
+                if (!isOnLeave) throw new Error('對方已是本班全期學員，無法轉讓');
+                isFullTermWithLeave = true;
+            }
             if (hasSingleSelected) throw new Error('對方已單堂報名此堂課，無法再次轉入');
         }
     }
@@ -2974,7 +2998,7 @@ export async function submitTransferRequest(
             marked_by: user.id,
             marked_at: new Date().toISOString(),
         }, { onConflict: 'session_id,user_id' }),
-        toUserId ? adminForTransfer.from('attendance_records').upsert({
+        (toUserId && !isFullTermWithLeave) ? adminForTransfer.from('attendance_records').upsert({
             session_id: sessionId,
             user_id: toUserId,
             status: 'transfer_in',
@@ -3231,10 +3255,19 @@ export async function registerUserAction(data: {
     email: string;
     password: string;
     name: string;
-    employee_id?: string;
+    employee_id: string;
 }): Promise<{ success: boolean; message: string }> {
     if (!data.email.endsWith('@mediatek.com')) {
         return { success: false, message: '僅限 mediatek.com 電子郵件註冊' };
+    }
+
+    if (!data.employee_id?.trim()) {
+        return { success: false, message: '工號為必填欄位' };
+    }
+
+    const emailPrefix = data.email.split('@')[0].toLowerCase();
+    if (/^(mtk|ds)\d+$/.test(emailPrefix)) {
+        return { success: false, message: '請檢查公司信箱是否正確，而非工號開頭如 mtkxxxxx@...' };
     }
 
     const adminClient = createAdminClient();

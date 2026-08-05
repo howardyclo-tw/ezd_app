@@ -114,6 +114,8 @@ interface StudentInfo {
     enrolledSessionIds?: string[]; // For single-session enrollments tracking
     enrollmentStatus?: 'enrolled' | 'pending_payment' | 'pending_vote';
     wantsLeader?: boolean;
+    transferInSessions?: string[];  // For _ta entries: sessions received via transfer while on leave
+    realUserId?: string;             // For _ta entries: the actual user UUID (id has _ta suffix)
 }
 
 type AttendanceMap = Record<string, Record<string, string>>;
@@ -427,6 +429,14 @@ export function CourseDetailClient({
         const dbStatus = student?.attendance[sessionId] ?? 'unmarked';
         const isOfficial = officialStudents.some(s => s.id === studentId);
 
+        // _ta entries: full-term student with leave who received transfer — always transfer_in origType
+        // (they appear in 加報 section; their official row is handled separately with the check below)
+        if (student?.transferInSessions?.includes(sessionId)) return 'transfer_in';
+
+        // Official section guard: don't let transfer_in metadata override a locked leave status.
+        // When a full-term student with leave receives a transfer, their official row keeps 'leave'.
+        if (isOfficial && dbStatus === 'leave' && meta?.type === 'transfer_in') return 'leave';
+
         // Check transfer_requests table first (survives saves)
         if (meta) {
             return meta.type;
@@ -509,7 +519,7 @@ export function CourseDetailClient({
                             return origType !== 'leave' && origType !== 'transfer_out';
                         })
                         .map(s => ({
-                            userId: s.id,
+                            userId: s.realUserId ?? s.id,
                             status: attendanceState[s.id]?.[sessionId] ?? 'unmarked',
                         }));
 
@@ -558,7 +568,9 @@ export function CourseDetailClient({
             const meta = transferMetadata[sessionId]?.[studentId];
             typeLabel = meta ? `轉讓 ${meta.toName}` : "轉讓";
         } else if (origType === 'transfer_in') {
-            const meta = transferMetadata[sessionId]?.[studentId];
+            // For _ta entries, strip the _ta suffix to look up real transfer metadata
+            const realId = studentId.endsWith('_ta') ? studentId.slice(0, -3) : studentId;
+            const meta = transferMetadata[sessionId]?.[realId];
             typeLabel = meta ? `${meta.fromName} 轉入` : "轉入";
         } else if (origType === 'makeup') {
             typeLabel = "補";

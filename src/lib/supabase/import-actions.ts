@@ -116,7 +116,7 @@ export async function importDataAction(type: 'members' | 'card_orders' | 'roster
                     email,
                     password: defaultPassword,
                     email_confirm: true,
-                    user_metadata: { name: name || email.split('@')[0] },
+                    user_metadata: { name: name || email.split('@')[0], employee_id: employee_id ? employee_id.toLowerCase().trim() : null },
                 });
 
                 if (userError) {

@@ -17,15 +17,7 @@
 - All server actions wrapped with `safe()`. User-facing guards that must show a message in prod use `return { success: false, message }` (not `throw`).
 - **Two Supabase projects**: dev `mvxdxldwznbqycfgwqmc`, prod `zhaloqbeguzsknodrxsm`. **All migrations run against DEV first via `mcp__supabase__apply_migration`, verified, and applied to prod only after feature acceptance.**
 - Work on the **`dev` branch** throughout. Do not push without explicit request. No `Co-Authored-By` lines in commits.
-- **CI gate per phase (must all pass before marking a feature done):** `npx tsc --noEmit` clean, `pnpm build` succeeds, full E2E suite (happy + adversarial + regression) green, and **lint clean on changed files**. NOTE: whole-repo `pnpm lint` (ESLint flat config, Next 16) reports **430 pre-existing problems (318 errors / 112 warnings), mostly `no-explicit-any` in `actions.ts`** — NOT our debt and out of scope. So the lint gate is scoped to files this phase creates/modifies: **new files must be ESLint-clean; modified existing files must introduce no NEW violations** (baseline-compare or judge in review). Do not attempt whole-repo lint-clean.
-- **No self-review (user directive):** every implementer/fix task is gated by an INDEPENDENT `claude-opus-4-6` reviewer — the orchestrator must NOT accept a task by reading the diff itself, no matter how small or "compiler-gated". No exceptions.
-- **100% important-feature coverage, normal + adversarial (user directive):** an important feature is not "done" until it has BOTH a happy-path AND an adversarial e2e, green. "Important" = money/pricing/orders; enrollment (single/full/MV/capacity/rebook); attendance/leave/makeup/transfer; access-control/roles; blacklist. Before Phase 3 rewires the enrollment engine, backfill regression coverage for makeup/transfer/waitlist (currently uncovered).
-- **Test-scope policy (efficiency + anti-cheat, `驗者不自驗`):** the implementer NEVER chooses their own pass criteria. (a) The ORCHESTRATOR assigns the per-task test scope up-front from the IMPACT MAP below, based on files the task will touch. (b) The INDEPENDENT REVIEWER audits scope adequacy against the actual diff (standing question: "was the test scope sufficient for what this diff changed? name any spec that should have run but didn't"). (c) The PHASE-END FULL SUITE runs as its own independent gate step (not folded into an implementer task) — the un-gameable backstop that catches any per-task scoping miss or misreport.
-  - **IMPACT MAP (code area → required tests):** pure lib (`pricing`/`allocation`/`capacity`/`date`) → `pnpm test` + `tsc` only (NO e2e). `actions.ts` enroll/order/card/capacity → enroll-single + card-purchase + refund-count + review-center-coursefee specs. attendance/leave/makeup/transfer/waitlist → those regression specs. review-center UI → review-center-coursefee + card-purchase. additive migration → `tsc` + one relevant flow spec. ANY change → `tsc` + changed-file lint always.
-  - **FULL SUITE (what the phase gate runs) =** all `e2e/regression/*` + all `e2e/features/*` + (from 5R.8 on) all `e2e/journeys/*` + all unit tests (`pnpm test`) + `tsc --noEmit` + changed-file lint. Kept current in the dashboard's "測試套件組成" panel. As of Phase 5 end: 47 e2e + 86 unit.
-- **Workflow contention rule (learned Phase 5):** the IMPLEMENTER runs ONLY its assigned/new specs; the REVIEWER runs the full suite ALONE as the gate; the ORCHESTRATOR does one final clean single-run at phase end. Two concurrent Playwright runs against the one dev server produce false-timeout failures.
-- **UX rules (user directive 2026-07-05, gate conditions from Phase 5R on):** see `docs/superpowers/specs/2026-07-05-mtk-ux-addendum.md` §0 — (1) entry-point rule (no reachable entry = not done); (2) dual-role (幹部/學員) UX spec section required BEFORE implementing any UI phase; (3) state-visibility rule (every async status visible to owner + admin); (4) closed-state rule (windows render friendly disabled states); (5) style consistency (shadcn + tokens + `src/lib/constants.ts` badges only, no new color literals — reviewer must check); (6) phase gates include dual-role walkthrough e2e (`e2e/journeys/*`).
-- **Doc sync at each phase gate:** update dashboard HTML (progress + coverage matrix — `docs/mtk-feature-tracker.md` is RETIRED, its matrix now lives in the dashboard) + decision log (if decisions changed) + SDD ledger + redeploy the Artifact. Per-task dashboard updates are NOT required (batch at phase end).
+- **CI gate per phase (must all pass before marking a feature done):** `npx tsc --noEmit` clean, `pnpm lint` clean, `pnpm build` succeeds, full E2E suite (happy + adversarial + regression) green.
 
 ## Ground-Truth Notes (verified against live dev DB 2026-07-02)
 
@@ -182,7 +174,7 @@ git commit -m "test: add Playwright e2e harness (config + auth fixture)"
 **Interfaces:**
 - Produces: seeded accounts (admin/member/guest), one `member_groups` row valid to year-end, one course group with a card-mode `normal` course, an `ntd` `workshop`, a `free` `style` course, sessions, and an `open` MV poll on a normal course.
 
-- [ ] **Step 1: Write `e2e/seed.sql`** — idempotent upserts keyed by fixed UUIDs (so reruns are stable). **Pre-migration schema ONLY** (this seed feeds the Phase 0.3 regression baseline that runs before migrations 010/011). Include: 3 auth users + profiles (roles), a member_group `valid_until = <year>-12-31`, a course_group with `registration_phase1_start/end` around "now", one card-mode `normal` course with 2-3 future sessions, and a confirmed card pool for the member (`card_orders` status='confirmed', `profiles.card_balance` set). Use `ON CONFLICT DO UPDATE`. **Do NOT reference `pricing_mode`/`enroll_*`/`course_polls` — those don't exist until Phase 1.** Feature fixtures (`ntd`/`free` courses, MV polls) are appended to `seed.sql` in Tasks 5.2 / 6.1 once their columns exist.
+- [ ] **Step 1: Write `e2e/seed.sql`** — idempotent upserts keyed by fixed UUIDs (so reruns are stable). Include: 3 auth users + profiles (roles), a member_group `valid_until = <year>-12-31`, a course_group with `registration_phase1_start/end` around "now", the four course archetypes with sessions, and a poll+options on a normal course. Use `ON CONFLICT DO UPDATE`.
 - [ ] **Step 2: Document run command** in `e2e/README.md`: apply via `mcp__supabase__execute_sql` against dev project `mvxdxldwznbqycfgwqmc`, or `supabase db execute`. Note: auth users must be created via Supabase Admin API (same as app registration) — script includes a Node helper `e2e/seed-users.mjs` calling the admin API with the service role key from `.env.local`.
 - [ ] **Step 3: Create `e2e/seed-users.mjs`** using `@supabase/supabase-js` admin `createUser` (idempotent: ignore "already registered").
 - [ ] **Step 4: Run the seed** against dev; verify rows via `mcp__supabase__execute_sql` `SELECT`.
@@ -507,11 +499,9 @@ git commit -m "refactor: single isMemberActive across order/import; remove dead 
   - `confirmOrder(orderId)` — if `course_fee`: set linked enrollments `status='enrolled'`; if `card_purchase`: existing issue-cards behavior; if the card_purchase is linked to enrollments (同步購卡), after issuing cards run deduction and flip those enrollments to `enrolled` (see 2.3).
   - `cancelOrder(orderId, reason)` — set order `cancelled`, linked enrollments `cancelled` + `cancel_reason`, release seats, refund any deducted cards by the correct count.
 
-**Sequencing note (added during execution):** The full UI e2e "guest self-enrolls ntd → pending_payment order" cannot run at 2.1 — the ntd enroll *routing* is built in Phase 5.5, and the admin *confirm/cancel* UI is Task 2.3. So 2.1 builds and verifies the functions; the course-fee **confirm/cancel** e2e lands in **Task 2.3** (drive the review-center UI over a seeded pending course_fee order + `pending_payment` enrollment), and the **create-from-enrollment** e2e lands in **Phase 5**.
-
-- [ ] **Step 1: Implement** the three functions (`createCourseFeeOrder`, generalize `confirmCardOrder`→`confirmOrder` and `rejectCardOrder`/`cancelCardOrder`→`cancelOrder` to branch on `order_type`); reuse/generalize `submitRemittanceInfo` to any `order_type`.
-- [ ] **Step 2: Preserve card-order behavior** — the existing card_purchase confirm/cancel/reject paths must behave identically (they are regression-covered). Keep backward-compatible exported names or update call sites consistently.
-- [ ] **Step 3: Verify** — `npx tsc --noEmit` clean; run `pnpm e2e e2e/regression` (card-purchase confirm/approve path MUST stay green, proving the generalization didn't break the card flow). Optionally seed a pending `course_fee` order + linked `pending_payment` enrollment via MCP SQL and confirm the new branch's DB transitions by direct query.
+- [ ] **Step 1: Write happy-path e2e** `e2e/features/course-fee-order.spec.ts` — guest enrolls in an `ntd` workshop single → enrollment `pending_payment`, order `pending`; guest submits remittance → `remitted`; admin confirms → enrollment `enrolled`, seat counted. (Will fail until implemented.)
+- [ ] **Step 2: Implement** the three functions above; reuse existing `submitRemittanceInfo` (generalize to any `order_type`).
+- [ ] **Step 3: Run e2e — PASS.**
 - [ ] **Step 4: Commit** `feat: course_fee order lifecycle (create/confirm/cancel) with enrollment side-effects`.
 
 ### Task 2.2: Fix hard-coded 1-card refund/re-deduct in `reviewSingleEnrollment`
@@ -665,44 +655,6 @@ git commit -m "refactor: single isMemberActive across order/import; remove dead 
 
 ---
 
-## Phase 5R — UX completion & alignment fixes (user acceptance of Phase 5, 2026-07-05)
-
-**Source spec:** `docs/superpowers/specs/2026-07-05-mtk-ux-addendum.md` (single source of truth; §-refs below point there). Execute strictly in order 5R.1 → 5R.8 (heavy file overlap in actions.ts / course-form / wizard — do NOT parallelize). Every task follows the standard SDD contract (impl workflow → independent review workflow, anti-false-green clauses, mutation tests).
-
-### Task 5R.1: Identity-eligibility setting (per-course 開放對象) — addendum §A
-**Files:** `supabase/migrations/015_enroll_identity.sql` (apply to dev via MCP + repo file); `src/lib/supabase/actions.ts` (guard helpers + REMOVE the two blanket guest-full throws at batchEnrollInCourses ~300 and submitGroupEnrollment ~3375); `src/components/admin/course-form.tsx` (開放對象 selects + conditional guest-price requirement); wizard/course lists (locked-with-reason display); `e2e/features/enroll-identity.spec.ts` + fixtures.
-- [ ] Columns `enroll_full_identity`/`enroll_single_identity` text NOT NULL DEFAULT 'all' CHECK IN ('all','member'); identity check uses `isMemberActive` (NOT raw role). Distinct guard messages (§A). Tests: H guest full-enrolls card course + ntd guest_full price; A member-only rejects guest (full+single, server-direct, mutation-tested); A ntd null-guest-price rejected.
-- Verification scope: tsc + changed-file lint + new spec + enroll-gating + register-wizard specs green (implementer); full suite (reviewer, alone).
-
-### Task 5R.2: Wizard entry point + window-driven states — addendum §B
-**Files:** `src/app/(protected)/courses/groups/[groupId]/page.tsx` (button lifecycle + admin 報名時段 header + quick-edit dialog); DELETE `src/components/courses/group-enrollment-dialog.tsx` (+ imports); `/register` page closed-states; `e2e/features/register-entry.spec.ts`.
-- [ ] Button states: 未設定(admin-only hint)/未開始(disabled+開放時間)/進行中(CTA→/register; existing submission→查看/修改報名)/已截止(disabled+單堂提示). Admin quick-edit reuses `updateCourseGroup`. Preserve main-branch hidden invariant (branch diff).
-
-### Task 5R.3: Modify-as-rebook UI — addendum §C
-**Files:** register wizard client/page; `e2e/features/register-modify.spec.ts`.
-- [ ] Existing-submission summary + 修改報名 + strong warning dialog → `resubmitGroupEnrollment`; confirmed-order blocked state UX. Tests: H full UI modify; A confirmed-order blocked, DB untouched.
-
-### Task 5R.4: Embedded card-purchase unit validation + prefill — addendum §D
-**Files:** wizard client (prefill/stepper); `submitGroupEnrollment` (multiple-of-unit server validation, NO window check); extend register-wizard spec.
-- [ ] Prefill = ceil(shortfall/unit)×unit; server rejects non-multiples fail-fast. A: direct non-multiple call rejected, nothing created (mutation-tested).
-
-### Task 5R.5: Personal center 我的堂卡・繳費 — addendum §E (pulls 8.1 forward)
-**Files:** `my_cards` page+client (tabs: 堂卡|繳費紀錄 w/ 補匯款+owner cancel); `my_courses` badges; dashboard todo chip + entry-card copy; `src/lib/constants.ts` (+ENROLLMENT_STATUS_*, ORDER_STATUS_*); `e2e/features/my-payments.spec.ts`.
-- [ ] Owner cancel = `cancelOrder` (cancels linked enrollments + releases seats) — the only self-serve pre-payment cancel path. Tests: H remittance backfill→remitted; H owner cancel releases; A non-owner cancel rejected (regression).
-
-### Task 5R.6: Pending-status restrictions + roster badges — addendum §F
-**Files:** leave/transfer/makeup actions (verify/enforce enrolled-only); course roster components (待繳費/待開票 badges); `e2e/features/pending-restrictions.spec.ts`.
-- [ ] A: pending_vote/pending_payment cannot leave/transfer/be-makeup-source (server, mutation-tested). Also test spec §6.1 confirm-time insufficient-cards → order stays remitted + explicit error (fix if actual behavior differs).
-
-### Task 5R.7: 繳費對帳 group-by-檔期 + normal single-window default — addendum §G
-**Files:** approvals tab (group headers + 待審 chip); course-form (normal→prefill single window start=first session); extend review-center + course-form specs.
-
-### Task 5R.8: Dual-role journey e2e + style audit — addendum §H (phase gate)
-**Files:** `e2e/journeys/student-journey.spec.ts`, `e2e/journeys/admin-journey.spec.ts`; style-consistency reviewer checklist run over all 5R diffs.
-- [ ] Full-suite gate (now incl. journeys) + dashboard/decision-log/ledger sync + Artifact redeploy + phase reflection.
-
----
-
 ## Phase 6 — MV voting + open-ballot settlement
 
 ### Task 6.1: Poll authoring in course form + tally view
@@ -779,23 +731,6 @@ git commit -m "refactor: single isMemberActive across order/import; remove dead 
 - [ ] **Step 2: Update `docs/mtk-feature-tracker.md`** — mark implemented/E2E columns; confirm every requirement row has ✅ across H/A/R or a noted exception.
 - [ ] **Step 3: Prod migration checklist** — apply migrations 010–013 + data backfills to prod `zhaloqbeguzsknodrxsm` via MCP in order; re-run smoke E2E against a prod-like env; confirm CLAUDE.md prod invariants (EZDANCE header, group enrollment visibility decision) are intact.
 - [ ] **Step 4: Commit** `docs: finalize MTK feature tracker; all gates green`.
-
----
-
-## Phase 9 — Repo-wide lint-debt cleanup (scheduled; runs LAST)
-
-**Context:** The repo was scaffolded on Next 16 + ESLint 9 with a broken `next lint` script and an ESLint-9-ignored `.eslintrc.json`, so lint never ran until Task 0.4. Result: **430 pre-existing problems (318 errors / 112 warnings), overwhelmingly `@typescript-eslint/no-explicit-any`** in `src/lib/supabase/actions.ts` and peers. This phase drives the whole repo to lint-clean.
-
-**Why last (not now):** (1) It's a large, behavior-risky diff — replacing `any` with real types routinely surfaces latent bugs; it must run with the FULL e2e safety net (regression + all feature suites) in place, which only exists after Phase 8. (2) It dovetails with Task 1.3's refreshed `database.ts` types and the typed row shapes introduced across Phases 1–7 — many `any`s become trivially typeable once those exist, so doing it after avoids re-work. (3) It must not block or entangle the MTK feature delivery.
-
-### Task 9.1: Auto-fixable + mechanical rules
-- [ ] Run `npx eslint . --fix` for the 3 auto-fixable problems + any trivially mechanical rules (prefer-const, unused imports); run tsc + full e2e; commit per rule-group.
-
-### Task 9.2: `no-explicit-any` elimination, file-by-file
-- [ ] For each high-count file (start with `actions.ts`), replace `any` with real types (Supabase row types from refreshed `database.ts`, generics, `unknown` + narrowing). After each file: `npx tsc --noEmit`, `npx eslint <file>` clean, run the e2e suites that cover that file's behavior, commit. Never weaken types with `// eslint-disable` except where genuinely unavoidable (documented).
-
-### Task 9.3: Remaining warnings + whole-repo gate flip
-- [ ] Clear residual warnings; once `pnpm lint` (whole repo) is clean, flip the CI gate from "changed-files" to "whole-repo lint clean" and update the plan's Global Constraints + tracker.
 
 ---
 
