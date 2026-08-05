@@ -275,8 +275,37 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
         });
     }
 
+    // Special case: full-term enrolled students who received a transfer while on approved leave.
+    // They appear in BOTH the official section (showing 'leave', locked) and the 加報 section
+    // (showing 'transfer_in', toggleable). Use synthetic _ta id to avoid attendanceState conflicts.
+    const taRoster: any[] = [];
+    (transfersApproved ?? []).forEach(t => {
+        if (!t.to_user_id || !enrolledUserIds.has(t.to_user_id)) return;
+        const hasLeave = (leaveRequests ?? []).some(
+            (l: any) => l.user_id === t.to_user_id && l.session_id === t.session_id
+        );
+        if (!hasLeave) return;
+        // Find this student's profile from enrollmentRoster (already fetched)
+        const officialEntry = enrollmentRoster.find((r: any) => r.id === t.to_user_id);
+        if (!officialEntry) return;
+        // Initial status: use actual DB attendance if already marked, otherwise 'transfer_in'
+        const actualStatus = attendanceMap[t.to_user_id]?.[t.session_id];
+        const initStatus = (actualStatus === 'present' || actualStatus === 'absent') ? actualStatus : 'transfer_in';
+        taRoster.push({
+            id: `${t.to_user_id}_ta`,
+            realUserId: t.to_user_id,
+            name: officialEntry.name,
+            role: officialEntry.role,
+            isLeader: officialEntry.isLeader,
+            type: 'additional',
+            attendance: { [t.session_id]: initStatus },
+            enrolledSessionIds: [t.session_id],
+            transferInSessions: [t.session_id],
+        });
+    });
+
     // Combined Roster
-    const rosterWithAttendance = [...enrollmentRoster, ...additionalOnlyRoster];
+    const rosterWithAttendance = [...enrollmentRoster, ...additionalOnlyRoster, ...taRoster];
 
     // Reuse transfersApproved for detailed labels (names)
     const transferMetadata: Record<string, Record<string, { type: 'transfer_out' | 'transfer_in'; fromName: string; toName: string }>> = {};
