@@ -281,10 +281,13 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ g
     const taRoster: any[] = [];
     (transfersApproved ?? []).forEach(t => {
         if (!t.to_user_id || !enrolledUserIds.has(t.to_user_id)) return;
-        const hasLeave = (leaveRequests ?? []).some(
+        // Check leave_requests first; fall back to attendance_records.status='leave'
+        // (leave_requests may be absent if cleaned up by a subsequent makeup application)
+        const hasLeaveRequest = (leaveRequests ?? []).some(
             (l: any) => l.user_id === t.to_user_id && l.session_id === t.session_id
         );
-        if (!hasLeave) return;
+        const hasLeaveAttendance = attendanceMap[t.to_user_id]?.[t.session_id] === 'leave';
+        if (!hasLeaveRequest && !hasLeaveAttendance) return;
         // Find this student's profile from enrollmentRoster (already fetched)
         const officialEntry = enrollmentRoster.find((r: any) => r.id === t.to_user_id);
         if (!officialEntry) return;

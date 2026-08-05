@@ -1903,16 +1903,18 @@ export async function submitTransferRequest(
             const hasFull = targetEnrollments.some(e => e.type === 'full');
             const hasSingleSelected = targetEnrollments.some(e => e.type === 'single' && e.session_id === sessionId);
             if (hasFull) {
-                // Exception: allow transfer to full-term student IF they have approved leave for this session
-                // They will appear in the 加報 (additional) section, not changing their official leave status
-                const { data: targetLeave } = await supabase
-                    .from('leave_requests')
-                    .select('id')
-                    .eq('session_id', sessionId)
-                    .eq('user_id', toUserId)
-                    .eq('status', 'approved')
-                    .maybeSingle();
-                if (!targetLeave) throw new Error('對方已是本班全期學員，無法轉讓');
+                // Exception: allow transfer to full-term student IF they are on leave for this session.
+                // Check leave_requests first; fall back to attendance_records.status='leave'
+                // (leave_request may be absent if cleaned up by a subsequent makeup application)
+                const adminForLeaveCheck = createAdminClient();
+                const [{ data: targetLeave }, { data: targetAttendance }] = await Promise.all([
+                    adminForLeaveCheck.from('leave_requests').select('id')
+                        .eq('session_id', sessionId).eq('user_id', toUserId).eq('status', 'approved').maybeSingle(),
+                    adminForLeaveCheck.from('attendance_records').select('status')
+                        .eq('session_id', sessionId).eq('user_id', toUserId).maybeSingle(),
+                ]);
+                const isOnLeave = !!targetLeave || targetAttendance?.status === 'leave';
+                if (!isOnLeave) throw new Error('對方已是本班全期學員，無法轉讓');
                 isFullTermWithLeave = true;
             }
             if (hasSingleSelected) throw new Error('對方已單堂報名此堂課，無法再次轉入');
