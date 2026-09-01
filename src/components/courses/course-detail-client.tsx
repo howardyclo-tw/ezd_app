@@ -648,6 +648,10 @@ export function CourseDetailClient({
                                     取消候補
                                 </Button>
                             </div>
+                        ) : course.type === 'showcase' ? (
+                                <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-muted/40 text-muted-foreground border border-muted/50">
+                                    <span className="text-sm font-medium">成發課程僅開放整期報名</span>
+                                </div>
                         ) : (
                                 <SessionEnrollmentDialog
                                     courseId={course.id}
@@ -802,7 +806,8 @@ export function CourseDetailClient({
                                                 </div>
                                             </div>
 
-                                            {/* Actions at bottom - Leave available for everyone; Transfer available for official in normal, AND everyone in special/workshop */}
+                                            {/* Actions at bottom - Leave available for everyone; Transfer available for official in normal, AND everyone in special/workshop. 成發：一律不開放請假/轉讓，整列隱藏 */}
+                                            {course.type !== 'showcase' && (
                                             <div className={cn(
                                                 "mt-auto grid border-t border-white/[0.08] bg-white/[0.02] transition-colors group-hover:bg-white/[0.07]",
                                                 ((isTransferableCourse && isOfficial) || course.type === 'special' || course.type === 'workshop') ? "grid-cols-2" : "grid-cols-1"
@@ -838,6 +843,7 @@ export function CourseDetailClient({
                                                     </Button>
                                                 )}
                                             </div>
+                                            )}
                                         </div>
                                     );
                                 })}

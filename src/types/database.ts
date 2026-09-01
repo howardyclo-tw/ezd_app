@@ -14,7 +14,8 @@ export type CourseType =
   | 'trial'        // 試跳課程
   | 'special'      // 特殊常態 (隱藏但保留)
   | 'style'        // 風格體驗
-  | 'workshop';    // 專攻班
+  | 'workshop'     // 專攻班
+  | 'showcase';    // 成發（成果發表）— 一律不開放單堂報名／補課／請假／轉讓
 
 export type CourseStatus = 'draft' | 'published' | 'closed';
 
@@ -303,4 +304,5 @@ export const COURSE_TYPE_LABELS: Record<CourseType, string> = {
   special: '特殊常態',
   style: '風格體驗',
   workshop: '專攻班',
+  showcase: '成發',
 };
