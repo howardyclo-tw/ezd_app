@@ -1084,7 +1084,7 @@ export function CourseDetailClient({
                         <AlertDialogDescription asChild className="space-y-4">
                             <div>
                                 <p>
-                                    確定要申請 {selectedSession && format(parseISO(selectedSession.date), "MM/dd")} 的課程請假嗎？
+                                    確定要申請 {selectedSession && `${format(parseISO(selectedSession.date), "MM/dd")} (第${selectedSession.number}堂)`} 的課程請假嗎？
                                     請假名額將釋出給補課或轉入的同學。
                                 </p>
                                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 leading-relaxed space-y-2">
@@ -1139,7 +1139,7 @@ export function CourseDetailClient({
                         </DialogTitle>
                         <DialogDescription>
                             {transferStep === 'pick'
-                                ? `將 ${selectedSession ? format(parseISO(selectedSession.date), "MM/dd") : ''} 的課程名額轉讓給指定學員`
+                                ? `將 ${selectedSession ? `${format(parseISO(selectedSession.date), "MM/dd")} (第${selectedSession.number}堂)` : ''} 的課程名額轉讓給指定學員`
                                 : `確定要將名額轉讓給 ${selectedTransferUser?.name} 嗎？`}
                         </DialogDescription>
                     </DialogHeader>

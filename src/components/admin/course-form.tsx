@@ -591,7 +591,7 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>課程類型</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                                 <SelectTrigger className="h-11">
                                                     <SelectValue placeholder="選擇類型" />
@@ -885,14 +885,6 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                 render={({ field: sessionField }) => {
                                                                     const dateValue = sessionField.value ? new Date(sessionField.value) : undefined;
 
-                                                                    // Collect all other sessions' dates for duplicate check
-                                                                    const otherDates = new Set(
-                                                                        form.getValues('sessions')
-                                                                            .filter((_: any, i: number) => i !== index)
-                                                                            .map((s: any) => s.date ? format(new Date(s.date), 'yyyy-MM-dd') : '')
-                                                                            .filter(Boolean)
-                                                                    );
-
                                                                     return (
                                                                         <FormItem className="flex-1 space-y-0 text-left">
                                                                             <Popover>
@@ -921,20 +913,13 @@ export function CourseForm({ initialData, mode = 'create' }: CourseFormProps = {
                                                                                         mode="single"
                                                                                         selected={dateValue}
                                                                                         onSelect={(date) => {
-                                                                                            if (date && otherDates.has(format(date, 'yyyy-MM-dd'))) {
-                                                                                                toast.error('此日期已被其他堂次使用');
-                                                                                                return;
-                                                                                            }
                                                                                             sessionField.onChange(date);
                                                                                             // If first session date changed, sync first_session_at
                                                                                             if (index === 0 && date) {
                                                                                                 setValue('first_session_at', date);
                                                                                             }
                                                                                         }}
-                                                                                        disabled={(date) =>
-                                                                                            date < new Date('2020-01-01') ||
-                                                                                            otherDates.has(format(date, 'yyyy-MM-dd'))
-                                                                                        }
+                                                                                        disabled={(date) => date < new Date('2020-01-01')}
                                                                                         initialFocus
                                                                                         locale={zhTW}
                                                                                     />
