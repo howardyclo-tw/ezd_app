@@ -223,6 +223,8 @@ export function SessionEnrollmentDialog({
                     {/* Mode Selection */}
                     {mode === 'selection' && (
                         <div className="grid gap-4">
+                            {/* 成發課程不開放單堂報名（防禦縱深：課程頁已不會渲染此 dialog） */}
+                            {courseType !== 'showcase' && (
                             <div
                                 onClick={() => setMode('enroll')}
                                 className="flex items-center gap-5 p-5 rounded-2xl border-2 border-transparent bg-muted/5 hover:border-orange-500/40 hover:bg-orange-500/[0.03] transition-all cursor-pointer group"
@@ -236,6 +238,7 @@ export function SessionEnrollmentDialog({
                                 </div>
                                 <ArrowRight className="h-5 w-5 text-muted-foreground/30 group-hover:translate-x-1 transition-transform" />
                             </div>
+                            )}
 
                             {(courseType === 'normal' || courseType === 'special') && (
                                 <div

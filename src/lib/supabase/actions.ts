@@ -343,6 +343,16 @@ export async function enrollInCourse(
         if (windowMsg) return { success: false, status: 'enrolled', message: windowMsg };
     }
 
+    // 成發課程一律不開放單堂報名（僅開放整期報名）
+    if (type === 'single' && course.type === 'showcase') {
+        return { success: false, status: 'enrolled', message: '成發課程不開放單堂報名' };
+    }
+
+    const now = new Date();
+    if (course.enrollment_start_at && new Date(course.enrollment_start_at) > now) {
+        throw new Error('報名尚未開始');
+    }
+
     // Legacy course-level window check (kept for full path as additional defence)
     if (type === 'full') {
         const now = new Date();
@@ -637,6 +647,11 @@ export async function batchEnrollInSessions(
     if (!course) throw new Error('課程不存在');
     if (!profile) throw new Error('使用者資料不存在');
 
+    // 成發課程一律不開放單堂報名（僅開放整期報名）— batchEnrollInSessions 是 UI 實際使用的單堂路徑
+    if (course.type === 'showcase') {
+        return { success: false, message: '成發課程不開放單堂報名' };
+    }
+
     // ── Guards: enroll mode, course window, identity ──
     // (guardPricingMode removed: pricing-aware routing handles all modes)
     const modeMsg = guardEnrollSingle(course);
@@ -802,8 +817,6 @@ export async function batchEnrollInSessions(
         { role: profile.role, member_valid_until: profile.member_valid_until ?? null, groupValidUntil },
         taipeiToday
     );
-
-    // Check existing enrollments (include pending_payment for ntd)
     const { data: existing } = await supabase.from('enrollments')
         .select('session_id')
         .eq('course_id', courseId)
@@ -2007,6 +2020,12 @@ export async function submitLeaveRequest(
 
     if (!enrollment && !hasMakeupForSession && !hasTransferInForSession) throw new Error('您未報名此課程，無法申請請假');
 
+    // 成發課程一律不開放請假
+    const { data: leaveCourseMeta } = await supabase.from('courses').select('type').eq('id', courseId).maybeSingle();
+    if (leaveCourseMeta?.type === 'showcase') {
+        return { success: false, message: '成發課程不開放請假' };
+    }
+
     // --- Date Guard: cannot take leave on past sessions ---
     const { data: sessionInfo } = await supabase
         .from('course_sessions')
@@ -2275,7 +2294,7 @@ async function internalSubmitMakeupRequest(
     // Check original/target courses
     const [originalCourseRes, targetRes, enrollmentsRes] = await Promise.all([
         supabase.from('courses').select('group_id, type').eq('id', originalCourseId).maybeSingle(),
-        supabase.from('course_sessions').select('course_id, session_date, courses ( group_id, capacity, start_time )').eq('id', targetSessionId).maybeSingle(),
+        supabase.from('course_sessions').select('course_id, session_date, courses ( group_id, capacity, start_time, type )').eq('id', targetSessionId).maybeSingle(),
         supabase.from('enrollments').select('type').eq('course_id', originalCourseId).eq('user_id', user.id).eq('status', 'enrolled'),
     ]);
 
@@ -2286,6 +2305,11 @@ async function internalSubmitMakeupRequest(
     let effectiveOriginalCourseId = originalCourseId;
 
     if (!target) throw new Error('目標堂次不存在');
+
+    // 成發課程一律不開放補課（不可作為補課目標）
+    if ((target.courses as any)?.type === 'showcase') {
+        return { success: false, message: '成發課程不開放補課' };
+    }
 
     // Date guard: cannot makeup into a past session
     if (!isBeforeClass(target.session_date, (target.courses as any)?.start_time ?? '00:00')) {
@@ -2365,6 +2389,11 @@ async function internalSubmitMakeupRequest(
 
     if (!originalCourse) throw new Error('原始課程不存在');
     if (!userEnrollment) throw new Error('您未報名原始課程');
+
+    // 成發課程一律不開放補課（成發缺席不可申請補課）
+    if (originalCourse.type === 'showcase') {
+        return { success: false, message: '成發課程不開放補課' };
+    }
 
     // Rule 0: Cannot makeup in a course you are already full-term enrolled in,
     // or if you already have the specific target session (single enrollment / makeup / transfer_in)
@@ -2848,6 +2877,11 @@ export async function submitTransferRequest(
     }
     // --- Course type check: normal/special/workshop support transfer ---
     const { data: courseMeta } = await supabase.from('courses').select('type').eq('id', courseId).maybeSingle();
+
+    // 成發課程一律不開放轉讓（成發也不開放請假，故不導引至請假）
+    if (courseMeta?.type === 'showcase') {
+        return { success: false, message: '成發課程不開放轉讓' };
+    }
 
     if (courseMeta?.type !== 'normal' && courseMeta?.type !== 'special' && courseMeta?.type !== 'workshop') {
         return { success: false, message: '此課程類型不支援轉讓，請改用請假功能（將釋出報名名額）' };

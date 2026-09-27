@@ -88,7 +88,7 @@ const courseSchema = z.object({
     name: z.string().min(2, { message: '課程名稱至少 2 個字' }),
     description: z.string().optional(),
     leader: z.string().optional(),
-    type: z.enum(['normal', 'trial', 'special', 'style', 'workshop']),
+    type: z.enum(['normal', 'trial', 'special', 'style', 'workshop', 'showcase']),
     teacher: z.string().min(1, { message: '請輸入老師姓名' }),
     room: z.string().min(1, { message: '請輸入教室' }),
     start_time: z.string().regex(/^([01]\d|2[0-3]):?([0-5]\d)$/, { message: '請輸入有效的時間格式 (HH:mm)' }),
@@ -819,7 +819,7 @@ export function CourseForm({ initialData, mode = 'create', initialPolls }: Cours
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>課程類型</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                                 <SelectTrigger className="h-11">
                                                     <SelectValue placeholder="選擇類型" />
@@ -830,6 +830,7 @@ export function CourseForm({ initialData, mode = 'create', initialPolls }: Cours
                                                 <SelectItem value="trial">試跳課程</SelectItem>
                                                 <SelectItem value="style">風格體驗</SelectItem>
                                                 <SelectItem value="workshop">專攻班</SelectItem>
+                                                <SelectItem value="showcase">成發</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -1429,14 +1430,6 @@ export function CourseForm({ initialData, mode = 'create', initialPolls }: Cours
                                                                 render={({ field: sessionField }) => {
                                                                     const dateValue = sessionField.value ? new Date(sessionField.value) : undefined;
 
-                                                                    // Collect all other sessions' dates for duplicate check
-                                                                    const otherDates = new Set(
-                                                                        form.getValues('sessions')
-                                                                            .filter((_: any, i: number) => i !== index)
-                                                                            .map((s: any) => s.date ? format(new Date(s.date), 'yyyy-MM-dd') : '')
-                                                                            .filter(Boolean)
-                                                                    );
-
                                                                     return (
                                                                         <FormItem className="flex-1 space-y-0 text-left">
                                                                             <Popover>
@@ -1465,20 +1458,13 @@ export function CourseForm({ initialData, mode = 'create', initialPolls }: Cours
                                                                                         mode="single"
                                                                                         selected={dateValue}
                                                                                         onSelect={(date) => {
-                                                                                            if (date && otherDates.has(format(date, 'yyyy-MM-dd'))) {
-                                                                                                toast.error('此日期已被其他堂次使用');
-                                                                                                return;
-                                                                                            }
                                                                                             sessionField.onChange(date);
                                                                                             // If first session date changed, sync first_session_at
                                                                                             if (index === 0 && date) {
                                                                                                 setValue('first_session_at', date);
                                                                                             }
                                                                                         }}
-                                                                                        disabled={(date) =>
-                                                                                            date < new Date('2020-01-01') ||
-                                                                                            otherDates.has(format(date, 'yyyy-MM-dd'))
-                                                                                        }
+                                                                                        disabled={(date) => date < new Date('2020-01-01')}
                                                                                         initialFocus
                                                                                         locale={zhTW}
                                                                                     />
